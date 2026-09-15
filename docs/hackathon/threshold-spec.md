@@ -5,7 +5,7 @@
 > through the doorbell — a complete two-way conversation with no hearing required.
 
 Primary track: **Ring** · Mini-challenges entered: **AWS Builder** + **Open Source**
-Platform: **React Native (iOS + Android)** — mobile is intrinsic, not decorative (see §4).
+Platform: **Flutter (iOS + Android)** — mobile is intrinsic, not decorative (see §4).
 Name: *threshold* is the audiology term for the quietest sound a person can detect, and the place where a
 visitor stands. Both meanings are the product.
 
@@ -126,21 +126,26 @@ Non-obvious use of the handset:
 Ring device
    │  WebRTC / WHEP  (audio sendrecv · video recvonly)
    ▼
-React Native app (iOS + Android)
-   ├── react-native-webrtc ......... session, SDP exchange mirroring useWebRTCStream.ts
-   ├── whisper.rn ................. Privacy Mode: whisper.cpp + Silero VAD + RealtimeTranscriber
-   │                                (Core ML on iOS), fully offline
-   ├── native TTS ................. reply synthesis → outbound audio track
-   ├── VideoProcessor port ........ Ring's plugin interface for visual context
-   └── haptics / a11y ............. haptic vocabulary, WCAG 2.2 AA, screen reader
+Flutter app (iOS + Android)
+   ├── flutter_webrtc ............. session, SDP exchange mirroring the sample's useWebRTCStream.ts
+   ├── whisper_ggml / FFI→whisper.cpp  Privacy Mode: on-device Whisper + VAD, fully offline
+   │                                (see R7 — rougher in Flutter than whisper.rn; Clarity Mode is default)
+   ├── flutter_tts ................ reply synthesis → outbound audio track (see R1)
+   ├── VideoProcessor port ........ reimplement Ring's plugin contract in Dart; google_mlkit / tflite_flutter
+   └── haptics / a11y ............. haptic vocabulary, WCAG 2.2 AA, TalkBack/VoiceOver
         ▲                    │
-        │ push (SSE/WS)      │ audio frames (Clarity Mode only)
+        │ push (FCM/APNs/WS) │ audio frames (Clarity Mode only)
         ▼                    ▼
-Backend (Node / Next.js API routes)
+Backend (Dart shelf / or Node — framework-independent, talks HTTP+WS)
    ├── OAuth token exchange + refresh        ├── Amazon Transcribe streaming (partial results
-   ├── Webhook receiver → fan-out            │   stabilization) — Clarity Mode
+   ├── Webhook receiver → fan-out            │   stabilization) — Clarity Mode, default
    └── Bedrock: Smart Replies from transcript└── conversation persistence
 ```
+
+> **Framework note.** The app is Flutter/Dart. Everything below the dashed line (Ring OAuth/webhooks, AWS
+> Transcribe, Bedrock) is plain HTTP/WebSocket and is framework-independent — it can stay Node or move to a
+> Dart `shelf` server, your call. The only Flutter-specific cost is the on-device speech path (R7); the
+> cloud path (Transcribe) is identical to any stack.
 
 **Data model**
 
@@ -158,11 +163,11 @@ ReplyTemplate{ id, text, category, usageCount }
 
 | Component | Location | Justification |
 |---|---|---|
-| Streaming ASR | On-device (whisper.cpp) *or* Transcribe | User-selectable privacy/accuracy trade-off |
-| VAD | On-device (Silero) | Gates noise cheaply before inference |
-| TTS | On-device | Latency; a stranger is waiting |
+| Streaming ASR | **Transcribe (default)** *or* on-device whisper.cpp | Cloud is the reliable path in Flutter; on-device is the privacy stretch goal (R7) |
+| VAD | On-device | Gates noise cheaply before inference |
+| TTS | On-device (`flutter_tts`) | Latency; a stranger is waiting |
 | Smart Replies | Bedrock | Short, non-latency-critical; satisfies AWS Builder |
-| Visual context | On-device (MediaPipe/TFLite) | Frames should not leave the phone |
+| Visual context | On-device (`google_mlkit` / `tflite_flutter`) | Frames should not leave the phone |
 
 **Ring-specific constraints honoured:** 100 req/s rate limit with exponential backoff; webhook idempotency;
 privacy zones respected; overlays positioned to avoid the mandatory watermark in the top corners.
@@ -202,12 +207,13 @@ the demo script, end-to-end time from doorbell to first caption, % of demo runs 
 
 | # | Risk | Severity | Mitigation |
 |---|---|---|---|
-| R1 | **Injecting synthesised audio into the outbound WebRTC track on RN** — the single hardest unknown | Critical | **Spike this first, days 4–7, before anything else.** Fallbacks in order: (a) run the media pipeline in a WebView where `AudioContext` → `MediaStreamTrack` injection is well-trodden and MediaPipe already works; (b) native module bridging PCM into the peer connection; (c) degraded demo: TTS through phone speaker. Never mock the feature judges came to see. |
+| R1 | **Injecting synthesised audio into the outbound WebRTC track in Flutter** — the single hardest unknown | Critical | **Spike this first, days 4–7, before anything else.** In `flutter_webrtc`, feed generated PCM into a custom audio track. Fallbacks in order: (a) run the media/audio pipeline in an in-app WebView (`webview_flutter`) where `AudioContext` → `MediaStreamTrack` injection is well-trodden; (b) platform channel to a thin native module that pushes PCM into the peer connection; (c) degraded demo: TTS through phone speaker. Never mock the feature judges came to see. |
 | R2 | Ring Protection plan + real device needed for full testing | High | Budget on day 1; use the Playground token for API work meanwhile; register staging users early |
-| R3 | On-device Whisper latency on mid-range Android | Medium | tiny/base quantised + Silero VAD + Core ML on iOS; Clarity Mode as the escape hatch |
+| R3 | On-device Whisper latency on mid-range Android | Medium | tiny/base quantised + VAD; **Clarity Mode (Transcribe) is the default**, so this only affects the privacy stretch goal |
 | R4 | Watermark obscuring frames/overlays | Low | Keep overlays out of top corners |
 | R5 | Scope creep into translation / sign language | Medium | Explicitly nice-to-have; feature freeze day 31 |
 | R6 | Presenting ASR errors as fact in a safety context | Medium | Confidence-styled captions; never auto-act on a transcript |
+| R7 | **On-device Whisper is less mature in Flutter than RN's `whisper.rn`** | Medium | Ship **Transcribe as the default caption engine**; treat on-device (`whisper_ggml` / FFI to `whisper.cpp`) as the privacy stretch goal. Demo still shows Privacy Mode if the spike lands; if not, the product is undamaged because Clarity Mode carries it |
 
 ---
 
@@ -218,7 +224,7 @@ the demo script, end-to-end time from doorbell to first caption, % of demo runs 
 | 0:00–0:45 | **Problem.** Priya. Show a real Ring alert: she can see him, she has no idea he's asking which flat. Then show the market — strobes, louder chimes — all solving the wrong half. "The doorbell tells her someone is there. It never tells her what they want." |
 | 0:45–0:55 | **Trigger.** "Threshold is the other half." |
 | 0:55–2:05 | **Aha, live.** Doorbell → phone buzzes with its distinct pattern → captions stream as a person speaks at the door → tap a Smart Reply → **the doorbell speaks it aloud** → visitor replies → captions continue. A complete two-way conversation, no hearing involved. Then flip **Privacy Mode** on and show it still captioning with the network cut. |
-| 2:05–2:40 | **Depth.** One breath of architecture: Ring's `sendrecv` audio channel → whisper.cpp on-device or Transcribe → Bedrock smart replies. Show the transcript log. Note WCAG 2.2 AA. |
+| 2:05–2:40 | **Depth.** One breath of architecture: Ring's `sendrecv` audio channel → Amazon Transcribe streaming (or on-device Whisper in Privacy Mode) → Bedrock smart replies, all in a Flutter app. Show the transcript log. Note WCAG 2.2 AA. |
 | 2:40–3:00 | **Impact close.** 430M people with disabling hearing loss; a quarter of over-60s; 80% in low- and middle-income countries where a free app beats buying hardware. "Ring already reached their door. Threshold makes it speak their language." |
 
 Lead with the aha inside 90 seconds — judges are not required to watch past 3:00.
@@ -235,7 +241,7 @@ instead, preserving the skeleton-at-25% and lock-before-submit structure.
 | Scout & prep | 1–3 | Ring dev account, OAuth app registered, Protection plan active, Playground token, repo + MIT license visible, $150 AWS credits requested, sample running end-to-end |
 | **Risk spike (R1)** | 4–7 | **Go/no-go:** synthesised audio provably audible at the door. If not → WebView pipeline, decided here, not later |
 | **Skeleton (25% mark)** | 8–12 | Ugly but complete: webhook → push → live view → captions on screen → one canned reply spoken at the door |
-| Core | 13–22 | whisper.rn realtime + VAD, Clarity Mode, Smart Replies, haptic vocabulary, transcripts, custom VideoProcessor |
+| Core | 13–22 | Clarity Mode (Transcribe) captions, Smart Replies, haptic vocabulary, transcripts, Dart VideoProcessor; on-device Whisper as stretch |
 | Polish & accessibility | 23–30 | WCAG 2.2 AA audit, screen reader, contrast, typography, onboarding, empty/error states |
 | **Feature freeze** | 31 | No new features |
 | Submission assets | 32–36 | Rehearse live demo ×5; record video twice; README as case study; **friction log** (up to 10% bonus); product feedback; OSS contribution |
@@ -244,7 +250,7 @@ instead, preserving the skeleton-at-25% and lock-before-submit structure.
 
 **Mini-challenge execution.** *AWS Builder:* Bedrock (Smart Replies) + Transcribe streaming (Clarity Mode),
 documented in the feedback field. *Open Source:* publish the caption/reply bridge as a standalone MIT
-package (`react-native-ring-captions`) **and** open a PR to `AmazonAppDev/ring-api-helloworld` adding an
+Dart package (`flutter_ring_captions`) **and** open a PR to `AmazonAppDev/ring-api-helloworld` adding an
 accessibility-oriented video processor — their `CONTRIBUTING.md` explicitly welcomes PRs (fork, focused
 change, open an issue first for significant work), and a PR to the sponsor's own sample is maximally
 visible to judges.
@@ -264,16 +270,19 @@ npm run dev                          # verify device list + WebRTC live view
 cd scripts && pip install -r requirements.txt
 python explore_apis.py --token "$RING_TOKEN"
 
-# 3. Mobile app skeleton
-npx create-expo-app threshold --template
+# 3. Mobile app skeleton (Flutter)
+flutter create threshold
 cd threshold
-npx expo install react-native-webrtc expo-haptics expo-speech
-npm install whisper.rn
+flutter pub add flutter_webrtc flutter_tts vibration
+flutter pub add google_mlkit_object_detection   # visual context (or tflite_flutter)
+# on-device speech (stretch): flutter pub add whisper_ggml   # or FFI to whisper.cpp
 
 # 4. THE SPIKE (do before any UI): prove outbound audio reaches the door
-#    Minimal RN screen: open session with audio sendrecv, push a synthesised
-#    PCM buffer into the outbound track, confirm it is audible at the device.
-#    This is the go/no-go for the whole architecture.
+#    Minimal Flutter screen using flutter_webrtc: open a session with the audio
+#    transceiver as sendrecv, push a synthesised PCM buffer into a custom
+#    outbound audio track, and confirm it is audible at the device.
+#    This is the go/no-go for the whole architecture. If flutter_webrtc can't
+#    inject it directly, fall back to the webview_flutter audio pipeline HERE.
 ```
 
 Then: webhook receiver with idempotency → push channel → captions → reply bar, in that order.
