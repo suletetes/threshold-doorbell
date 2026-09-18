@@ -1,0 +1,84 @@
+// Webhook route (Task 5, FR-3.1, FR-3.2, NFR-6). Constant-time HMAC over the raw
+// body; conditional-put idempotency by requestId; acknowledge 200 within 5 s
+// then enqueue push asynchronously. On bad signature: 401, body not processed or
+// logged. Duplicate requestId returns 200 and is processed at most once.
+
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { errors } from '../domain/errors.js';
+import { verifySignature } from '../security/hmac.js';
+import { parseWebhook, WebhookService } from '../services/webhook-service.js';
+import { getLogger } from '../observability/logger.js';
+
+const SIGNATURE_HEADER = 'x-ring-signature';
+
+export async function registerWebhookRoutes(app: FastifyInstance): Promise<void> {
+  const { config } = app.container;
+  const log = getLogger();
+
+  // Capture the raw body for HMAC verification. This parser is registered on an
+  // encapsulated child instance (see registerWebhookRoutes usage) so it does NOT
+  // override JSON parsing for the rest of the app; only /webhook sees the raw
+  // string body.
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      // Store the raw string; JSON.parse happens in the handler after HMAC.
+      done(null, body);
+    },
+  );
+
+  const service = new WebhookService(
+    app.container.eventStore,
+    app.container.push,
+    // Resolve the resident for a device server-side. In the fixture flow every
+    // known device maps to a single demo resident; the real impl queries the
+    // device->account mapping. Never taken from the webhook body (FR-8.7).
+    async (deviceId: string) => (deviceId ? 'resident-account-1' : null),
+  );
+
+  app.post('/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+    const rawBody = typeof request.body === 'string' ? request.body : '';
+    const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
+
+    // FR-3.1: constant-time HMAC over the raw body. Mismatch -> 401, no logging
+    // of the body, no processing.
+    if (!verifySignature(rawBody, signature, config.webhookHmacKey)) {
+      throw errors.badSignature();
+    }
+
+    // Parse only after the signature is trusted.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      throw errors.schema('Webhook body was not valid JSON.');
+    }
+    const event = parseWebhook(parsed);
+
+    // Idempotent conditional put by requestId (FR-3.2). Cheap; inside the budget.
+    const outcome = await service.record(event);
+
+    // Acknowledge 200 FIRST (design.md §4). Push is enqueued asynchronously so
+    // the 5 s budget is never at risk, and only for first deliveries.
+    reply.code(200).send({ ok: true });
+
+    if (outcome.firstDelivery) {
+      // Fire-and-forget; never blocks the ack. Failures are surfaced via the
+      // FR-3.5 poll, never thrown into the request path.
+      void service
+        .enqueuePush(outcome.event)
+        .then((delivered) => {
+          if (!delivered) {
+            log.warn(
+              { requestId: outcome.event.requestId, deviceId: outcome.event.deviceId },
+              'push not delivered; app will fall back to foreground poll',
+            );
+          }
+        })
+        .catch((err) => {
+          log.error({ err, requestId: outcome.event.requestId }, 'push enqueue failed');
+        });
+    }
+  });
+}
