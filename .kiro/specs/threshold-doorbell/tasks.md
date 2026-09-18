@@ -47,12 +47,12 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     schema-validating Ring adapter emitting `ring_contract_invalid` on drift.
   - _Requirements: FR-2.1, FR-2.2, FR-2.3, FR-3.5, FR-17.1, FR-17.2, NFR-7; AT-19, AT-23_
 
-- [ ] 7. Backend: signaling broker
+- [x] 7. Backend: signaling broker
   - `/signaling` WebSocket; WHEP offer and answer relay; session URL lifecycle; reject a second concurrent
     session with 4409.
   - _Requirements: FR-4.1, FR-4.6, FR-4.7; AT-3, AT-11_
 
-- [ ] 8. Backend: ASR relay for Clarity Mode
+- [x] 8. Backend: ASR relay for Clarity Mode
   - `/asr/stream` WebSocket to Amazon Transcribe streaming with partial-results stabilization; reconnect with
     at most 2 s replay; never switch caption mode mid-session.
   - _Requirements: FR-5.1, G2; AT-4_
@@ -105,13 +105,13 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     visitor-facing prompt (N9). Full regression suite must pass in this mode.
   - _Requirements: FR-12.1 to FR-12.4, N9; AT-6, AT-10_
 
-- [ ] 18. App: Privacy Mode (on-device ASR) and model provisioning
+- [x] 18. App: Privacy Mode (on-device ASR) and model provisioning
   - Opt-in model download outside any session with size disclosure; mode unavailable and labelled until the
     model verifies; on-device inference (native or WASM per ARCH-1); on-device suggestions instead of
     Bedrock; zero audio and zero transcript-text egress.
   - _Requirements: FR-5.2, FR-5.2a, FR-7.1a, FR-10.1, NFR-4; AT-8, AT-21_
 
-- [ ] 19. App: visual context processor (privacy-zone aware)
+- [x] 19. App: visual context processor (privacy-zone aware)
   - On-device object detection on inbound frames; skip masked regions; never transmit frames; feed the
     presence signal used by FR-5.4.
   - _Requirements: FR-11.1, FR-11.2; AT-8_
@@ -127,12 +127,12 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     and honor it for the session.
   - _Requirements: FR-14.1 to FR-14.4; AT-14_
 
-- [ ] 22. App: connectivity, offline, and backend-outage behavior
+- [x] 22. App: connectivity, offline, and backend-outage behavior
   - Offline state for network features; cached transcripts usable; auto-restore without restart; distinct
     message when connectivity exists but the backend is unreachable.
   - _Requirements: FR-15.1 to FR-15.4; AT-17, AT-20_
 
-- [ ] 23. App: language and locale selection
+- [x] 23. App: language and locale selection
   - Recognition-language selection defaulting to device locale with `en-US` fallback; per-mode supported
     sets documented; unsupported selection reported before session start with an alternative.
   - _Requirements: FR-16.1 to FR-16.3; AT-22_
@@ -159,23 +159,23 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     values are rejected; assert no Ring token on device; assert log redaction.
   - _Requirements: FR-1.6, FR-1.7, FR-8.7, NFR-3; AT-19_
 
-- [ ] 28. Observability
+- [x] 28. Observability
   - Redacting structured logs with `requestId` correlation; metrics for latency, probe success,
     Captions-Only share, fallback rates, schema-validation failures; in-app debug overlay; prod alarms.
   - _Requirements: NFR-3; design §10_
 
-- [ ] 29. CI/CD, UI-copy lint, environments
+- [x] 29. CI/CD, UI-copy lint, environments
   - Gates on pull requests: lint, unit, contract, a11y, latency, and the **em-dash and en-dash UI-string
     lint**; local, staging, and demo configurations with fixtures and cached golden responses; CI config never
     pushed directly to `main`; deploy on merge after gates.
   - _Requirements: NFR-10; design §11; steering/structure.md UI copy rules_
 
-- [ ] 30. Documentation
+- [x] 30. Documentation
   - README as a case study; privacy policy covering FR-14.2; operational runbook (token rotation, KMS key,
     alarm response); haptic-pattern reference; friction log maintained continuously for the submission.
   - _Requirements: FR-14.2; project submission needs_
 
-- [ ] 31. Open-source extraction (mini-challenge)
+- [x] 31. Open-source extraction (mini-challenge)
   - Extract the caption and reply bridge as MIT `flutter_ring_captions`; open a focused pull request to
     `AmazonAppDev/ring-api-helloworld` adding an accessibility-oriented video processor.
   - _Requirements: project goals (Open Source mini-challenge)_
