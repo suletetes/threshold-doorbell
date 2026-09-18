@@ -41,6 +41,8 @@ never captions-only** — except as the deliberate fallback (below).
    flashing-light.
 7. **One legible demo beats a feature list.** Protect the single wow moment: a deaf person holding a
    conversation at their door.
+8. **No em-dashes in the UI.** User-facing text never uses the em-dash character (`—`) or en-dash (`–`).
+   Use plain punctuation. See steering/structure.md "UI copy rules" for the full rule and CI check.
 
 ## Scope discipline
 

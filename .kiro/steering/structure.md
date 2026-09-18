@@ -49,6 +49,19 @@ strategy/research context; where they conflict with the spec, the spec wins.
   approach is proven, promote the working pieces into `reply/` (bridge) and `ring/` (session) and delete the
   spike. Do not build UI on top of the spike file.
 
+## UI copy rules (hard requirement)
+
+- **Never use the em-dash character (`—`) in any user-facing UI string, label, notification, caption
+  rendering, button, or on-screen text.** This is a firm product rule. It applies to every string the
+  resident or visitor can see.
+- Also avoid the en-dash (`–`) in UI copy. Use plain ASCII punctuation instead: a comma, a period, a colon,
+  or a spaced hyphen ` - ` where a break is genuinely needed. Prefer two short sentences over a dash.
+- This rule covers hardcoded strings AND any localized/generated copy, including Bedrock-suggested replies:
+  the reply-rendering layer SHALL strip or replace em-dashes and en-dashes before display.
+- A lint/CI check SHALL fail the build if an em-dash or en-dash appears in a UI string resource.
+- Scope note: this rule is about UI text shown to users. Internal engineering docs and code comments are not
+  UI and are not bound by it.
+
 ## Naming & style
 
 - Dart: `lower_snake_case.dart` files; `UpperCamelCase` types; `lowerCamelCase` members. Lint: `flutter_lints`.
