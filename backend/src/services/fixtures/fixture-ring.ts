@@ -38,6 +38,9 @@ export class FixtureRing implements RingPort {
   private unauthorizedUntilRefresh = false;
   private refreshCount = 0;
   private lastAccessToken: string | null = null;
+  private transientFailures = 0;
+  private transientKind: 'rate_limited' | 'ring_unavailable' = 'ring_unavailable';
+  private listDevicesCalls = 0;
 
   /** Return zero devices to exercise the empty-state path (FR-2.2). */
   setEmptyDevices(): void {
@@ -82,6 +85,21 @@ export class FixtureRing implements RingPort {
     return this.refreshCount;
   }
 
+  /** Number of listDevices() attempts (assert retry counts). */
+  get listDevicesInvocations(): number {
+    return this.listDevicesCalls;
+  }
+
+  /**
+   * Make the next `count` listDevices calls fail transiently with `kind`
+   * (429 rate_limited or 5xx ring_unavailable), then succeed. Exercises the
+   * RingGateway retry/backoff policy (FR-2.3, NFR-7).
+   */
+  failTransiently(count: number, kind: 'rate_limited' | 'ring_unavailable'): void {
+    this.transientFailures = count;
+    this.transientKind = kind;
+  }
+
   async exchangeCode(
     code: string,
     _codeVerifier: string,
@@ -112,6 +130,14 @@ export class FixtureRing implements RingPort {
 
   async listDevices(accessToken: string): Promise<Device[]> {
     this.lastAccessToken = accessToken;
+    this.listDevicesCalls += 1;
+    // Simulate transient 429/5xx failures that clear after `count` attempts.
+    if (this.transientFailures > 0) {
+      this.transientFailures -= 1;
+      throw this.transientKind === 'rate_limited'
+        ? errors.rateLimited()
+        : errors.ringUnavailable();
+    }
     // Simulate a token that is rejected as 401 until refreshed.
     if (this.unauthorizedUntilRefresh && !accessToken.includes('refreshed')) {
       throw errors.unauthorized();

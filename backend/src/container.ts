@@ -22,6 +22,7 @@ import {
   MemoryTokenStore,
 } from './services/fixtures/memory-stores.js';
 import { RingTokenService } from './services/ring-token-service.js';
+import { RingGateway } from './services/ring-gateway.js';
 
 export interface Container {
   config: Config;
@@ -33,6 +34,7 @@ export interface Container {
   eventStore: EventStorePort;
   conversationStore: ConversationStorePort;
   ringTokens: RingTokenService;
+  ringGateway: RingGateway;
 }
 
 export interface ContainerOverrides {
@@ -69,5 +71,6 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     eventStore,
     conversationStore,
     ringTokens: new RingTokenService(ring, tokenStore, crypto),
+    ringGateway: new RingGateway(ring),
   };
 }
