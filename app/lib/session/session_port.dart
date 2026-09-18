@@ -145,6 +145,18 @@ class FakeSessionPort implements SessionPort {
   Future<void> dispose() => _events.close();
 }
 
+/// WebRTC media constraints applied to the single peer connection (ARCH-1). Echo
+/// cancellation MUST be enabled on the inbound audio track so the doorbell
+/// microphone return of our own synthesized reply is attenuated before it can be
+/// transcribed (FR-5.6, second sentence). The live WebView binding passes this
+/// into the RTCPeerConnection / getUserMedia constraints; it is a documented
+/// device-bound setting complementing the EchoGate software suppression.
+const Map<String, Object> kInboundAudioConstraints = <String, Object>{
+  'echoCancellation': true,
+  'noiseSuppression': true,
+  'autoGainControl': true,
+};
+
 /// Scripted outcome of a single connect attempt for the fake.
 enum ConnectPlan { succeed, fail }
 
