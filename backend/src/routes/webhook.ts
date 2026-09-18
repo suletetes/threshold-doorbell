@@ -15,8 +15,10 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
   const { config } = app.container;
   const log = getLogger();
 
-  // Capture the raw body for HMAC verification. We register a content-type
-  // parser scoped to this by parsing JSON ourselves after verifying.
+  // Capture the raw body for HMAC verification. This parser is registered on an
+  // encapsulated child instance (see registerWebhookRoutes usage) so it does NOT
+  // override JSON parsing for the rest of the app; only /webhook sees the raw
+  // string body.
   app.addContentTypeParser(
     'application/json',
     { parseAs: 'string' },

@@ -11,6 +11,7 @@ import { registerOAuthRoutes } from './routes/oauth.js';
 import { registerWebhookRoutes } from './routes/webhook.js';
 import { registerDeviceRoutes } from './routes/devices.js';
 import { registerEventRoutes } from './routes/events.js';
+import { registerTranscriptRoutes } from './routes/transcripts.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -78,9 +79,14 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   app.get('/health', async () => ({ ok: true }));
 
   await registerOAuthRoutes(app);
-  await registerWebhookRoutes(app);
+  // Encapsulate the webhook so its raw-body content-type parser does not affect
+  // JSON parsing on any other route.
+  await app.register(async (instance) => {
+    await registerWebhookRoutes(instance);
+  });
   await registerDeviceRoutes(app);
   await registerEventRoutes(app);
+  await registerTranscriptRoutes(app);
 
   return app;
 }
