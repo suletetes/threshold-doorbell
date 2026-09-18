@@ -57,6 +57,8 @@ transcripts live in DynamoDB (or the fixture store in local/demo). This satisfie
 | AWS SDK | `@aws-sdk/*` v3 | ^3.x | Transcribe streaming + Bedrock + Secrets Manager + DynamoDB. |
 | Store | DynamoDB (prod) / in-memory fixture (local/demo) | — | Stateless backend; single-digit-ms lookups for dedupe + transcripts. |
 | Secrets | AWS Secrets Manager | — | Ring client secret + HMAC key + AWS creds; never in app or logs. |
+| Permissions | `permission_handler` | ^11.x | In-context requests, denied/permanently-denied handling, settings deep link (FR-13). |
+| Connectivity | `connectivity_plus` | ^6.x | Offline detection and auto-restore (FR-15). |
 
 **Rejected:** flutter_webrtc raw track injection (Insertable Streams unsupported); persisting audio (privacy
 non-goal N6); a bespoke auth system (Ring OAuth is the identity).
@@ -112,7 +114,9 @@ interface Conversation {
   startedAt: string;
   endedAt: string | null;
   mode: CaptionMode;
+  outboundAvailable: boolean;      // probed once at session start; sticky (FR-6.4a)
   turns: Turn[];
+  expiresAt: string;               // startedAt + 90d retention TTL (FR-8.5)
 }
 
 interface OAuthTokens {            // backend/secure store only — never returned to app
@@ -125,8 +129,11 @@ interface OAuthTokens {            // backend/secure store only — never return
 
 **DynamoDB tables (prod):**
 - `events` — PK `requestId` (conditional put enforces idempotency), TTL 7 days.
-- `conversations` — PK `residentSub`, SK `conversationId`; GSI on `startedAt` for date filtering.
+- `conversations` — PK `residentSub`, SK `conversationId`; GSI on `startedAt` for date filtering; DynamoDB
+  TTL on `expiresAt` (90-day retention, FR-8.5). Text turns only, never audio/video.
 - Tokens live in Secrets Manager keyed by `residentSub`, not DynamoDB.
+- "Delete all my data" (FR-8.6) deletes all `conversations` for the `residentSub` and revokes the
+  Secrets-Manager token entry in one operation.
 
 ---
 
@@ -149,6 +156,7 @@ All requests/responses JSON. All 4xx/5xx use the error envelope:
 | GET | `/transcripts?query&from&to` | session | — | 200 `Conversation[]` (turns text only) | 401 |
 | POST | `/transcripts` | session | `Conversation` | 201 `{ conversationId }` | 401, 400 `schema` |
 | DELETE | `/transcripts/:id` | session | — | 204 | 401, 404 |
+| DELETE | `/me/data` | session | — | 204 (all transcripts erased, token revoked) | 401 |
 
 **Webhook contract detail:** verify HMAC over the raw body using the Secrets-Manager key; compute in constant
 time; on mismatch return 401 without processing. On valid: conditional-put by `requestId`; if the item
@@ -174,8 +182,16 @@ IDLE ──open──► CONNECTING ──ice ok──► LIVE ──end/bg>30s�
 COMPOSING ──send──► SYNTHESIZING ──audio ready──► SPEAKING_AT_DOOR ──done──► SENT(logged)
                          │ tts fail                    │ inject fail
                          ▼                             ▼
-                    ERROR(retry once)         DEGRADE→Captions-Only + notice
+                    ERROR(retry once)      DEGRADE→Captions-Only (sticky, rest of session) + notice
 ```
+
+**Outbound-audio mode (FR-6.4a/6.4b):** probed once at session start into `outboundAvailable`. Sticky for
+the whole session. A later injection failure degrades the session to Captions-Only for its remainder; NO
+auto-recovery within the session. The next session re-probes from scratch.
+
+**Session concurrency (FR-4.6/4.7):** exactly one live session exists at a time. A same-device event during
+a live session updates context (no second session). A different-device event queues as a notification and
+never interrupts the active session.
 
 **Caption mode:** `clarity ⇄ privacy` toggled only between sessions; mid-session toggle is queued and
 applied on next session with a visible indicator (FR-10.1).
@@ -197,7 +213,19 @@ applied on next session with a visible indicator (FR-10.1).
 | ICE/connect fail | Retry ≤2, then session error (FR-4.4). |
 | App backgrounded >30 s | Close session, release session URL (FR-4.3). |
 | No speech ≥5 s | Explicit "No speech detected" (FR-5.4). |
-| Low-confidence tokens | De-emphasized styling (<0.6), never certain (FR-5.3). |
+| Partial caption (no per-token confidence) | Whole partial rendered provisional (FR-5.3). |
+| Finalized low-confidence token | De-emphasized styling (<0.6), never certain (FR-5.3a). |
+| Same-device event during live session | Update context + replay haptic; no second session (FR-4.6). |
+| Different-device event during live session | Queue as notification; do not interrupt (FR-4.7). |
+| App-backend session expired mid-use | Single non-destructive re-auth prompt; preserve state; resume (FR-4.8). |
+| Permission denied | Dependent feature disabled gracefully with explanation (FR-13.3). |
+| Permission permanently denied | One-tap settings deep link; no re-prompt loop (FR-13.4). |
+| Notifications denied | Fall back to foreground poll; state that live alerts are off (FR-13.5). |
+| No connectivity on launch | Cached transcripts viewable/searchable; network actions disabled w/ state (FR-15). |
+| Bedrock returns 0 suggestions | Fixed safe set shown; reply bar never empty (FR-7.5). |
+| Strobe/torch enabled | Cap ≤ 3 flashes/second; off by default (FR-9.4). |
+| "Delete all my data" | Erase all transcripts + revoke token, confirmed (FR-8.6). |
+| Transcript older than 90 days | Auto-deleted by TTL (FR-8.5). |
 | Transcribe WS drop | Auto-reconnect; buffered audio ≤2 s replayed; else prompt Privacy Mode. |
 | Bedrock timeout/error | Fixed safe replies within 2 s (FR-7.3). |
 | **Outbound injection unavailable** | Enter Captions-Only Mode + notice (FR-6.4/FR-12); no silent fail. |
@@ -232,8 +260,14 @@ Screens (all WCAG 2.2 AA, dynamic type to 200%, screen-reader labeled, reduce-mo
 3. **Reply bar** — ≤3 Smart Replies + free-text; "Speaking at your door…" state; duplicate-send disabled.
 4. **History** — searchable/date-filterable transcript list; delete with confirm.
 5. **Settings** — Privacy/Clarity toggle (with active-session indicator), caption size/contrast live preview,
-   per-pattern haptic toggles, strobe/torch toggle.
-Principle: fully usable with sound off + screen reader on. No information by audio alone.
+   per-pattern haptic toggles, strobe/torch toggle (off by default, ≤ 3 flashes/s), viewable haptic-pattern
+   reference, retention period (90 days) display, "Delete all my data", and the recording-notice text with
+   optional door-notice toggle.
+6. **First-run notice** — one-time recording-notice acknowledgement (FR-14.1) before first live use.
+7. **Permission prompts** — in-context rationale before mic/notification/camera use; permanently-denied
+   state links to OS settings (FR-13).
+Principle: fully usable with sound off + screen reader on. No information by audio alone. All user-facing
+text uses plain punctuation and never the em-dash character (see steering/structure.md).
 
 ---
 
@@ -250,6 +284,14 @@ Principle: fully usable with sound off + screen reader on. No information by aud
 - **Accessibility (AT-9/NFR-2)**: automated a11y scan per screen + manual TalkBack/VoiceOver pass; zero AA
   violations gate the build.
 - **Degrade regression (AT-10/FR-12)**: full suite passes with outbound injection disabled.
+- **Concurrency (AT-11)**: same-device event during a session updates context, no second session;
+  different-device event queues; exactly one live session ever exists.
+- **Session expiry (AT-12)**: mid-action backend-session expiry, single re-auth, state preserved, resume.
+- **Permissions (AT-13)**: each permission denied/permanently-denied path, graceful degrade + settings link.
+- **Recording notice (AT-14)**: first-run acknowledgement gate; optional door notice plays at start.
+- **Retention/erasure (AT-15)**: 90-day TTL auto-delete; "Delete all my data" erases + revokes token.
+- **Photosensitivity (AT-16)**: strobe measured ≤ 3 flashes/second, off by default.
+- **Offline (AT-17)**: cached transcripts usable offline; network actions disabled; auto-restore online.
 - **Coverage gate**: ≥ 80% line coverage on domain services; 100% of FRs mapped to at least one test (see
   requirements §6 traceability).
 

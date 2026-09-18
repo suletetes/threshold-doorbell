@@ -31,15 +31,16 @@ mark, polish last.
   - Ring rate limiting (token bucket + backoff); DynamoDB (prod) / fixture (local) store.
   - _Requirements: FR-2, FR-8, NFR-6, NFR-7_
 
-- [ ] 6. App: push alerts + haptic vocabulary
+- [ ] 6. App: push alerts + haptic vocabulary + photosensitivity-safe strobe
   - FCM integration; event→haptic mapping (≥3 patterns); full-bleed thumbnail; foreground poll fallback;
-    strobe/torch alert.
-  - _Requirements: FR-3.3–3.5, FR-9.1–9.3_
+    strobe/torch alert capped at ≤3 flashes/second, off by default.
+  - _Requirements: FR-3.3–3.5, FR-9.1–9.4; AT-16_
 
-- [ ] 7. App: live session (WebRTC inbound)
+- [ ] 7. App: live session (WebRTC inbound) + concurrency + session-expiry
   - `flutter_webrtc` session; SDP `sendrecv`/`recvonly`; route inbound audio to ASR; overlay out of
-    watermark corners; reconnect ≤2; close on background >30 s.
-  - _Requirements: FR-4.1–4.5; AT-3_
+    watermark corners; reconnect ≤2; close on background >30 s. Enforce single live session: same-device
+    event updates context, different-device event queues. Non-destructive re-auth on backend-session expiry.
+  - _Requirements: FR-4.1–4.8; AT-3, AT-11, AT-12_
 
 - [ ] 8. App+backend: Clarity-Mode captions (Amazon Transcribe streaming)
   - Stream inbound PCM → Transcribe WS; render partials; confidence styling (<0.6 de-emphasized); turn
@@ -55,10 +56,10 @@ mark, polish last.
   - `/replies` returns ≤3 suggestions from Bedrock; 2 s timeout → fixed safe set; text-only to Bedrock.
   - _Requirements: FR-7.1, FR-7.3, FR-7.4; AT-7_
 
-- [ ] 11. App: transcript persistence + history
+- [ ] 11. App+backend: transcript persistence, history, retention & erasure
   - Persist text-only turns on session end; searchable + date filter; delete with confirm; never store
-    audio/video.
-  - _Requirements: FR-8.1–8.4, N6; AT-8 (no-artifact assertion)_
+    audio/video. 90-day TTL auto-delete; "Delete all my data" (erase transcripts + revoke token).
+  - _Requirements: FR-8.1–8.6, N6; AT-8, AT-15_
 
 - [ ] 12. App: Captions-Only degrade mode (fallback, first-class)
   - Visitor-facing on-screen/QR prompt; full feature set minus spoken reply; explicit notice; not an error.
@@ -74,21 +75,38 @@ mark, polish last.
   - `google_mlkit_object_detection` on inbound frames on-device; skip masked regions; person/package cues.
   - _Requirements: FR-11.1_
 
-- [ ] 15. Settings + accessibility pass (WCAG 2.2 AA)
-  - Privacy/Clarity toggle, caption size/contrast live preview, haptic toggles, strobe/torch; OS text-scale
-    + reduce-motion; per-screen automated a11y scan + manual screen-reader pass; zero AA violations gate.
-  - _Requirements: FR-10.1–10.4, NFR-2; AT-9_
+- [ ] 15. App: permissions & consent flows
+  - `permission_handler`; in-context requests for notifications/mic/camera/vibration with rationale;
+    denied + permanently-denied handling with OS-settings deep link; notification-denied → poll fallback.
+  - _Requirements: FR-13.1–13.5; AT-13_
 
-- [ ] 16. Observability
+- [ ] 16. App: visitor recording notice & optional door notice
+  - First-run acknowledgement gate; in-product + privacy-policy disclosure; optional default-off audible
+    door notice at session start via the outbound-audio path.
+  - _Requirements: FR-14.1–14.4; AT-14_
+
+- [ ] 17. App: connectivity & offline behavior
+  - `connectivity_plus`; offline state for network features; cached transcripts usable offline; auto-restore
+    online without restart.
+  - _Requirements: FR-15.1–15.3; AT-17_
+
+- [ ] 18. Settings + accessibility pass (WCAG 2.2 AA)
+  - Privacy/Clarity toggle, caption size/contrast live preview, haptic toggles, strobe/torch (off by
+    default), retention display, "Delete all my data", recording-notice text; OS text-scale + reduce-motion;
+    per-screen automated a11y scan + manual screen-reader pass; zero AA violations gate. No em-dash in any
+    UI string.
+  - _Requirements: FR-8.5, FR-8.6, FR-10.1–10.4, FR-14, NFR-2; AT-9_
+
+- [ ] 19. Observability
   - Structured redacting logs; latency/success/fallback metrics; in-app debug overlay for demo; prod alarms.
   - _Requirements: NFR-3 (no PII in logs), design §10_
 
-- [ ] 17. CI/CD + environments
+- [ ] 20. CI/CD + environments
   - Lint/unit/contract/a11y gates on PR; local/staging/demo configs; fixtures + cached golden responses for
     demo safety; deploy on merge to `main` after gates.
   - _Requirements: design §11_
 
-- [ ] 18. Open-source extraction (mini-challenge)
+- [ ] 21. Open-source extraction (mini-challenge)
   - Extract the caption/reply bridge as MIT `flutter_ring_captions`; open a focused PR to
     `AmazonAppDev/ring-api-helloworld` (accessibility-oriented video processor).
   - _Requirements: project goals (Open Source mini-challenge)_
