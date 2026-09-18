@@ -10,13 +10,13 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
 
 ---
 
-- [ ] 1. Project and environment setup
+- [x] 1. Project and environment setup
   - Scaffold `app/` (Flutter) and `backend/` (Node 20 + Fastify); wire lint, test runners, lockfile pinning.
   - Define every external dependency as an interface with a fixture implementation (Ring, Transcribe,
     Bedrock, push, store).
   - _Requirements: NFR-8, NFR-9; design §2 version policy_
 
-- [ ] 2. **CRITICAL SPIKE: outbound audio and capability probe (before any UI)**
+- [x] 2. **CRITICAL SPIKE: outbound audio and capability probe (before any UI)**
   - [ ] 2.1 Build the single-stack WebView session per ARCH-1: one `RTCPeerConnection` in the WebView,
         audio `sendrecv`, video `recvonly`.
   - [ ] 2.2 Inject synthesized audio: `AudioContext` to `MediaStreamAudioDestinationNode` to
@@ -28,21 +28,21 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
         Captions-Only (task 17) becomes the shipping scope.
   - _Requirements: FR-4.1, FR-6.1, FR-6.2, FR-6.4a, FR-6.4b, G3; AT-3, AT-5, AT-6_
 
-- [ ] 3. Backend: OAuth 2.0 (PKCE) and unified auth recovery
+- [x] 3. Backend: OAuth 2.0 (PKCE) and unified auth recovery
   - `/oauth/start`, `/oauth/callback`, `/oauth/refresh`; state check; server-side secret; refresh-once-on-401.
   - Implement the single unified recovery flow (no second divergent path).
   - _Requirements: FR-1.1 to FR-1.5, FR-1.7, NFR-3; AT-1, AT-12_
 
-- [ ] 4. Backend: token storage with KMS encryption
+- [x] 4. Backend: token storage with KMS encryption
   - `ring_tokens` table, KMS-encrypted access and refresh tokens; Secrets Manager limited to application
     secrets. Assert no Ring token is ever returned to the app or stored on device.
   - _Requirements: FR-1.6, NFR-3; AT-1_
 
-- [ ] 5. Backend: webhook receiver (HMAC, idempotent, under 5 s)
+- [x] 5. Backend: webhook receiver (HMAC, idempotent, under 5 s)
   - Constant-time HMAC verify; conditional-put dedupe on `requestId`; acknowledge 200 first, push async.
   - _Requirements: FR-3.1, FR-3.2, NFR-6; AT-2_
 
-- [ ] 6. Backend: devices and events routes with pagination and Ring adapter
+- [x] 6. Backend: devices and events routes with pagination and Ring adapter
   - `/devices`, `/events` with `limit`/`cursor` envelope; token-bucket rate limiting with backoff; single
     schema-validating Ring adapter emitting `ring_contract_invalid` on drift.
   - _Requirements: FR-2.1, FR-2.2, FR-2.3, FR-3.5, FR-17.1, FR-17.2, NFR-7; AT-19, AT-23_
@@ -57,12 +57,12 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     at most 2 s replay; never switch caption mode mid-session.
   - _Requirements: FR-5.1, G2; AT-4_
 
-- [ ] 9. Backend: transcripts, retention, erasure, authorization
+- [x] 9. Backend: transcripts, retention, erasure, authorization
   - `/transcripts` create, list (paginated, searchable, date-filtered), delete; `/me/data` erasure;
     90-day TTL; `residentSub` always server-derived, foreign values rejected 403.
   - _Requirements: FR-8.1 to FR-8.7; AT-15, AT-19_
 
-- [ ] 10. Backend: Smart Replies (Bedrock, Clarity only)
+- [x] 10. Backend: Smart Replies (Bedrock, Clarity only)
   - `/replies` returns at most 3 suggestions; 2 s timeout falls back to the fixed safe set; text only;
     never invoked for Privacy-Mode sessions.
   - _Requirements: FR-7.1, FR-7.3, FR-7.4; AT-7_
@@ -154,7 +154,7 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     degraded behavior; assert no session crashes and no dependency failure is silent.
   - _Requirements: NFR-5, FR-15.4; AT-20_
 
-- [ ] 27. Security: threat model and authorization tests
+- [x] 27. Security: threat model and authorization tests
   - Written threat model; authorization suite proving `residentSub` is always server-derived and foreign
     values are rejected; assert no Ring token on device; assert log redaction.
   - _Requirements: FR-1.6, FR-1.7, FR-8.7, NFR-3; AT-19_
