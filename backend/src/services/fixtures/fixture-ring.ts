@@ -35,6 +35,9 @@ export class FixtureRing implements RingPort {
   private devicesDoc: unknown = GOLDEN_DEVICES_DOC;
   private exchangeShouldFail = false;
   private refreshShouldFail = false;
+  private unauthorizedUntilRefresh = false;
+  private refreshCount = 0;
+  private lastAccessToken: string | null = null;
 
   /** Return zero devices to exercise the empty-state path (FR-2.2). */
   setEmptyDevices(): void {
@@ -66,6 +69,19 @@ export class FixtureRing implements RingPort {
     this.refreshShouldFail = false;
   }
 
+  /**
+   * Make listDevices reject with a 401 until a refresh has happened, then
+   * succeed with the refreshed token. Exercises FR-1.4 refresh-once-and-retry.
+   */
+  requireRefreshOn401(): void {
+    this.unauthorizedUntilRefresh = true;
+  }
+
+  /** Number of refresh() calls (assert "exactly one refresh", AT-1). */
+  get refreshInvocations(): number {
+    return this.refreshCount;
+  }
+
   async exchangeCode(
     code: string,
     _codeVerifier: string,
@@ -86,6 +102,7 @@ export class FixtureRing implements RingPort {
     if (this.refreshShouldFail || refreshToken === '') {
       throw errors.refreshFailed();
     }
+    this.refreshCount += 1;
     return parseTokenResponse({
       access_token: `access-refreshed-${refreshToken}`,
       refresh_token: `refresh-rotated-${refreshToken}`,
@@ -93,7 +110,12 @@ export class FixtureRing implements RingPort {
     });
   }
 
-  async listDevices(_accessToken: string): Promise<Device[]> {
+  async listDevices(accessToken: string): Promise<Device[]> {
+    this.lastAccessToken = accessToken;
+    // Simulate a token that is rejected as 401 until refreshed.
+    if (this.unauthorizedUntilRefresh && !accessToken.includes('refreshed')) {
+      throw errors.unauthorized();
+    }
     // Always through the schema layer so malformed fixtures raise
     // ring_contract_invalid exactly as the real adapter would.
     return parseDevicesDocument(this.devicesDoc);
