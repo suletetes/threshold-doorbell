@@ -16,10 +16,17 @@ a reply, a synthesized voice is played out of the doorbell so the visitor hears 
 capability is the **outbound reply through the doorbell**, built on Ring's bidirectional (`sendrecv`)
 WebRTC audio channel.
 
+**Reference conditions (so latency goals are reproducible — resolves Gap 4):**
+- Reference device (Android): Google Pixel 7 (or equivalent 2023 mid-tier, 8 GB RAM, Snapdragon-class SoC).
+- Reference device (iOS): iPhone 12.
+- "Good network": ≥ 5 Mbps down / ≥ 2 Mbps up, round-trip time < 100 ms, no packet loss. All G-goals are
+  measured on a reference device under good network unless stated otherwise.
+
 **Goals (measurable):**
-- G1. From doorbell event to first on-screen caption in ≤ 3.0 s (Clarity Mode, good network).
-- G2. Caption partial-result latency ≤ 1.0 s after speech onset (Clarity Mode).
-- G3. Resident reply audible at the doorbell in ≤ 2.0 s after tap (measured tap→audio-start).
+- G1. From doorbell event to first on-screen caption in ≤ 3.0 s (Clarity Mode, reference conditions).
+- G2. Caption partial-result latency ≤ 1.0 s after speech onset (Clarity Mode, reference conditions).
+- G3. Resident reply audible at the doorbell in ≤ 2.0 s after tap (measured tap to audio-start, reference
+  conditions).
 - G4. Fully operable with device sound off and a screen reader on; WCAG 2.2 AA conformance on all screens.
 - G5. Zero doorstep audio leaves the device in Privacy Mode (verifiable: no network egress during capture).
 
@@ -105,14 +112,28 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
   times with backoff before surfacing "Couldn't connect to your doorbell."
 - 4.5 THE SYSTEM SHALL position all UI overlays outside the top-left and top-right corners to avoid the
   mandatory Ring media watermark.
+- 4.6 IF a new `person_detected`/`motion_detected` event arrives WHILE a live session is already active for
+  the same device, THE SYSTEM SHALL treat it as part of the current session (update the alert context,
+  replay the haptic) and SHALL NOT open a second concurrent session. (Resolves Gap 6.)
+- 4.7 IF a new event arrives WHILE a session is active for a **different** device, THE SYSTEM SHALL surface
+  it as a queued notification and SHALL NOT interrupt or tear down the active session; the resident may
+  switch only after ending the current session. Only one live session SHALL exist at a time. (Resolves Gap 6.)
+- 4.8 WHEN the app-to-backend session (see FR-1/Security) expires mid-use, THE SYSTEM SHALL show a single
+  non-destructive re-authentication prompt, SHALL preserve the current conversation and UI state, and SHALL
+  resume the interrupted action after re-auth. (Resolves Gap 7.)
 
 ### FR-5 — Inbound captions (ASR)
 - 5.1 WHILE a session is active in Clarity Mode, THE SYSTEM SHALL stream inbound audio to Amazon Transcribe
   streaming and SHALL render partial results as they arrive.
 - 5.2 WHILE a session is active in Privacy Mode, THE SYSTEM SHALL transcribe inbound audio entirely
   on-device and SHALL NOT transmit any audio off the handset.
-- 5.3 THE SYSTEM SHALL display each token with a visual confidence treatment: tokens below a 0.6 confidence
-  threshold SHALL render visually de-emphasized (dimmed/italic) and SHALL never be styled as certain.
+- 5.3 WHILE a caption result is a **partial** (not yet finalized) — where per-token confidence is not
+  available from the ASR engine — THE SYSTEM SHALL render the entire partial in a provisional style
+  (de-emphasized, e.g. dimmed/italic) and SHALL NOT style it as certain. (Resolves Gap 5: Amazon Transcribe
+  streaming emits per-token confidence only on final results.)
+- 5.3a WHEN a caption result is **finalized** and per-token confidence is available, THE SYSTEM SHALL render
+  tokens below a 0.6 confidence threshold as visually de-emphasized and tokens at or above 0.6 as normal;
+  no token SHALL be styled as certain when its confidence is below 0.6.
 - 5.4 IF no speech is detected for ≥ 5 s while a person is present, THE SYSTEM SHALL show an explicit
   "No speech detected" state rather than an empty screen.
 - 5.5 WHEN speaker turns change (detected by pause/segmentation), THE SYSTEM SHALL start a new labeled turn
@@ -127,7 +148,13 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
 - 6.3 WHILE reply audio is playing at the door, THE SYSTEM SHALL show a "Speaking at your door…" state and
   SHALL disable duplicate submission of the same reply.
 - 6.4 IF outbound audio injection is unavailable at runtime, THE SYSTEM SHALL degrade to Captions-Only Mode
-  (FR-12) and SHALL inform the resident that spoken replies are unavailable — it SHALL NOT silently fail.
+  (FR-12) and SHALL inform the resident that spoken replies are unavailable; it SHALL NOT silently fail.
+- 6.4a THE SYSTEM SHALL determine outbound-audio availability **once per session at session start** via a
+  capability probe; the resulting mode (two-way or Captions-Only) SHALL be **sticky for the duration of that
+  session**. (Resolves Gap 3: no mid-session flapping.)
+- 6.4b IF injection succeeds at session start but a later injection attempt fails, THE SYSTEM SHALL degrade
+  that session to Captions-Only for the remainder of the session and SHALL NOT attempt to auto-recover
+  within the same session; the next session SHALL re-probe from scratch. (Resolves Gap 3.)
 - 6.5 THE SYSTEM SHALL append every sent reply to the conversation transcript as a `resident` turn with
   source `template` or `freetext`.
 
@@ -139,6 +166,9 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
 - 7.3 IF Bedrock times out (> 2 s) or errors, THE SYSTEM SHALL silently fall back to the fixed set without
   blocking the reply bar.
 - 7.4 THE SYSTEM SHALL send only transcript text (never audio/video) to Bedrock.
+- 7.5 THE SYSTEM SHALL always render the reply bar with at least the fixed safe-reply set available; IF
+  Bedrock returns zero usable suggestions, THE SYSTEM SHALL show the fixed set as the floor and the reply
+  bar SHALL never appear empty. Free-text input SHALL always be available. (Resolves Gap 9.)
 
 ### FR-8 — Transcript persistence
 - 8.1 WHEN a session ends, THE SYSTEM SHALL persist the conversation as ordered text turns with timestamps,
@@ -147,6 +177,11 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
 - 8.3 THE SYSTEM SHALL NOT persist raw audio or video at any time.
 - 8.4 WHEN the resident deletes a transcript, THE SYSTEM SHALL remove it from device and backend within the
   same operation and confirm deletion.
+- 8.5 THE SYSTEM SHALL retain transcripts for a default of 90 days, after which they SHALL be automatically
+  deleted (backend TTL); the retention period SHALL be viewable in Settings. (Resolves Gap 8.)
+- 8.6 THE SYSTEM SHALL provide a "Delete all my data" action that erases every transcript for the resident
+  from device and backend and revokes stored tokens, satisfying the GDPR right to erasure, with a
+  confirmation step. (Resolves Gap 8.)
 
 ### FR-9 — Haptic vocabulary
 - 9.1 THE SYSTEM SHALL define at least three distinguishable vibration patterns: person-at-door, motion,
@@ -155,6 +190,9 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
   and user-viewable in Settings.
 - 9.3 THE SYSTEM SHALL provide a screen-strobe + torch visual alert option as a software equivalent of a
   flashing-light doorbell.
+- 9.4 THE SYSTEM SHALL cap any strobe/torch flashing at **no more than 3 flashes per second** to conform to
+  WCAG 2.2 SC 2.3.1 (three-flash threshold) and prevent photosensitive-seizure risk; the strobe SHALL be
+  off by default and require explicit opt-in. (Resolves Gap 11.)
 
 ### FR-10 — Settings
 - 10.1 THE SYSTEM SHALL let the resident toggle Privacy Mode ↔ Clarity Mode; the change SHALL apply to the
@@ -172,6 +210,40 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
   operate as a captions-plus-visitor-facing-flow product: live captions of the visitor and an on-screen
   text/QR prompt the resident can surface, with all other features intact.
 - 12.2 THE SYSTEM SHALL treat Captions-Only Mode as a first-class, fully-tested mode, not an error state.
+
+### FR-13 — Permissions & consent flows (resolves Gap 1)
+- 13.1 THE SYSTEM SHALL request only the runtime permissions it needs: notifications, microphone (for the
+  WebView WebRTC audio pipeline), camera (required by the WebRTC stack for a peer connection even though
+  Threshold does not use the phone camera), and vibration where the OS requires a declaration.
+- 13.2 WHEN a required permission is needed for a feature, THE SYSTEM SHALL request it in-context with a
+  plain-language rationale immediately before first use, not at app launch.
+- 13.3 IF the resident denies a permission, THE SYSTEM SHALL keep the app usable for every feature that does
+  not require it and SHALL show a clear, non-blocking explanation of what is unavailable.
+- 13.4 IF a required permission is permanently denied, THE SYSTEM SHALL show a one-tap deep link to the OS
+  app-settings screen and SHALL NOT repeatedly re-prompt.
+- 13.5 IF notification permission is denied, THE SYSTEM SHALL fall back to the foreground event poll (FR-3.5)
+  and SHALL clearly state that live alerts are unavailable until notifications are enabled.
+
+### FR-14 — Visitor recording notice & legal stance (resolves Gap 2)
+- 14.1 THE SYSTEM SHALL, on first use and in Settings, present a plain-language notice that Threshold
+  transcribes what visitors say at the door, and SHALL require the resident to acknowledge it once.
+- 14.2 THE SYSTEM SHALL document, in-product and in the privacy policy, that (a) no visitor audio or video is
+  stored (only derived text), (b) in Privacy Mode transcription is fully on-device, and (c) the resident is
+  the data controller responsible for use in their jurisdiction.
+- 14.3 WHERE local law (e.g. two-party-consent jurisdictions) may require it, THE SYSTEM SHALL support an
+  optional audible spoken notice played at the door at session start (reusing the outbound-audio path);
+  this option SHALL be documented and default-off, and its availability SHALL follow the same
+  outbound-audio availability rules as FR-6.
+- 14.4 THE SYSTEM SHALL treat visitor-spoken text as personal data for retention and erasure purposes
+  (FR-8.5/8.6).
+
+### FR-15 — Connectivity & offline behavior (resolves Gap 10)
+- 15.1 IF the app is opened with no network connectivity, THE SYSTEM SHALL still allow viewing and searching
+  locally cached transcripts and SHALL show a clear "offline" state for features that require the network.
+- 15.2 WHILE offline, THE SYSTEM SHALL disable actions that require the backend/Ring (opening a live session,
+  linking) with an explanatory state rather than a silent failure.
+- 15.3 WHEN connectivity returns, THE SYSTEM SHALL automatically restore online capabilities without
+  requiring an app restart.
 
 ---
 
@@ -197,17 +269,32 @@ There is exactly one authenticated human role (Resident). The Visitor is a non-a
 
 ## 6. Acceptance test scenarios (traceability)
 
-Each maps to requirements and is verified in the test strategy (design §Testing).
+Each maps to requirements and is verified in the test strategy (design §9, "Testing strategy & acceptance
+criteria"). (Resolves Gap 12: exact section reference.)
 
-- AT-1 (FR-1): Link account; kill the access token; make a call → refresh happens once, call succeeds.
-- AT-2 (FR-3): POST the same webhook `request_id` twice → single alert, both return 200 within 5 s.
-- AT-3 (FR-4): Open session → SDP offer contains `a=sendrecv` audio and `a=recvonly` video.
-- AT-4 (FR-5.3): Feed audio yielding a low-confidence token → token renders de-emphasized.
-- AT-5 (FR-6.1/6.2): Tap a reply → measurable audio starts on the outbound track within 2 s (spike harness).
-- AT-6 (FR-6.4): Force injection unavailable → app enters Captions-Only Mode with a visible notice, no crash.
-- AT-7 (FR-7.3): Block Bedrock → fixed safe replies still present within 2 s.
-- AT-8 (FR-8.3/NFR-4): Run a full session in Privacy Mode → assert zero audio bytes egress; assert no
-  audio/video files written.
-- AT-9 (NFR-2): Run each screen through an automated a11y scan + manual screen-reader pass → zero AA
-  violations.
+- AT-1 (FR-1): Link account; kill the access token; make a call, refresh happens once, call succeeds.
+- AT-2 (FR-3): POST the same webhook `request_id` twice, single alert, both return 200 within 5 s.
+- AT-3 (FR-4): Open session, SDP offer contains `a=sendrecv` audio and `a=recvonly` video.
+- AT-4 (FR-5.3/5.3a): Partial caption renders provisional; a finalized low-confidence token (<0.6) renders
+  de-emphasized; a finalized high-confidence token renders normal.
+- AT-5 (FR-6.1/6.2): Tap a reply, measurable audio starts on the outbound track within 2 s (spike harness).
+- AT-6 (FR-6.4/6.4a/6.4b): Force injection unavailable at start, session is Captions-Only for its whole
+  duration; force a mid-session injection failure, session stays Captions-Only, next session re-probes.
+- AT-7 (FR-7.3/7.5): Block Bedrock, fixed safe replies present within 2 s; reply bar never empty.
+- AT-8 (FR-8.3/NFR-4): Full session in Privacy Mode, assert zero audio bytes egress and no audio/video
+  files written.
+- AT-9 (NFR-2): Each screen through an automated a11y scan + manual screen-reader pass, zero AA violations.
 - AT-10 (FR-12): Full regression suite passes in Captions-Only Mode.
+- AT-11 (FR-4.6/4.7): New event during an active same-device session updates context without a second
+  session; new event for a different device queues without interrupting; only one live session ever exists.
+- AT-12 (FR-4.8): Expire the app-backend session mid-action, single re-auth prompt, state preserved, action
+  resumes.
+- AT-13 (FR-13): Deny each permission, dependent feature disabled gracefully; permanently-denied shows the
+  settings deep link and does not re-prompt; notification denial falls back to poll.
+- AT-14 (FR-14): First-run recording notice requires acknowledgement; optional door notice, when enabled,
+  plays at session start via the outbound-audio path.
+- AT-15 (FR-8.5/8.6): Transcript past 90 days is auto-deleted; "Delete all my data" erases transcripts and
+  revokes tokens with confirmation.
+- AT-16 (FR-9.4): Strobe/torch flash rate is measured at ≤ 3 flashes/second and is off by default.
+- AT-17 (FR-15): Open the app offline, cached transcripts viewable/searchable, network-only actions disabled
+  with explanation; connectivity returns and online features restore without restart.
