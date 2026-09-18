@@ -99,6 +99,8 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
       // Ensure the Ring tokens are still valid/refreshable; this throws
       // refresh_failed on any auth failure (single recovery path, FR-1.5).
       await app.container.ringTokens.getAccessToken(residentSub);
+      // design.md §10 metric: refresh count.
+      app.container.metrics.increment('refresh');
 
       // Roll the app session forward (idle-expiry reset).
       const session = issueSession(residentSub, config.sessionSecret);

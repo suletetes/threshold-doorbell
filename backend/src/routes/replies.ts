@@ -41,6 +41,10 @@ export async function registerReplyRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const result = await service.suggest({ visitorText, language });
+      if (result.fallback) {
+        // design.md §10 metric: Bedrock fallback rate.
+        app.container.metrics.increment('bedrock_fallback');
+      }
       reply.code(200).send({ suggestions: result.suggestions });
     },
   );

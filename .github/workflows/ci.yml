@@ -1,0 +1,110 @@
+# CI gates for Threshold (task 29, NFR-10; design.md §9, §11; steering/structure.md).
+#
+# Runs on pull requests and on pushes to feature branches. CI configuration is
+# never applied to main outside a reviewed pull request (design.md §11). Two
+# independent jobs gate a merge:
+#
+#   backend  - TypeScript typecheck, ESLint, and vitest (unit + contract + WS).
+#   app      - flutter pub get, flutter test (compiles all Dart, the primary
+#              gate in this project), and the em-dash / en-dash UI-copy lint
+#              (AT-24) which fails the build if a forbidden dash appears in any
+#              user-facing string.
+#
+# Versions are pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10,
+# Node 20). flutter analyze is intentionally NOT run here: it crashes in the
+# sandbox analysis server; flutter test compiles all Dart and is the gate.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (typecheck, lint, vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install (locked)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (vitest)
+        run: npx vitest run
+
+  app:
+    name: App (flutter test, UI-copy lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.38.10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.10"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: UI-copy lint (no em-dash or en-dash, AT-24)
+        run: dart run tool/lint_ui_copy.dart lib
+
+      - name: Test (flutter test)
+        run: flutter test
+
+  packages:
+    name: Package flutter_ring_captions (test, lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/flutter_ring_captions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.38.10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.10"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Test (flutter test)
+        run: flutter test

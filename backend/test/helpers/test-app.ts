@@ -6,9 +6,12 @@ import { buildContainer, type ContainerOverrides } from '../../src/container.js'
 import { buildApp } from '../../src/app.js';
 import { issueSession } from '../../src/security/session.js';
 import { FixtureRing } from '../../src/services/fixtures/fixture-ring.js';
+import { FixtureRingSignaling } from '../../src/services/fixtures/fixture-ring-signaling.js';
+import { FixtureTranscribe } from '../../src/services/fixtures/fixture-transcribe.js';
 import { FixtureBedrock } from '../../src/services/fixtures/fixture-bedrock.js';
 import { FixturePush } from '../../src/services/fixtures/fixture-push.js';
 import { LocalCrypto } from '../../src/services/fixtures/local-crypto.js';
+import { InMemoryMetricsSink } from '../../src/observability/metrics.js';
 import {
   MemoryConversationStore,
   MemoryEventStore,
@@ -18,15 +21,41 @@ import {
 export async function buildTestApp() {
   const config = loadConfig({ THRESHOLD_ENV: 'local', SESSION_SECRET: 'test-secret-for-sessions' });
   const ring = new FixtureRing();
+  const ringSignaling = new FixtureRingSignaling();
+  const transcribe = new FixtureTranscribe();
   const bedrock = new FixtureBedrock();
   const push = new FixturePush();
   const crypto = new LocalCrypto(config.sessionSecret);
   const tokenStore = new MemoryTokenStore();
   const eventStore = new MemoryEventStore();
   const conversationStore = new MemoryConversationStore();
+  const metrics = new InMemoryMetricsSink();
 
   const overrides: ContainerOverrides = {
     ring,
+    ringSignaling,
+    transcribe,
+    bedrock,
+    push,
+    crypto,
+    tokenStore,
+    eventStore,
+    conversationStore,
+    metrics,
+  };
+  const container = buildContainer(config, overrides);
+  const app = await buildApp(container);
+  await app.ready();
+
+  return {
+    app,
+    config,
+    container,
+    metrics,
+    signalingService: app.signalingService,
+    ring,
+    ringSignaling,
+    transcribe,
     bedrock,
     push,
     crypto,
@@ -34,11 +63,6 @@ export async function buildTestApp() {
     eventStore,
     conversationStore,
   };
-  const container = buildContainer(config, overrides);
-  const app = await buildApp(container);
-  await app.ready();
-
-  return { app, config, container, ring, bedrock, push, crypto, tokenStore, eventStore, conversationStore };
 }
 
 /** Issue a valid session token for a resident (bypasses OAuth for route tests). */
