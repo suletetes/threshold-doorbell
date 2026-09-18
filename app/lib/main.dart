@@ -41,7 +41,7 @@ class _PlaceholderHome extends StatelessWidget {
           padding: EdgeInsets.all(24),
           child: Text(
             'Skeleton ready.\n\n'
-            'Next step: the audio spike (lib/reply/audio_spike.dart) — prove a '
+            'Next step: the audio spike (lib/reply/audio_spike.dart). Prove a '
             'synthesised voice can be sent out of the doorbell before building '
             'any screens.',
             textAlign: TextAlign.center,

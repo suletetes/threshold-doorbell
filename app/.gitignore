@@ -1,0 +1,8 @@
+# Flutter/Dart build and tooling artifacts
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.log
+
+# Do NOT ignore pubspec.lock: the app pins its dependency graph (structure.md).

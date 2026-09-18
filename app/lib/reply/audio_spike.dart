@@ -32,7 +32,7 @@
 
 Future<void> runAudioSpike() async {
   throw UnimplementedError(
-    'Audio spike not implemented yet. This is intentionally the first task — '
-    'see the header of this file and threshold-spec.md §9 R1.',
+    'Audio spike not implemented yet. This is intentionally the first task. '
+    'See the header of this file and threshold-spec.md §9 R1.',
   );
 }
