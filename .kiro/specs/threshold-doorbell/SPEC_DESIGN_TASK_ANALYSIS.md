@@ -331,3 +331,75 @@ ambiguities remain.
 accessibility, retention) and least rigorous where the project is *riskiest* (the audio probe, the dual-stack
 WebRTC decision, and the fallback mode). That inversion is the real finding. Fix the inversion and this
 package becomes genuinely one-shot ready.
+
+
+---
+
+# Resolution log (post-audit revision)
+
+All 23 defects are addressed. The audit findings above are preserved unedited as the historical record; this
+section states how each was closed and how it was verified.
+
+## P0
+
+| ID | Fix | Verification |
+|---|---|---|
+| R-1, D-1, T-5, T-6 | **Captions-Only rewritten as receive-only.** The visitor-facing prompt and QR idea are deleted and replaced by non-goal **N9** ("no visitor-facing display": a doorbell has no screen and the visitor cannot see the resident's phone). FR-12 now specifies captions plus a persistent banner plus a one-tap "Open Ring app" action, and design §8 screen 3 designs it. | `grep -ci QR requirements.md` = **0** |
+| D-3 | **ARCH-1 decision recorded:** exactly one peer connection, owned by the WebView. `flutter_webrtc` removed from the live-session path and from the dependency table, with consequences (video renders in the WebView, inbound audio tapped via AudioWorklet, JS-bridge budget owned by the latency harness) written out. | `grep -c ARCH-1 design.md` = **6** |
+| D-2, T-3 | **Probe fully specified** in design §5.1: baseline `packetsSent`, at most 200 ms of audio at or below -60 dBFS (inaudible at the door), `replaceTrack`, poll `getStats()` every 100 ms for up to 1000 ms. Assigned to task 2.3. | `grep -c packetsSent design.md` = **2** |
+| R-4 | **Privacy Mode vs Bedrock resolved:** new FR-7.1a forbids calling Bedrock in Privacy Mode; suggestions come from the fixed safe set plus on-device keyword templates. FR-5.2 extended so neither audio nor transcript text leaves the device. | requirement `7.1a` present; cited by task 18 |
+| T-1, T-2 | **Task 8 superseded wording removed.** Captions work is now task 13 and cites FR-5.3 **and FR-5.3a** with the correct partial-versus-final behavior. Sticky-mode work is task 16 citing FR-6.4a/6.4b. | `grep -cE "FR-5.3a\|FR-6.4a\|FR-6.4b" tasks.md` = **4** (was 0) |
+
+## P1
+
+| ID | Fix |
+|---|---|
+| R-9, D-8, T-8 | New **FR-5.6** self-transcription suppression (gate ASR during playback, 300 ms tail, mark the gap, enable echo cancellation), design §5.3 states `GATE_ASR_ON`/`GATE_OFF`, new task 14, new **AT-18**. |
+| D-9 | **FR-8.7** plus design §4/§7: `residentSub` always server-derived; foreign values rejected `403 resident_mismatch`. New **AT-19**; task 27 tests it. |
+| D-7, D-6 | Ring tokens moved to **KMS-encrypted DynamoDB** (`ring_tokens`); Secrets Manager reduced to application secrets. **FR-1.6** now forbids Ring tokens on the device (device holds only the app session credential). Task 4 owns it. |
+| R-6 | **FR-1.5 unified auth recovery**; FR-4.8 now delegates to it. AT-12 asserts no second divergent path exists. |
+| D-10 | Cursor **pagination** on `/devices`, `/events`, `/transcripts` (`limit` default 25, max 100; `{ items, nextCursor }`). AT-19. |
+| R-5 | **FR-14.3a** compliance fallback: if the audible notice is enabled but outbound audio is unavailable, offer continue-without-notice or disable-transcription instead of silently transcribing. |
+| R-2, T-7 | **FR-5.4 presence definition** (active session AND (`person_detected` within 60 s OR visual processor reports a person); event alone suffices if the processor is unavailable), removing the ordering dependency on the visual processor. |
+| T-4 | New task 25 (**latency harness**, NFR-1) and task 26 (**degradation matrix**, NFR-5). |
+| R-3 | **G1 split** into G1a (webhook receipt to push delivered, 1.5 s) and G1b (tap to first caption, 2.0 s), excluding user reaction time. Reference device fixed at "iPhone 12" exactly. |
+| T-9 | Old bundled task 5 **split into tasks 5 to 9** (webhook, devices/events, signaling, ASR relay, transcripts). |
+| D-15 | Error table corrected: a Transcribe drop no longer "prompts Privacy Mode" mid-session (which violated FR-10.1); it ends captions with a notice and suggests Privacy Mode for the next session. |
+| D-12, T-12 | **FR-5.2a** model provisioning (opt-in download, size disclosure, never during a session, mode labelled unavailable until verified); task 18; **AT-21**. |
+| D-5 | Backend signaling SPOF **explicitly accepted and surfaced** via FR-15.4 and AT-20 rather than silently assumed. |
+
+## P2
+
+| ID | Fix |
+|---|---|
+| T-11 | **NFR-10** plus task 29 CI gate plus **AT-24** for the em-dash and en-dash UI-string lint. |
+| R-13 | New **FR-16** language and locale selection (the design's language selector now has a requirement). |
+| R-11 | FR-9.1 changed from "at least three" to **exactly three** patterns in v1. |
+| R-12 | FR-10.2 bounds contrast adjustment to a **4.5:1 floor** so user settings cannot breach NFR-2. |
+| R-8 | Fixture-device loading removed from FR-2.2 and relocated to design §11 (`local` environment). |
+| R-10 | FR-4.3a replaces the 30-second background kill with **5-minute background survival** and resume, matching the real use case of walking to the door. |
+| R-7 | **FR-5.7** defines persistence of an unfinalized utterance (`confidence: null`, `provisional: true`); `Turn.provisional` added to the model. |
+| R-14 | New **FR-17** Ring contract-drift isolation via one schema-validating adapter emitting `ring_contract_invalid`; **AT-23**. |
+| D-13, D-16 | The unearned "no open questions" claims are **removed**. Requirements §7 and design §12 are now explicit "Known open items" sections requiring date and owner for any future ambiguity. Observability is backed by NFR-3 plus task 28. |
+| D-14 | Version pins declared **authoritative**; the "verify latest at build" caveat withdrawn, CI pins via lockfiles. |
+| T-13 | New task 27 (threat model), task 30 (README, privacy policy, runbook, friction log). |
+| T-14 | Task 2 decomposition retained; former bundles split (tasks 5 to 9), so decomposition is now consistent. |
+
+## Revised package shape
+
+| Metric | Before | After |
+|---|---|---|
+| Functional requirements | 15 | **17** |
+| Non-functional requirements | 9 | **10** |
+| Acceptance tests | 17 | **25** |
+| Tasks | 21 | **31** |
+| FR-5.3a / 6.4a / 6.4b in tasks | 0 | **4 citations** |
+| NFR-1 / NFR-5 in tasks | 0 / 0 | **2 / 2** |
+| Em-dash and en-dash in spec files | present | **0** |
+
+## Residual risk (unchanged by documentation)
+
+Specification quality is now adequate, but the **product risk is still concentrated in task 2**. ARCH-1 is a
+reasoned decision, not a proven one: nobody has yet demonstrated that a Ring WebRTC session can be driven
+from a WebView with an injected outbound track on both platforms. The spec is now correct and complete
+enough that this is the *only* question that matters. Run task 2 before anything else.
