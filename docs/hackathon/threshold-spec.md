@@ -6,8 +6,10 @@
 
 Primary track: **Ring** · Mini-challenges entered: **AWS Builder** + **Open Source**
 Platform: **Flutter (iOS + Android)** — mobile is intrinsic, not decorative (see §4).
-Name: *threshold* is the audiology term for the quietest sound a person can detect, and the place where a
-visitor stands. Both meanings are the product.
+Product name: **Threshold** — the audiology term for the quietest sound a person can detect, and the place
+where a visitor stands. Both meanings are the product.
+Repository: **`threshold-doorbell`** (`github.com/suletetes/threshold-doorbell`).
+Open-source package (Open Source mini-challenge): **`flutter_ring_captions`**.
 
 ---
 
