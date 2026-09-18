@@ -12,6 +12,7 @@ import { registerWebhookRoutes } from './routes/webhook.js';
 import { registerDeviceRoutes } from './routes/devices.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerTranscriptRoutes } from './routes/transcripts.js';
+import { registerReplyRoutes } from './routes/replies.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -87,6 +88,7 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   await registerDeviceRoutes(app);
   await registerEventRoutes(app);
   await registerTranscriptRoutes(app);
+  await registerReplyRoutes(app);
 
   return app;
 }
