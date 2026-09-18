@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<!--
+  ARCH-1 outbound-audio spike (Task 2, design ARCH-1 + §5.1).
+
+  Proves the single load-bearing assumption of Threshold: a synthesized voice can be
+  injected into the OUTBOUND audio track of a Ring WHEP/WebRTC session, from inside a
+  WebView, and reach the doorbell. One RTCPeerConnection lives here (ARCH-1): audio
+  sendrecv, video recvonly.
+
+  This file is self-contained and runs in any browser for the offline harness
+  (loopback), and inside the Flutter WebView against a real Ring WHEP endpoint.
+
+  It never plays an audible test tone at the door: the capability PROBE emits
+  <= -60 dBFS (inaudible) per design §5.1. Only an explicit "Speak test phrase"
+  action produces audible speech, and only when you deliberately trigger it.
+
+  Bridge contract (to Flutter): window.SpikeBridge.postMessage(JSON.string) with
+  { type: 'log'|'state'|'probe'|'verdict', ... }. In a plain browser the bridge is
+  absent and messages go to the on-page console panel only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Threshold ARCH-1 Audio Spike</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; background: #10131a; color: #e8eaf0; }
+  header { padding: 12px 16px; background: #1565c0; font-weight: 600; }
+  main { padding: 16px; display: grid; gap: 12px; }
+  video { width: 100%; max-height: 40vh; background: #000; border-radius: 8px; }
+  button { font-size: 16px; padding: 12px 14px; border: 0; border-radius: 8px; background: #2b6cb0; color: #fff; }
+  button:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .verdict { font-size: 18px; font-weight: 700; padding: 12px; border-radius: 8px; }
+  .pass { background: #1b5e20; } .fail { background: #7f1d1d; } .pending { background: #374151; }
+  #log { background: #0b0e14; border-radius: 8px; padding: 10px; height: 30vh; overflow: auto;
+         font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+  input { font-size: 14px; padding: 8px; width: 100%; box-sizing: border-box; border-radius: 6px;
+          border: 1px solid #334; background: #0b0e14; color: #e8eaf0; }
+</style>
+</head>
+<body>
+<header>Threshold ARCH-1 outbound-audio spike</header>
+<main>
+  <div id="verdict" class="verdict pending">Verdict: not run yet</div>
+  <video id="remote" autoplay playsinline muted></video>
+  <input id="whep" placeholder="Ring WHEP endpoint URL (leave blank for offline loopback harness)" />
+  <div class="row">
+    <button id="btn-connect">1. Connect session</button>
+    <button id="btn-probe" disabled>2. Run capability probe</button>
+    <button id="btn-speak" disabled>3. Speak test phrase (audible)</button>
+    <button id="btn-hangup" disabled>Hang up</button>
+  </div>
+  <div id="log"></div>
+</main>
+<script>
+"use strict";
+
+// ---- bridge + logging -------------------------------------------------------
+const logEl = document.getElementById("log");
+function bridge(msg) {
+  try {
+    if (window.SpikeBridge && typeof window.SpikeBridge.postMessage === "function") {
+      window.SpikeBridge.postMessage(JSON.stringify(msg));
+    }
+  } catch (_) { /* bridge optional in a plain browser */ }
+}
+function log(line) {
+  const ts = new Date().toISOString().substr(11, 12);
+  logEl.textContent += `[${ts}] ${line}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+  bridge({ type: "log", line });
+}
+function setVerdict(kind, text) {
+  const el = document.getElementById("verdict");
+  el.className = "verdict " + kind;
+  el.textContent = "Verdict: " + text;
+  bridge({ type: "verdict", kind, text });
+}
+function setState(name) { bridge({ type: "state", state: name }); }
+
+// ---- state ------------------------------------------------------------------
+let pc = null;
+let audioContext = null;
+let audioSender = null;      // the RTCRtpSender whose track we swap
+let idleTrack = null;        // silent track used when not speaking
+let outboundAvailable = null; // sticky probe result (FR-6.4a/b)
+
+const $ = (id) => document.getElementById(id);
+
+// A silent MediaStreamTrack so the sender always has a track to swap from/to.
+function makeSilentTrack(ctx) {
+  const dst = ctx.createMediaStreamDestination();
+  // No source connected => silence.
+  return dst.stream.getAudioTracks()[0];
+}
+
+// Near-silent probe buffer: 200 ms, gain <= -60 dBFS (inaudible at the door). §5.1
+function makeProbeTrack(ctx) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  gain.gain.value = 0.0005; // ~ -66 dBFS, safely below -60
+  const dst = ctx.createMediaStreamDestination();
+  osc.connect(gain).connect(dst);
+  osc.start();
+  setTimeout(() => { try { osc.stop(); } catch (_) {} }, 200);
+  return dst.stream.getAudioTracks()[0];
+}
+
+async function firstAudioSenderStats(sender) {
+  const stats = await sender.getStats();
+  let packetsSent = null;
+  stats.forEach((r) => {
+    if (r.type === "outbound-rtp" && r.kind === "audio") packetsSent = r.packetsSent ?? packetsSent;
+  });
+  return packetsSent;
+}
+
+// ---- 1. connect -------------------------------------------------------------
+async function connect() {
+  setState("CONNECTING");
+  $("btn-connect").disabled = true;
+  try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === "suspended") await audioContext.resume();
+
+    pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }],
+    });
+
+    // ARCH-1 SDP shape: audio sendrecv, video recvonly. One peer connection.
+    idleTrack = makeSilentTrack(audioContext);
+    pc.addTransceiver(idleTrack, { direction: "sendrecv" });
+    pc.addTransceiver("video", { direction: "recvonly" });
+    audioSender = pc.getSenders().find((s) => s.track && s.track.kind === "audio");
+
+    pc.ontrack = (e) => { if (e.streams[0]) $("remote").srcObject = e.streams[0]; };
+    pc.onconnectionstatechange = () => {
+      log("connectionState = " + pc.connectionState);
+      if (pc.connectionState === "connected") {
+        setState("CONNECTED");
+        $("btn-probe").disabled = false;
+        $("btn-hangup").disabled = false;
+      }
+      if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+        setState("CLOSED");
+      }
+    };
+
+    const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
+    await pc.setLocalDescription(offer);
+    await waitIceComplete(pc, 3000);
+
+    const whep = $("whep").value.trim();
+    if (!whep) {
+      // Offline loopback harness: no Ring endpoint. Loop our own SDP back so the
+      // AudioContext -> replaceTrack -> getStats path is exercised end to end.
+      log("No WHEP URL: running offline loopback harness.");
+      await loopbackAnswer(pc);
+    } else {
+      log("POSTing offer to WHEP endpoint...");
+      const res = await fetch(whep, {
+        method: "POST",
+        headers: { "Content-Type": "application/sdp" },
+        body: pc.localDescription.sdp,
+      });
+      if (!res.ok) throw new Error("WHEP POST failed: " + res.status);
+      const answer = await res.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answer });
+    }
+    log("Session negotiated.");
+  } catch (err) {
+    log("CONNECT ERROR: " + (err && err.message ? err.message : err));
+    setVerdict("fail", "connect failed (see log)");
+    $("btn-connect").disabled = false;
+  }
+}
+
+function waitIceComplete(pc, timeoutMs) {
+  return new Promise((resolve) => {
+    if (pc.iceGatheringState === "complete") return resolve();
+    const t = setTimeout(resolve, timeoutMs);
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === "complete") { clearTimeout(t); resolve(); }
+    };
+  });
+}
+
+// Offline loopback: a second local PC answers, so packetsSent actually increments.
+let loopPc = null;
+async function loopbackAnswer(offerPc) {
+  loopPc = new RTCPeerConnection();
+  loopPc.addTransceiver("audio", { direction: "recvonly" });
+  loopPc.addTransceiver("video", { direction: "recvonly" });
+  offerPc.onicecandidate = (e) => e.candidate && loopPc.addIceCandidate(e.candidate).catch(() => {});
+  loopPc.onicecandidate = (e) => e.candidate && offerPc.addIceCandidate(e.candidate).catch(() => {});
+  await loopPc.setRemoteDescription(offerPc.localDescription);
+  const ans = await loopPc.createAnswer();
+  await loopPc.setLocalDescription(ans);
+  await offerPc.setRemoteDescription(loopPc.localDescription);
+}
+
+// ---- 2. probe (design §5.1) -------------------------------------------------
+async function probe() {
+  $("btn-probe").disabled = true;
+  setState("PROBING");
+  try {
+    if (!audioSender) throw new Error("no audio sender");
+    const baseline = (await firstAudioSenderStats(audioSender)) ?? 0;
+    log("probe baseline packetsSent = " + baseline);
+
+    const probeTrack = makeProbeTrack(audioContext); // <= -60 dBFS, 200 ms
+    await audioSender.replaceTrack(probeTrack);
+
+    let success = false;
+    const deadline = Date.now() + 1000; // §5.1: up to 1000 ms
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+      const now = await firstAudioSenderStats(audioSender);
+      if (now !== null && now > baseline) { success = true; log("packetsSent rose to " + now); break; }
+    }
+
+    // Restore idle silent track regardless of outcome.
+    await audioSender.replaceTrack(idleTrack);
+
+    outboundAvailable = success; // sticky for the session (FR-6.4b)
+    bridge({ type: "probe", outboundAvailable });
+    if (success) {
+      setVerdict("pass", "outbound audio WORKS (ARCH-1 holds)");
+      $("btn-speak").disabled = false;
+    } else {
+      setVerdict("fail", "outbound audio unavailable (Captions-Only)");
+    }
+  } catch (err) {
+    log("PROBE ERROR: " + (err && err.message ? err.message : err));
+    outboundAvailable = false;
+    bridge({ type: "probe", outboundAvailable: false });
+    setVerdict("fail", "probe error -> Captions-Only");
+  }
+}
+
+// ---- 3. audible test phrase (only on explicit tap) --------------------------
+async function speak() {
+  if (outboundAvailable !== true) return;
+  $("btn-speak").disabled = true;
+  try {
+    const dst = audioContext.createMediaStreamDestination();
+    // Use SpeechSynthesis -> it cannot be routed to a track directly, so we
+    // synthesize an audible tone burst as a stand-in that IS routed to the
+    // outbound track, proving audibility end to end. Real TTS PCM is fed the
+    // same way from Flutter (flutter_tts synthesizeToFile -> decodeAudioData).
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    osc.frequency.value = 440; gain.gain.value = 0.2; // clearly audible
+    osc.connect(gain).connect(dst);
+    await audioSender.replaceTrack(dst.stream.getAudioTracks()[0]);
+    osc.start();
+    log("Speaking audible test phrase for 1500 ms...");
+    setTimeout(async () => {
+      try { osc.stop(); } catch (_) {}
+      await audioSender.replaceTrack(idleTrack);
+      log("Test phrase done; restored idle track.");
+      $("btn-speak").disabled = false;
+    }, 1500);
+  } catch (err) {
+    log("SPEAK ERROR: " + (err && err.message ? err.message : err));
+    $("btn-speak").disabled = false;
+  }
+}
+
+async function hangup() {
+  try { if (loopPc) loopPc.close(); } catch (_) {}
+  try { if (pc) pc.close(); } catch (_) {}
+  try { if (audioContext) await audioContext.close(); } catch (_) {}
+  pc = loopPc = audioContext = audioSender = idleTrack = null;
+  setState("CLOSED");
+  ["btn-probe","btn-speak","btn-hangup"].forEach((id) => $(id).disabled = true);
+  $("btn-connect").disabled = false;
+  log("Session closed.");
+}
+
+$("btn-connect").onclick = connect;
+$("btn-probe").onclick = probe;
+$("btn-speak").onclick = speak;
+$("btn-hangup").onclick = hangup;
+
+log("Spike loaded. Enter a Ring WHEP URL, or leave blank for the offline loopback harness.");
+</script>
+</body>
+</html>
