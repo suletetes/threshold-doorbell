@@ -1,327 +1,382 @@
-# Design — Threshold (threshold-doorbell)
+# Design: Threshold (threshold-doorbell)
 
-Implementation-ready technical design. Every failure mode and edge case has defined behavior. No open
-questions.
+Implementation-ready technical design. Every failure mode has defined behavior.
+
+**Revision status.** Resolves all design defects from `SPEC_DESIGN_TASK_ANALYSIS.md`. The two blocking
+architectural questions are now decided: **ARCH-1** (single WebRTC stack) and **§5.1** (capability probe).
+Known open items are tracked in §12; that section is no longer an unearned "none".
 
 ---
 
 ## 1. System architecture
 
 ```
-┌──────────────┐   WebRTC (WHEP)   ┌───────────────────────────────────────────┐
-│  Ring device │  audio sendrecv   │  Flutter app (iOS 14+ / Android 8+)         │
-│  (doorbell)  │  video recvonly   │                                             │
-└──────┬───────┘◄─────────────────►│  UI (Riverpod)                              │
-       │ webhooks                  │   ├─ Alert · Conversation · ReplyBar        │
-       │ (motion/person)           │   ├─ History · Settings                     │
-       ▼                           │  Domain services (interfaces + fixtures)    │
-┌──────────────────────────┐       │   ├─ RingClient        (REST + rate limit)  │
-│  Backend (Node 20 +       │◄─────►│   ├─ SignalingClient   (session broker)     │
-│  Fastify) — stateless     │  HTTPS│   ├─ CaptionEngine      Clarity | Privacy   │
-│   ├─ /oauth/*             │  + WS │   ├─ ReplyAudioBridge   (WebView pipeline)  │
-│   ├─ /webhook             │       │   ├─ SmartReplyService  (Bedrock)           │
-│   ├─ /devices, /events    │       │   └─ HapticService                          │
-│   ├─ /signaling (WS)      │       └───────────────┬─────────────────────────────┘
-│   └─ /transcripts         │                       │ on-device only
-│  AWS: Transcribe stream,  │                       ▼
-│  Bedrock, Secrets Mgr,    │             Whisper (Privacy Mode) · google_mlkit
-│  DynamoDB                 │
-└──────────────────────────┘
+┌──────────────┐  ONE WebRTC peer connection (WHEP)   ┌──────────────────────────────────┐
+│  Ring device │  audio sendrecv | video recvonly     │  Flutter app (iOS 14+/Android 8+)│
+│  (doorbell)  │◄────────────────────────────────────►│                                  │
+└──────┬───────┘        owned by the WebView          │  WebView runtime (ARCH-1)        │
+       │ webhooks                                     │   ├─ RTCPeerConnection           │
+       │                                              │   ├─ inbound video render        │
+       ▼                                              │   ├─ inbound audio tap -> PCM    │
+┌───────────────────────────────┐                     │   └─ outbound AudioContext inject│
+│ Backend (Node 20 + Fastify)   │◄───── HTTPS/WSS ────│  Flutter layer                   │
+│  stateless, >=2 instances     │                     │   ├─ UI (Riverpod) overlays      │
+│   ├─ /oauth/*                 │                     │   ├─ CaptionEngine (Clarity|Priv)│
+│   ├─ /webhook (HMAC, idem)    │                     │   ├─ ReplyController + TTS       │
+│   ├─ /devices /events (paged) │                     │   ├─ HapticService               │
+│   ├─ /signaling (WS broker)   │                     │   └─ On-device: Whisper, ML Kit   │
+│   ├─ /asr/stream (Clarity)    │                     └──────────────────────────────────┘
+│   ├─ /replies (Bedrock)       │
+│   ├─ /transcripts (paged)     │   AWS: Transcribe streaming, Bedrock, KMS,
+│   └─ /me/data (erasure)       │        DynamoDB, Secrets Manager (app secrets only)
+└───────────────────────────────┘
 ```
 
-**Trust boundary:** the mobile app never holds the Ring client secret or AWS credentials. All privileged
-calls (OAuth exchange/refresh, Transcribe, Bedrock) go through the backend. Privacy Mode is the exception:
-ASR runs fully on device and touches no backend.
+**ARCH-1 (decision): one peer connection, owned by the WebView.** [D-3]
+The live session runs entirely inside an in-app WebView because only the browser runtime can inject
+synthesized audio into an outbound track (`AudioContext` to `MediaStreamAudioDestinationNode` to
+`RTCRtpSender.replaceTrack`). `flutter_webrtc` is **not** used for the live session and is removed from the
+dependency set; it cannot inject outbound audio (no Insertable Streams on any platform) and running it
+alongside the WebView would create two concurrent sessions to one Ring device.
 
-**Statelessness:** the backend keeps no per-request state in memory. OAuth tokens, event dedupe keys, and
-transcripts live in DynamoDB (or the fixture store in local/demo). This satisfies NFR-6.
+Consequences, accepted deliberately:
+- Inbound **video** renders inside the WebView surface; Flutter draws captions and controls as overlays on
+  top using a `Stack`. Overlays stay clear of the watermark corners (FR-4.5).
+- Inbound **audio** is tapped in the WebView via a `MediaStreamAudioSourceNode` plus
+  `AudioWorkletNode`, producing 16 kHz mono PCM frames. Frames go to Clarity (backend WS) or are passed to
+  Flutter over the JS bridge for Privacy Mode.
+- The JS bridge is a performance-sensitive path. Budget and verification belong to the latency harness
+  (task 23). If PCM bridging to Dart proves too slow for Privacy Mode on the reference devices, Privacy Mode
+  runs its inference inside the WebView using a WASM build instead; this substitution does not affect any
+  requirement because FR-5.2 only mandates that audio never leaves the handset.
+- The native platform-channel PCM source remains the only approved alternative if the WebView path fails.
+
+**Trust boundary.** The app never holds the Ring client secret or Ring tokens. Privileged calls (OAuth
+exchange and refresh, Transcribe, Bedrock) run on the backend. In Privacy Mode no audio and no transcript
+text leave the device; the backend is still used for signaling and events, so the earlier claim that Privacy
+Mode "touches no backend" is withdrawn as inaccurate [D-4].
+
+**Accepted single point of failure.** `/signaling` is required to start any session, including Privacy Mode.
+A backend outage therefore prevents new sessions. This is accepted rather than mitigated for v1, is surfaced
+to the resident by FR-15.4, and is covered by AT-20 [D-5].
 
 ---
 
-## 2. Technology decisions (with justification)
+## 2. Technology decisions
 
-| Layer | Choice | Version (pin; verify latest at build) | Why |
+| Layer | Choice | Version | Why |
 |---|---|---|---|
-| App | Flutter / Dart | Flutter ≥ 3.24, Dart ≥ 3.4 | Single codebase iOS+Android; mobile is intrinsic to the problem. |
-| State | `flutter_riverpod` | ^2.6.0 | Compile-safe DI, testable, no BuildContext coupling; fixtures injectable. |
-| WebRTC (inbound) | `flutter_webrtc` | ^0.12.0 | Only mature RN-parity WebRTC for Flutter; handles inbound video/audio + SDP. |
-| **Outbound audio** | **WebView pipeline** (`webview_flutter` ^4.7 + JS AudioContext) | — | **flutter_webrtc lacks Insertable Streams on all platforms (verified pub.dev/repo). The browser inside a WebView supports AudioContext → MediaStreamTrack injection, which is the proven path.** Native platform-channel PCM is the only approved alternative. |
-| TTS | `flutter_tts` | ^4.2.0 | `synthesizeToFile` produces WAV/PCM to feed the bridge; on-device, low latency. |
-| Cloud ASR | Amazon Transcribe streaming (WebSocket, partial-results stabilization) | current | Purpose-built for live captions; anchors AWS Builder mini-challenge. |
-| On-device ASR | whisper.cpp via `whisper_ggml` / FFI | current | Privacy Mode; tiny/base quantized + VAD. Stretch — Clarity Mode is default. |
-| Smart replies | Amazon Bedrock (Claude/Titan text) | current | Short suggestions; non-latency-critical; AWS Builder. |
-| Vision context | `google_mlkit_object_detection` | ^0.14.0 | On-device person/object cues; frames never leave phone. |
-| Haptics | `vibration` | ^2.0.0 | Distinct patterns per event. |
-| Push | `firebase_messaging` (FCM, APNs via FCM) | ^15.x | Cross-platform push for alerts. |
-| Backend | Node 20 LTS + Fastify | Fastify ^4.28 | Fast, schema-validated routes, first-class JSON-schema validation; AWS SDK v3. |
-| AWS SDK | `@aws-sdk/*` v3 | ^3.x | Transcribe streaming + Bedrock + Secrets Manager + DynamoDB. |
-| Store | DynamoDB (prod) / in-memory fixture (local/demo) | — | Stateless backend; single-digit-ms lookups for dedupe + transcripts. |
-| Secrets | AWS Secrets Manager | — | Ring client secret + HMAC key + AWS creds; never in app or logs. |
-| Permissions | `permission_handler` | ^11.x | In-context requests, denied/permanently-denied handling, settings deep link (FR-13). |
-| Connectivity | `connectivity_plus` | ^6.x | Offline detection and auto-restore (FR-15). |
+| App shell | Flutter / Dart | Flutter >= 3.24, Dart >= 3.4 | One codebase, both platforms; mobile is intrinsic. |
+| State | `flutter_riverpod` | ^2.6.0 | Compile-safe DI, testable, fixtures injectable. |
+| **Live session** | **`webview_flutter` + browser WebRTC** | ^4.7.0 | ARCH-1. Only runtime able to inject outbound audio. |
+| ~~Inbound WebRTC~~ | ~~`flutter_webrtc`~~ | removed | Cannot inject outbound audio; would duplicate the session. |
+| TTS | `flutter_tts` | ^4.2.0 | `synthesizeToFile` yields WAV/PCM to feed the bridge. |
+| Cloud ASR | Amazon Transcribe streaming | current | Built for live captions; anchors AWS Builder. |
+| On-device ASR | whisper.cpp (`whisper_ggml` or FFI), or WASM in WebView per ARCH-1 | current | Privacy Mode. Stretch; Clarity is default. |
+| Smart replies | Amazon Bedrock (Clarity only) | current | Short suggestions. Not called in Privacy Mode (FR-7.1a). |
+| Visual context | `google_mlkit_object_detection` | ^0.14.0 | On-device cues; frames never leave the phone. |
+| Haptics | `vibration` | ^2.0.0 | Three distinct patterns. |
+| Permissions | `permission_handler` | ^11.x | In-context requests, permanently-denied handling. |
+| Connectivity | `connectivity_plus` | ^6.x | Offline detection and restore. |
+| Push | `firebase_messaging` | ^15.x | FCM, APNs via FCM. |
+| Backend | Node 20 LTS + Fastify | ^4.28 | Schema-validated routes, AWS SDK v3. |
+| Datastore | DynamoDB + KMS | current | Stateless backend; **holds KMS-encrypted Ring tokens** [D-7]. |
+| Secrets | AWS Secrets Manager | current | **Application secrets only** (Ring client secret, HMAC key, KMS key id). Not per-user tokens. |
 
-**Rejected:** flutter_webrtc raw track injection (Insertable Streams unsupported); persisting audio (privacy
-non-goal N6); a bespoke auth system (Ring OAuth is the identity).
+**Version policy** [D-14]. The pins above are the versions this design is written against and are
+authoritative. Upgrades are a deliberate change, not a build-time decision; the previous "verify latest at
+build" caveat is withdrawn. CI pins via lockfiles.
+
+**Rejected.** `flutter_webrtc` for the live session (cannot inject audio); two concurrent peer connections
+(Ring session limits, double cost); per-user tokens in Secrets Manager (pricing and throttling are wrong for
+per-user rows); any visitor-facing display (no hardware to show it, N9); persisting audio or video (N6).
 
 ---
 
-## 3. Data models & schema
-
-TypeScript shapes (backend authoritative; Dart mirrors them).
+## 3. Data models and schema
 
 ```ts
-type DeviceId = string;      // Ring device id
+type DeviceId = string;
 type EventType = 'motion_detected' | 'person_detected';
 type Speaker = 'visitor' | 'resident';
 type TurnSource = 'transcribe' | 'ondevice' | 'template' | 'freetext';
 type CaptionMode = 'clarity' | 'privacy';
 
 interface Device {
-  id: DeviceId;
-  name: string;
-  capabilities: string[];          // e.g. ['live_view','motion','person']
-  privacyZones: BoundingBox[];
-  cachedAt: string;                // ISO8601; TTL 24h
+  id: DeviceId; name: string; capabilities: string[];
+  privacyZones: BoundingBox[]; cachedAt: string;       // TTL 24h
 }
-
 interface BoundingBox { x: number; y: number; width: number; height: number; }
 
 interface DoorEvent {
-  eventId: string;                 // stable id
-  requestId: string;               // idempotency key (unique index)
-  type: EventType;
-  deviceId: DeviceId;
-  timestamp: string;               // ISO8601
-  confidence: number | null;       // 0..1
-  boundingBox: BoundingBox | null;
-  thumbnailUrl: string | null;
-  processedAt: string | null;      // set once; null until first processing
+  eventId: string; requestId: string;                   // requestId = idempotency key
+  type: EventType; deviceId: DeviceId; timestamp: string;
+  confidence: number | null; boundingBox: BoundingBox | null;
+  thumbnailUrl: string | null; processedAt: string | null;
 }
 
 interface Turn {
-  turnId: string;
-  speaker: Speaker;
-  text: string;
-  confidence: number | null;       // per-turn min token confidence
-  timestamp: string;
-  source: TurnSource;
+  turnId: string; speaker: Speaker; text: string;
+  confidence: number | null;      // null when unfinalized (FR-5.7)
+  provisional: boolean;           // true when persisted unfinalized (FR-5.7)
+  timestamp: string; source: TurnSource;
 }
 
 interface Conversation {
-  conversationId: string;
-  deviceId: DeviceId;
-  residentSub: string;             // Ring account subject (owner)
-  startedAt: string;
-  endedAt: string | null;
+  conversationId: string; deviceId: DeviceId;
+  residentSub: string;            // ALWAYS server-derived from session (FR-8.7)
+  startedAt: string; endedAt: string | null;
   mode: CaptionMode;
-  outboundAvailable: boolean;      // probed once at session start; sticky (FR-6.4a)
+  outboundAvailable: boolean;     // probe result, sticky for session (FR-6.4a/b)
+  language: string;               // BCP-47, FR-16
   turns: Turn[];
-  expiresAt: string;               // startedAt + 90d retention TTL (FR-8.5)
+  expiresAt: string;              // startedAt + 90d, DynamoDB TTL (FR-8.5)
 }
 
-interface OAuthTokens {            // backend/secure store only — never returned to app
+interface RingTokenRecord {       // backend only; never on device (FR-1.6)
   residentSub: string;
-  accessToken: string;
-  refreshToken: string;
+  accessTokenEnc: string;        // KMS-encrypted
+  refreshTokenEnc: string;       // KMS-encrypted
   expiresAt: string;
 }
 ```
 
-**DynamoDB tables (prod):**
-- `events` — PK `requestId` (conditional put enforces idempotency), TTL 7 days.
-- `conversations` — PK `residentSub`, SK `conversationId`; GSI on `startedAt` for date filtering; DynamoDB
-  TTL on `expiresAt` (90-day retention, FR-8.5). Text turns only, never audio/video.
-- Tokens live in Secrets Manager keyed by `residentSub`, not DynamoDB.
-- "Delete all my data" (FR-8.6) deletes all `conversations` for the `residentSub` and revokes the
-  Secrets-Manager token entry in one operation.
+**Tables.**
+- `events`: PK `requestId`, conditional put enforces idempotency, TTL 7 days.
+- `conversations`: PK `residentSub`, SK `conversationId`, GSI on `startedAt` for date filtering, TTL on
+  `expiresAt`. Text turns only.
+- `ring_tokens`: PK `residentSub`, KMS-encrypted token attributes [D-7].
+- Erasure (FR-8.6) deletes all `conversations` for the `residentSub` and the `ring_tokens` row in one
+  transaction.
 
 ---
 
-## 4. API contracts (backend)
+## 4. API contracts
 
-All requests/responses JSON. All 4xx/5xx use the error envelope:
-`{ "error": { "code": string, "message": string, "requestId": string } }`.
+Error envelope on all 4xx and 5xx: `{ "error": { "code", "message", "requestId" } }`.
+**Pagination** on all list endpoints: `?limit` (default 25, max 100) and `?cursor`; responses are
+`{ items: T[], nextCursor: string | null }` [D-10].
+**Authorization:** every session-authenticated route derives `residentSub` server-side; a client-supplied
+`residentSub` is ignored and the request is rejected if it conflicts [D-9].
 
-| Method | Path | Auth | Request | Success | Errors |
-|---|---|---|---|---|---|
-| GET | `/oauth/start` | none | `?deviceHint` | 302 → Ring authorize (with PKCE+state) | 500 `oauth_init_failed` |
-| GET | `/oauth/callback` | none | `?code&state` | 302 → app deep link with session cookie | 400 `state_mismatch`, 400 `code_exchange_failed` |
-| POST | `/oauth/refresh` | session | `{}` | 200 `{ expiresAt }` | 401 `refresh_failed` |
-| GET | `/devices` | session | — | 200 `Device[]` | 401, 429 `rate_limited`, 502 `ring_unavailable` |
-| GET | `/events?since` | session | — | 200 `DoorEvent[]` | 401, 429, 502 |
-| POST | `/webhook` | HMAC | Ring payload | 200 `{ ok: true }` (≤5 s) | 401 `bad_signature`, 200 on duplicate (idempotent) |
-| GET | `/signaling` (WS) | session | WHEP offer msgs | WS: `{ sdpAnswer, sessionUrl }` | close 4401 unauth, 4408 timeout |
-| POST | `/asr/stream` (WS) | session | PCM frames (Clarity) | WS: `{ partial|final, tokens[] }` | close 4401, 4500 `transcribe_error` |
-| POST | `/replies` | session | `{ conversationId, contextText }` | 200 `{ suggestions: string[≤3] }` | 200 fixed set on Bedrock error |
-| GET | `/transcripts?query&from&to` | session | — | 200 `Conversation[]` (turns text only) | 401 |
-| POST | `/transcripts` | session | `Conversation` | 201 `{ conversationId }` | 401, 400 `schema` |
-| DELETE | `/transcripts/:id` | session | — | 204 | 401, 404 |
-| DELETE | `/me/data` | session | — | 204 (all transcripts erased, token revoked) | 401 |
+| Method | Path | Auth | Success | Errors |
+|---|---|---|---|---|
+| GET | `/oauth/start` | none | 302 to Ring authorize (PKCE + state) | 500 `oauth_init_failed` |
+| GET | `/oauth/callback` | none | 302 to app deep link, sets session | 400 `state_mismatch`, 400 `code_exchange_failed` |
+| POST | `/oauth/refresh` | session | 200 `{ expiresAt }` | 401 `refresh_failed` |
+| GET | `/devices` | session | 200 `{ items: Device[], nextCursor }` | 401, 429 `rate_limited`, 502 `ring_unavailable`, 502 `ring_contract_invalid` |
+| GET | `/events?since&limit&cursor` | session | 200 `{ items: DoorEvent[], nextCursor }` | 401, 429, 502 |
+| POST | `/webhook` | HMAC | 200 `{ ok: true }` within 5 s | 401 `bad_signature`; duplicates return 200 |
+| WS | `/signaling` | session | `{ sdpAnswer, sessionUrl }` | close 4401 unauth, 4408 timeout, 4409 `session_already_active` |
+| WS | `/asr/stream` | session | `{ partial \| final, tokens[] }` | close 4401, 4500 `transcribe_error` |
+| POST | `/replies` | session | 200 `{ suggestions: string[0..3] }` | 200 with fixed set on Bedrock error/timeout |
+| GET | `/transcripts?query&from&to&limit&cursor` | session | 200 `{ items: Conversation[], nextCursor }` | 401 |
+| POST | `/transcripts` | session | 201 `{ conversationId }` (server sets `residentSub`) | 401, 400 `schema`, 403 `resident_mismatch` |
+| DELETE | `/transcripts/:id` | session | 204 | 401, 404 |
+| DELETE | `/me/data` | session | 204 (transcripts erased, tokens revoked) | 401 |
 
-**Webhook contract detail:** verify HMAC over the raw body using the Secrets-Manager key; compute in constant
-time; on mismatch return 401 without processing. On valid: conditional-put by `requestId`; if the item
-already exists, return 200 immediately (dedupe). Then enqueue push. Must complete ≤ 5 s (offload push to an
-async worker if needed; still ack 200 first).
+**Webhook handling.** Verify HMAC over the raw body in constant time using the Secrets Manager key; on
+mismatch return 401 without processing or logging the body. On success, conditional-put by `requestId`; if
+the item exists, return 200 immediately. Acknowledge 200 first, then enqueue push asynchronously so the 5 s
+budget is never at risk.
 
----
-
-## 5. State machines
-
-**Session lifecycle:**
-```
-IDLE ──open──► CONNECTING ──ice ok──► LIVE ──end/bg>30s──► CLOSING ──► IDLE
-   ▲               │ fail×2                │ net drop            │
-   └───────────────┘ (show error)         ▼                     │
-                                    RECONNECTING ──ok──► LIVE    │
-                                          │ fail×2 ──► CLOSING ──┘
-```
-- Privacy Mode: on `net drop`, captions continue locally; RECONNECTING affects only outbound reply + video.
-
-**Reply lifecycle:**
-```
-COMPOSING ──send──► SYNTHESIZING ──audio ready──► SPEAKING_AT_DOOR ──done──► SENT(logged)
-                         │ tts fail                    │ inject fail
-                         ▼                             ▼
-                    ERROR(retry once)      DEGRADE→Captions-Only (sticky, rest of session) + notice
-```
-
-**Outbound-audio mode (FR-6.4a/6.4b):** probed once at session start into `outboundAvailable`. Sticky for
-the whole session. A later injection failure degrades the session to Captions-Only for its remainder; NO
-auto-recovery within the session. The next session re-probes from scratch.
-
-**Session concurrency (FR-4.6/4.7):** exactly one live session exists at a time. A same-device event during
-a live session updates context (no second session). A different-device event queues as a notification and
-never interrupts the active session.
-
-**Caption mode:** `clarity ⇄ privacy` toggled only between sessions; mid-session toggle is queued and
-applied on next session with a visible indicator (FR-10.1).
+**Ring adapter.** All Ring responses pass schema validation in one adapter layer (FR-17). A validation
+failure yields `ring_contract_invalid`, degrades the affected feature, and records a diagnostic event.
 
 ---
 
-## 6. Error handling & edge cases (exhaustive)
+## 5. State machines and the capability probe
+
+### 5.1 Capability probe specification [D-2]
+Runs once per session, after `RTCPeerConnection.connectionState === 'connected'`, before the reply bar is
+enabled.
+
+1. Read baseline `packetsSent` for the audio `RTCRtpSender` via `getStats()`.
+2. Build an `AudioContext`; create a `GainNode` with gain set so output is at or below **-60 dBFS**
+   (inaudible at the door); feed it a 200 ms oscillator or silent buffer.
+3. Connect through a `MediaStreamAudioDestinationNode`; call `sender.replaceTrack(destination.stream
+   .getAudioTracks()[0])`.
+4. Poll `getStats()` every 100 ms for up to **1000 ms**. If `packetsSent` exceeds baseline, the probe
+   succeeds.
+5. On success set `outboundAvailable = true` and restore the idle (silent) track. On failure, timeout, or
+   missing statistics set `outboundAvailable = false`.
+
+The result is **sticky for the session** (FR-6.4b). The probe is deliberately near-silent so a stranger at
+the door never hears a test tone.
+
+### 5.2 Session lifecycle
+```
+IDLE -> CONNECTING -> PROBING -> LIVE(two-way | captions-only)
+          | fail x2        |                 |
+          v                v                 v
+        ERROR        (probe fail ->     BACKGROUNDED(<=5min) -> LIVE
+                      captions-only)          | >5min
+                                              v
+                                           CLOSING -> IDLE
+```
+- `net drop` from LIVE enters RECONNECTING; success returns to LIVE with the same sticky mode; two failures
+  go to CLOSING.
+- Privacy Mode keeps captioning locally during RECONNECTING; video and replies are affected.
+- Background handling per FR-4.3a: up to 5 minutes alive, resume without renegotiation when possible [R-10].
+
+### 5.3 Reply lifecycle
+```
+COMPOSING -> SYNTHESIZING -> GATE_ASR_ON -> SPEAKING_AT_DOOR -> GATE_OFF(+300ms) -> SENT(logged)
+                  | tts fail                      | inject fail
+                  v                               v
+            ERROR(retry once)      DEGRADE to captions-only for rest of session + banner
+```
+- `GATE_ASR_ON` and `GATE_OFF` implement self-transcription suppression (FR-5.6) [D-8, D-11].
+- If the visitor speaks during `SPEAKING_AT_DOOR`, that audio is intentionally not transcribed; the gap is
+  marked in the transcript so the resident knows something may have been missed.
+- The reply bar is disabled entirely when `outboundAvailable === false` (Captions-Only banner shown instead).
+
+### 5.4 Caption mode
+`clarity` and `privacy` switch only between sessions (FR-10.1). A mid-session request is queued and applied
+next session, with the active mode always displayed.
+
+---
+
+## 6. Error handling and edge cases
 
 | Condition | Behavior |
 |---|---|
-| OAuth state mismatch | Reject, message FR-1.3, no token stored. |
-| Access token expired | Refresh once, retry once; on refresh fail → FR-1.5 preserve+reprompt. |
-| Ring 429 | Token-bucket + backoff w/ jitter; never exceed 100 rps. |
-| Ring 5xx | Retry ≤2 w/ backoff; then `ring_unavailable`, cached devices shown read-only. |
-| Duplicate webhook | Idempotent 200, processed once (FR-3.2). |
-| Bad webhook signature | 401, dropped, logged without payload body. |
-| Webhook slow downstream | Ack 200 first, push async (FR-3.1). |
-| Push fails/disabled | Foreground poll `/events?since` (FR-3.5). |
-| ICE/connect fail | Retry ≤2, then session error (FR-4.4). |
-| App backgrounded >30 s | Close session, release session URL (FR-4.3). |
-| No speech ≥5 s | Explicit "No speech detected" (FR-5.4). |
-| Partial caption (no per-token confidence) | Whole partial rendered provisional (FR-5.3). |
-| Finalized low-confidence token | De-emphasized styling (<0.6), never certain (FR-5.3a). |
-| Same-device event during live session | Update context + replay haptic; no second session (FR-4.6). |
-| Different-device event during live session | Queue as notification; do not interrupt (FR-4.7). |
-| App-backend session expired mid-use | Single non-destructive re-auth prompt; preserve state; resume (FR-4.8). |
-| Permission denied | Dependent feature disabled gracefully with explanation (FR-13.3). |
-| Permission permanently denied | One-tap settings deep link; no re-prompt loop (FR-13.4). |
-| Notifications denied | Fall back to foreground poll; state that live alerts are off (FR-13.5). |
-| No connectivity on launch | Cached transcripts viewable/searchable; network actions disabled w/ state (FR-15). |
-| Bedrock returns 0 suggestions | Fixed safe set shown; reply bar never empty (FR-7.5). |
-| Strobe/torch enabled | Cap ≤ 3 flashes/second; off by default (FR-9.4). |
-| "Delete all my data" | Erase all transcripts + revoke token, confirmed (FR-8.6). |
-| Transcript older than 90 days | Auto-deleted by TTL (FR-8.5). |
-| Transcribe WS drop | Auto-reconnect; buffered audio ≤2 s replayed; else prompt Privacy Mode. |
-| Bedrock timeout/error | Fixed safe replies within 2 s (FR-7.3). |
-| **Outbound injection unavailable** | Enter Captions-Only Mode + notice (FR-6.4/FR-12); no silent fail. |
-| Privacy zones present | No processing/display of masked regions (FR-11). |
-| Multiple visitors | New labeled turn per speaker change (FR-5.5). |
-| Non-English speech | Language selector; default en-*; translation out of scope. |
-| Watermark overlap | Overlays kept out of top corners (FR-4.5). |
-| Transcript delete | Device+backend removed atomically, confirmed (FR-8.4). |
+| OAuth state mismatch | Reject, FR-1.3 message, no token stored. |
+| Ring token expiring or 401 | Refresh once, retry once (FR-1.4). |
+| Any auth failure (refresh or session expiry) | Single unified recovery flow, state preserved, action resumed (FR-1.5) [R-6]. |
+| Ring 429 | Token bucket plus backoff with jitter; never exceed 100 rps. |
+| Ring 5xx | Retry at most 2, then `ring_unavailable`; cached devices read-only. |
+| Ring payload fails schema | `ring_contract_invalid`, degrade feature, keep session, log diagnostic (FR-17). |
+| Duplicate webhook | Idempotent 200, processed once. |
+| Bad webhook signature | 401, dropped, body not logged. |
+| Push fails or denied | Foreground paginated poll (FR-3.5, FR-13.5). |
+| Connect fails | Retry at most 2, then session error (FR-4.4). |
+| Second session attempted | `/signaling` returns 4409; app enforces one live session (FR-4.6, 4.7). |
+| Background under 5 min | Session preserved, resumes on foreground (FR-4.3a). |
+| Background over 5 min | Close, release session URL (FR-4.3a). |
+| Probe fails | Captions-Only for the whole session, banner shown (FR-6.4a, 12.2). |
+| Injection fails mid-session | Degrade to Captions-Only for remainder, no auto-recovery (FR-6.4b). |
+| Reply audio returning on inbound leg | ASR gated plus 300 ms tail, gap marked, echo cancellation on (FR-5.6). |
+| Partial caption | Whole partial provisional (FR-5.3). |
+| Finalized low-confidence token | De-emphasized below 0.6 (FR-5.3a). |
+| Session ends mid-utterance | Persist partial text, `confidence: null`, `provisional: true` (FR-5.7). |
+| Visitor present, no speech 5 s | "No speech detected" using the FR-5.4 presence definition. |
+| Transcribe WS drop | Reconnect, replay at most 2 s buffered audio. **Do not switch mode mid-session** (FR-10.1); if reconnect fails, end captions with an explicit notice and suggest Privacy Mode for the *next* session [D-15]. |
+| Bedrock timeout or error | Fixed safe set within 2 s (FR-7.3, 7.5). |
+| Privacy Mode active | Bedrock not called; on-device suggestions only (FR-7.1a). |
+| Privacy Mode model absent | Mode unavailable and labelled; opt-in download outside any session (FR-5.2a). |
+| Backend unreachable | New sessions unavailable with explanation; cached history usable (FR-15.4). |
+| Offline launch | Cached history usable; network actions disabled with explanation (FR-15.1, 15.2). |
+| Privacy zones present | No processing or display of masked regions (FR-11.1). |
+| Unsupported language for mode | Stated before session start, alternative offered (FR-16.3). |
+| Audible notice enabled but unavailable | Offer continue-without-notice or disable-transcription (FR-14.3a) [R-5]. |
+| Client sends foreign `residentSub` | 403 `resident_mismatch`; server-derived value always wins (FR-8.7). |
+| List endpoint large result | Cursor pagination, max 100 per page (D-10). |
+| Strobe enabled | Capped at 3 flashes per second, off by default (FR-9.4). |
+| Transcript older than 90 days | TTL auto-delete (FR-8.5). |
+| "Delete all my data" | Transcripts erased and tokens revoked in one transaction (FR-8.6). |
 
 ---
 
-## 7. Security & auth model
+## 7. Security and authorization
 
-- OAuth 2.0 authorization-code + PKCE; `state` CSRF check; secret exchange server-side only (FR-1).
-- Session between app and backend via HttpOnly, Secure, SameSite=strict cookie or signed bearer; 30-min
-  idle expiry; bound to `residentSub`.
-- Tokens: Secrets Manager (backend) + Keychain/Keystore (device). Never logged, never in shared prefs.
-- Webhooks: HMAC constant-time verification; reject on mismatch.
-- Transport: TLS 1.2+ everywhere; WSS for signaling/ASR.
-- Data minimization: no raw audio/video persisted (N6); only text; Bedrock/Transcribe receive only what
-  each strictly needs; Privacy Mode sends nothing.
-- Logging: structured logs exclude PII, tokens, transcript text, and payload bodies.
-
----
-
-## 8. UI/UX requirements
-
-Screens (all WCAG 2.2 AA, dynamic type to 200%, screen-reader labeled, reduce-motion honored):
-1. **Alert** — full-bleed thumbnail, event-specific haptic, one primary action ("Open"), out of watermark corners.
-2. **Conversation** — video top third; captions dominate; per-turn labels; confidence styling; large,
-   high-contrast, user-scalable text.
-3. **Reply bar** — ≤3 Smart Replies + free-text; "Speaking at your door…" state; duplicate-send disabled.
-4. **History** — searchable/date-filterable transcript list; delete with confirm.
-5. **Settings** — Privacy/Clarity toggle (with active-session indicator), caption size/contrast live preview,
-   per-pattern haptic toggles, strobe/torch toggle (off by default, ≤ 3 flashes/s), viewable haptic-pattern
-   reference, retention period (90 days) display, "Delete all my data", and the recording-notice text with
-   optional door-notice toggle.
-6. **First-run notice** — one-time recording-notice acknowledgement (FR-14.1) before first live use.
-7. **Permission prompts** — in-context rationale before mic/notification/camera use; permanently-denied
-   state links to OS settings (FR-13).
-Principle: fully usable with sound off + screen reader on. No information by audio alone. All user-facing
-text uses plain punctuation and never the em-dash character (see steering/structure.md).
+- OAuth 2.0 authorization code with PKCE; `state` CSRF check; secret exchange server-side only.
+- App-to-backend session: HttpOnly, Secure, SameSite=strict cookie or signed bearer; 30 minute idle expiry;
+  bound to `residentSub`. Expiry follows the unified recovery flow (FR-1.5).
+- **Authorization, not just authentication:** every resident-scoped read and write derives `residentSub` from
+  the session. Client-supplied identifiers are ignored or rejected with 403 [D-9]. Covered by AT-19.
+- Ring tokens: KMS-encrypted attributes in `ring_tokens`; **never** stored on the device [D-6, D-7]. Secrets
+  Manager holds only application secrets.
+- Transport: TLS 1.2 or higher; WSS for signaling and ASR.
+- Webhooks: constant-time HMAC verification.
+- Data minimization: no raw audio or video persisted; Bedrock receives text and only in Clarity Mode;
+  Privacy Mode sends nothing derived from audio.
+- Logging: structured logs with an allowlist serializer; no PII, tokens, session credentials, transcript
+  text, or request bodies.
+- A written threat model and authorization test suite are required deliverables (task 26).
 
 ---
 
-## 9. Testing strategy & acceptance criteria
+## 8. UI and UX
 
-- **Unit** (Dart + Node): services behind interfaces; fixtures for Ring/AWS. Cover token refresh, dedupe,
-  confidence styling logic, reply state machine.
-- **Contract**: backend routes validated against JSON schemas (Fastify schemas); webhook HMAC + idempotency.
-- **Integration**: end-to-end session against fixture Ring + fixture ASR; verify SDP `sendrecv`/`recvonly`.
-- **Spike harness (AT-5)**: automated check that injected TTS audio produces measurable energy on the
-  outbound track within 2 s.
-- **Privacy assertion (AT-8/NFR-4)**: network capture during a Privacy-Mode session asserts zero audio
-  egress; filesystem assert no audio/video artifacts.
-- **Accessibility (AT-9/NFR-2)**: automated a11y scan per screen + manual TalkBack/VoiceOver pass; zero AA
-  violations gate the build.
-- **Degrade regression (AT-10/FR-12)**: full suite passes with outbound injection disabled.
-- **Concurrency (AT-11)**: same-device event during a session updates context, no second session;
-  different-device event queues; exactly one live session ever exists.
-- **Session expiry (AT-12)**: mid-action backend-session expiry, single re-auth, state preserved, resume.
-- **Permissions (AT-13)**: each permission denied/permanently-denied path, graceful degrade + settings link.
-- **Recording notice (AT-14)**: first-run acknowledgement gate; optional door notice plays at start.
-- **Retention/erasure (AT-15)**: 90-day TTL auto-delete; "Delete all my data" erases + revokes token.
-- **Photosensitivity (AT-16)**: strobe measured ≤ 3 flashes/second, off by default.
-- **Offline (AT-17)**: cached transcripts usable offline; network actions disabled; auto-restore online.
-- **Coverage gate**: ≥ 80% line coverage on domain services; 100% of FRs mapped to at least one test (see
-  requirements §6 traceability).
+All screens meet WCAG 2.2 AA, support dynamic type to 200%, carry screen-reader labels, honor reduce-motion,
+and contain **no em-dash or en-dash characters** in any string (NFR-10).
+
+1. **Alert**: full-bleed thumbnail, event-specific haptic, single primary action, clear of watermark corners.
+2. **Conversation (two-way)**: WebView video in the upper third, captions dominating below, per-turn labels,
+   provisional and low-confidence styling, reply bar with at most 3 suggestions plus free text, "Speaking at
+   your door" state.
+3. **Conversation (Captions-Only)**: identical minus the reply bar; persistent banner "Replies unavailable on
+   this device. You can still see what your visitor says."; one-tap "Open Ring app" action (FR-12.2, 12.3).
+4. **History**: paginated, searchable, date-filterable; delete with confirmation.
+5. **Settings**: mode switch with plain explanation that Privacy Mode keeps everything on the phone and does
+   not use cloud suggestions; caption size and contrast within a 4.5:1 floor; per-pattern haptic toggles;
+   strobe off by default; language selection; retention (90 days); "Delete all my data"; recording-notice
+   text with the optional door-notice toggle; haptic pattern reference.
+6. **First-run notice**: one-time recording-notice acknowledgement before first live use.
+7. **Permission prompts**: in-context rationale before notifications and microphone. Camera never requested.
+8. **Model download (Privacy Mode)**: explicit opt-in screen showing model size, never during a session.
+
+Principle: fully usable with sound off and a screen reader on. No information conveyed by audio alone.
 
 ---
 
-## 10. Observability & logging
+## 9. Testing strategy and acceptance criteria
 
-- Structured JSON logs (pino on backend, `logger` package on app) with correlation id = Ring `requestId`
-  where present; PII/token/transcript-text redaction enforced by a serializer allowlist.
-- Metrics: caption-first latency (G1), partial latency (G2), tap→audio latency (G3), session success rate,
-  Bedrock fallback rate, webhook ack time, refresh count. Exposed via CloudWatch (backend) and an in-app
-  debug overlay for the demo.
-- Alarming (prod): webhook ack > 5 s, Transcribe error rate, 429 rate.
+- **Unit** (Dart and Node): services behind interfaces with fixtures. Cover unified auth recovery, webhook
+  dedupe, probe logic, sticky-mode transitions, confidence styling for partial and final, ASR gating,
+  pagination cursors.
+- **Contract**: every route validated against its Fastify JSON schema; HMAC and idempotency; pagination
+  contract; authorization rejection of foreign `residentSub`.
+- **Integration**: end-to-end session against fixture Ring and fixture ASR; assert exactly one peer
+  connection and the `sendrecv`/`recvonly` shape.
+- **Probe and injection harness** (AT-5, AT-6): assert audio energy on the outbound track within 2 s; assert
+  probe failure yields a session that is Captions-Only throughout.
+- **Echo suppression** (AT-18): inject TTS, assert the inbound return is not transcribed and the gate
+  reopens within 300 ms.
+- **Privacy assertion** (AT-8): network capture proves zero audio and zero transcript-text egress; filesystem
+  proves no audio or video artifacts.
+- **Accessibility** (AT-9): automated scan plus manual TalkBack and VoiceOver pass on every screen; contrast
+  floor enforced; zero AA violations gates the build.
+- **Degradation matrix** (AT-20, NFR-5): for each dependency (Bedrock, Transcribe, push, visual processor,
+  backend) assert the defined degraded behavior and that no session crashes.
+- **Latency harness** (NFR-1): automated measurement of G1a, G1b, G2, G3 on reference devices; regression
+  fails CI.
+- **Captions-Only regression** (AT-10): the full suite passes with `outboundAvailable = false`.
+- **UI copy lint** (AT-24): CI fails on an em-dash or en-dash in any UI string resource.
+- **Coverage gate**: at least 80 percent line coverage on domain services; every FR maps to at least one
+  test (requirements §6).
 
 ---
 
-## 11. Deployment & environments
+## 10. Observability
 
-- **Environments:** `local` (fixtures, no AWS), `staging` (Ring staging users ≤10, real AWS), `demo`
-  (deterministic fixtures + cached golden responses for the recorded/live demo).
-- **Backend:** containerized Fastify on AWS (App Runner or ECS Fargate), stateless, ≥2 instances; secrets
-  via Secrets Manager; DynamoDB; least-privilege IAM per AWS service.
-- **App:** Flutter build for iOS (TestFlight/staging) and Android (internal track).
-- **CI/CD:** lint + unit + contract + a11y gates on PR; never push CI config directly to `main`; deploy on
-  merge to `main` after gates pass.
-- **Demo safety:** fixture device + cached ASR/Bedrock responses so a network or rate-limit hiccup never
-  breaks the live demo; the outbound-audio path is real, never mocked.
+- Structured JSON logs (pino on the backend) with correlation id equal to the Ring `requestId` where
+  present; allowlist serializer enforces redaction.
+- Metrics: G1a, G1b, G2, G3, probe success rate, Captions-Only session share, injection failure rate,
+  Bedrock fallback rate, webhook acknowledgement time, refresh count, schema-validation failure count.
+  CloudWatch on the backend plus an in-app debug overlay for the demo.
+- Alarms: webhook acknowledgement over 5 s, Transcribe error rate, 429 rate, probe success rate falling
+  below a threshold.
 
 ---
 
-## 12. Open questions
+## 11. Deployment and environments
 
-None. All ambiguities resolved above.
+- **local**: fixtures only, no AWS, no real Ring. Fixture device loading lives here, not in the product
+  requirements [R-8].
+- **staging**: real AWS, Ring staging users (up to 10).
+- **demo**: deterministic fixtures and cached golden ASR and Bedrock responses so a network or rate-limit
+  hiccup cannot break the live demo. The outbound-audio path is always real, never mocked.
+- **Backend**: containerized Fastify on AWS (App Runner or ECS Fargate), stateless, at least 2 instances,
+  least-privilege IAM per service, KMS key for token encryption.
+- **App**: iOS via TestFlight, Android internal track.
+- **CI/CD**: lint, unit, contract, a11y, UI-copy, and latency gates on pull requests. CI configuration is
+  never pushed directly to `main`. Deploy on merge after gates pass.
+
+---
+
+## 12. Known open items
+
+None as of this revision. ARCH-1 and the §5.1 probe close the two previously blocking questions. Any new
+ambiguity must be recorded here and in requirements §7 with a date and owner before code depends on it.
