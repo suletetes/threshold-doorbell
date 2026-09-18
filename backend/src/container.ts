@@ -5,6 +5,8 @@
 import type { Config } from './config.js';
 import type { CryptoPort } from './services/crypto.js';
 import type { RingPort } from './services/ring.js';
+import type { RingSignalingPort } from './services/ring-signaling.js';
+import type { TranscribePort } from './services/transcribe.js';
 import type { BedrockPort } from './services/bedrock.js';
 import type { PushPort } from './services/push.js';
 import type {
@@ -14,6 +16,8 @@ import type {
 } from './services/stores.js';
 import { LocalCrypto } from './services/fixtures/local-crypto.js';
 import { FixtureRing } from './services/fixtures/fixture-ring.js';
+import { FixtureRingSignaling } from './services/fixtures/fixture-ring-signaling.js';
+import { FixtureTranscribe } from './services/fixtures/fixture-transcribe.js';
 import { FixtureBedrock } from './services/fixtures/fixture-bedrock.js';
 import { FixturePush } from './services/fixtures/fixture-push.js';
 import {
@@ -28,6 +32,8 @@ export interface Container {
   config: Config;
   crypto: CryptoPort;
   ring: RingPort;
+  ringSignaling: RingSignalingPort;
+  transcribe: TranscribePort;
   bedrock: BedrockPort;
   push: PushPort;
   tokenStore: TokenStorePort;
@@ -40,6 +46,8 @@ export interface Container {
 export interface ContainerOverrides {
   crypto?: CryptoPort;
   ring?: RingPort;
+  ringSignaling?: RingSignalingPort;
+  transcribe?: TranscribePort;
   bedrock?: BedrockPort;
   push?: PushPort;
   tokenStore?: TokenStorePort;
@@ -55,6 +63,8 @@ export interface ContainerOverrides {
 export function buildContainer(config: Config, overrides: ContainerOverrides = {}): Container {
   const crypto = overrides.crypto ?? new LocalCrypto(config.sessionSecret);
   const ring = overrides.ring ?? new FixtureRing();
+  const ringSignaling = overrides.ringSignaling ?? new FixtureRingSignaling();
+  const transcribe = overrides.transcribe ?? new FixtureTranscribe();
   const bedrock = overrides.bedrock ?? new FixtureBedrock();
   const push = overrides.push ?? new FixturePush();
   const tokenStore = overrides.tokenStore ?? new MemoryTokenStore();
@@ -65,6 +75,8 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     config,
     crypto,
     ring,
+    ringSignaling,
+    transcribe,
     bedrock,
     push,
     tokenStore,

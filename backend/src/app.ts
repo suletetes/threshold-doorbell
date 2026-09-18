@@ -4,6 +4,7 @@
 
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
+import websocket from '@fastify/websocket';
 import type { Container } from './container.js';
 import { AppError, errors } from './domain/errors.js';
 import { SESSION_COOKIE, verifySession, type SessionClaims } from './security/session.js';
@@ -13,6 +14,9 @@ import { registerDeviceRoutes } from './routes/devices.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerTranscriptRoutes } from './routes/transcripts.js';
 import { registerReplyRoutes } from './routes/replies.js';
+import { registerSignalingRoutes } from './routes/signaling.js';
+import { registerAsrRoutes } from './routes/asr.js';
+import type { SignalingService } from './services/signaling-service.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -22,6 +26,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     container: Container;
     requireSession(request: FastifyRequest, reply: FastifyReply): Promise<void>;
+    signalingService: SignalingService;
   }
 }
 
@@ -35,6 +40,8 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
 
   app.decorate('container', container);
   await app.register(cookie);
+  // WebSocket transport for /signaling and /asr/stream (design.md §4, WSS).
+  await app.register(websocket);
 
   // Session auth guard (FR-8.7, design.md §7). Derives residentSub from the
   // session credential only. A client-supplied identifier is never trusted.
@@ -89,6 +96,8 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   await registerEventRoutes(app);
   await registerTranscriptRoutes(app);
   await registerReplyRoutes(app);
+  await registerSignalingRoutes(app);
+  await registerAsrRoutes(app);
 
   return app;
 }
