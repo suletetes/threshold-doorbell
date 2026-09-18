@@ -8,6 +8,7 @@ import type { Container } from './container.js';
 import { AppError, errors } from './domain/errors.js';
 import { SESSION_COOKIE, verifySession, type SessionClaims } from './security/session.js';
 import { registerOAuthRoutes } from './routes/oauth.js';
+import { registerWebhookRoutes } from './routes/webhook.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -75,6 +76,7 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   app.get('/health', async () => ({ ok: true }));
 
   await registerOAuthRoutes(app);
+  await registerWebhookRoutes(app);
 
   return app;
 }
