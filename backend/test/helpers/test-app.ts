@@ -11,6 +11,7 @@ import { FixtureTranscribe } from '../../src/services/fixtures/fixture-transcrib
 import { FixtureBedrock } from '../../src/services/fixtures/fixture-bedrock.js';
 import { FixturePush } from '../../src/services/fixtures/fixture-push.js';
 import { LocalCrypto } from '../../src/services/fixtures/local-crypto.js';
+import { InMemoryMetricsSink } from '../../src/observability/metrics.js';
 import {
   MemoryConversationStore,
   MemoryEventStore,
@@ -28,6 +29,7 @@ export async function buildTestApp() {
   const tokenStore = new MemoryTokenStore();
   const eventStore = new MemoryEventStore();
   const conversationStore = new MemoryConversationStore();
+  const metrics = new InMemoryMetricsSink();
 
   const overrides: ContainerOverrides = {
     ring,
@@ -39,6 +41,7 @@ export async function buildTestApp() {
     tokenStore,
     eventStore,
     conversationStore,
+    metrics,
   };
   const container = buildContainer(config, overrides);
   const app = await buildApp(container);
@@ -48,6 +51,7 @@ export async function buildTestApp() {
     app,
     config,
     container,
+    metrics,
     signalingService: app.signalingService,
     ring,
     ringSignaling,

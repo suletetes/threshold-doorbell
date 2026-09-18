@@ -7,6 +7,7 @@ import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
 import type { Container } from './container.js';
 import { AppError, errors } from './domain/errors.js';
+import { correlatedLogger } from './observability/logger.js';
 import { SESSION_COOKIE, verifySession, type SessionClaims } from './security/session.js';
 import { registerOAuthRoutes } from './routes/oauth.js';
 import { registerWebhookRoutes } from './routes/webhook.js';
@@ -64,11 +65,19 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   app.setErrorHandler((err, request, reply) => {
     const requestId = request.id;
     if (err instanceof AppError) {
+      // A ring_contract_invalid is a schema-validation failure against Ring
+      // drift (FR-17); count it for the design.md §10 metric.
+      if (err.code === 'ring_contract_invalid' || err.code === 'schema') {
+        container.metrics.increment('schema_validation_failure');
+        correlatedLogger(requestId).warn({ code: err.code }, 'schema validation failure');
+      }
       reply.code(err.statusCode).send(err.toEnvelope(requestId));
       return;
     }
     // Fastify schema validation failures map to our `schema` error.
     if ((err as { validation?: unknown }).validation) {
+      container.metrics.increment('schema_validation_failure');
+      correlatedLogger(requestId).warn('request schema validation failure');
       const schemaErr = errors.schema();
       reply.code(schemaErr.statusCode).send(schemaErr.toEnvelope(requestId));
       return;

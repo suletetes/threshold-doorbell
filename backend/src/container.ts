@@ -3,6 +3,8 @@
 // constructs an SDK directly (ports and adapters, structure.md).
 
 import type { Config } from './config.js';
+import type { MetricsPort } from './observability/metrics.js';
+import { InMemoryMetricsSink } from './observability/metrics.js';
 import type { CryptoPort } from './services/crypto.js';
 import type { RingPort } from './services/ring.js';
 import type { RingSignalingPort } from './services/ring-signaling.js';
@@ -41,6 +43,7 @@ export interface Container {
   conversationStore: ConversationStorePort;
   ringTokens: RingTokenService;
   ringGateway: RingGateway;
+  metrics: MetricsPort;
 }
 
 export interface ContainerOverrides {
@@ -53,6 +56,7 @@ export interface ContainerOverrides {
   tokenStore?: TokenStorePort;
   eventStore?: EventStorePort;
   conversationStore?: ConversationStorePort;
+  metrics?: MetricsPort;
 }
 
 /**
@@ -70,6 +74,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const tokenStore = overrides.tokenStore ?? new MemoryTokenStore();
   const eventStore = overrides.eventStore ?? new MemoryEventStore();
   const conversationStore = overrides.conversationStore ?? new MemoryConversationStore();
+  const metrics = overrides.metrics ?? new InMemoryMetricsSink();
 
   return {
     config,
@@ -84,5 +89,6 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     conversationStore,
     ringTokens: new RingTokenService(ring, tokenStore, crypto),
     ringGateway: new RingGateway(ring),
+    metrics,
   };
 }
