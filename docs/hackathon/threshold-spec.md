@@ -124,6 +124,18 @@ Non-obvious use of the handset:
 
 ## 6. Technical architecture
 
+Rendered diagrams (source in `diagrams/`, see `diagrams/README.md`):
+
+![System overview](diagrams/01-system-overview.svg)
+
+![Inbound caption flow](diagrams/02-inbound-caption-flow.svg)
+
+![Outbound reply flow (ARCH-1)](diagrams/03-outbound-reply-flow.svg)
+
+![Event and alert flow](diagrams/04-alert-event-flow.svg)
+
+The text sketch below is kept as a quick reference.
+
 ```
 Ring device
    │  WebRTC / WHEP  (audio sendrecv · video recvonly)

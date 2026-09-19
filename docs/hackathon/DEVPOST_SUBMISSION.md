@@ -49,6 +49,16 @@ Threshold turns a Ring doorbell into a two-way, text-first conversation device.
 Two capture modes: Clarity Mode (Amazon Transcribe streaming, the default) and
 Privacy Mode (on-device Whisper, so doorstep audio never leaves the handset).
 
+## Architecture
+
+![System overview](diagrams/01-system-overview.svg)
+
+![Inbound caption flow](diagrams/02-inbound-caption-flow.svg)
+
+![Outbound reply flow (ARCH-1)](diagrams/03-outbound-reply-flow.svg)
+
+![Event and alert flow](diagrams/04-alert-event-flow.svg)
+
 ## How we built it
 
 - **Flutter app (iOS and Android).** Mobile is intrinsic, not decorative: the
