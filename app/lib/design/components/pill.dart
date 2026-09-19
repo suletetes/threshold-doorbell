@@ -89,9 +89,15 @@ class Pill extends StatelessWidget {
                 Icon(leading, size: Spacing.space4, color: color),
                 const SizedBox(width: Spacing.space2),
               ],
-              Text(
-                label,
-                style: theme.textTheme.labelMedium?.copyWith(color: color),
+              // Flexible so a hostile OS text scale wraps the label instead of
+              // overflowing the badge. A pill sits outside the caption subtree,
+              // so it does not get the 200% clamp and has to cope with whatever
+              // the platform hands it.
+              Flexible(
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(color: color),
+                ),
               ),
             ],
           ),
