@@ -19,10 +19,11 @@ async function seedTokens(container: { ringTokens: { persist: (s: string, t: { a
   });
 }
 
-function makeEvent(i: number): DoorEvent {
+function makeEvent(i: number, residentSub: string = SUB): DoorEvent {
   return {
     eventId: `e${i}`,
     requestId: `r${i}`,
+    residentSub,
     type: 'motion_detected',
     deviceId: 'd1',
     timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
@@ -171,5 +172,40 @@ describe('GET /events (Task 6, FR-3.5, AT-19)', () => {
     });
     const items = res.json().items;
     expect(items.map((e: DoorEvent) => e.eventId)).toEqual(['e3', 'e4']);
+  });
+
+  it('returns ONLY the requesting resident\'s events, never a foreign resident\'s (AT-19)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const residentA = 'resident-account-1';
+    const residentB = 'resident-account-2';
+    // Seed events for two distinct residents into the shared event store.
+    await t.eventStore.putIfAbsent({ ...makeEvent(0, residentA), eventId: 'a0', requestId: 'ra0' });
+    await t.eventStore.putIfAbsent({ ...makeEvent(1, residentA), eventId: 'a1', requestId: 'ra1' });
+    await t.eventStore.putIfAbsent({ ...makeEvent(2, residentB), eventId: 'b0', requestId: 'rb0' });
+    await t.eventStore.putIfAbsent({ ...makeEvent(3, residentB), eventId: 'b1', requestId: 'rb1' });
+
+    const tokenA = sessionFor(residentA, t.config.sessionSecret);
+    const resA = await app.inject({
+      method: 'GET',
+      url: '/events',
+      headers: { authorization: `Bearer ${tokenA}` },
+    });
+    const idsA = resA.json().items.map((e: DoorEvent) => e.eventId).sort();
+    expect(idsA).toEqual(['a0', 'a1']);
+    // Resident A must NOT see any of resident B's events (cross-resident leak).
+    expect(idsA).not.toContain('b0');
+    expect(idsA).not.toContain('b1');
+
+    const tokenB = sessionFor(residentB, t.config.sessionSecret);
+    const resB = await app.inject({
+      method: 'GET',
+      url: '/events',
+      headers: { authorization: `Bearer ${tokenB}` },
+    });
+    const idsB = resB.json().items.map((e: DoorEvent) => e.eventId).sort();
+    expect(idsB).toEqual(['b0', 'b1']);
+    expect(idsB).not.toContain('a0');
+    expect(idsB).not.toContain('a1');
   });
 });

@@ -23,11 +23,17 @@ export interface EventStorePort {
   /**
    * Conditional put by requestId (idempotency key). If an event with the same
    * requestId already exists, returns { created: false, event: existing } and
-   * does not overwrite. Otherwise stores and returns { created: true }.
+   * does not overwrite. Otherwise stores and returns { created: true }. The
+   * event carries its owning residentSub (server-derived, FR-8.7) so reads can
+   * be scoped per resident.
    */
   putIfAbsent(event: DoorEvent): Promise<PutEventResult>;
-  /** Ordered by timestamp ascending, optionally filtered to events at/after `since`. */
-  listOrdered(since?: string): Promise<DoorEvent[]>;
+  /**
+   * Events for a single resident, ordered by timestamp ascending, optionally
+   * filtered to events at/after `since`. residentSub is server-derived from the
+   * session (FR-8.7); the store never returns another resident's events.
+   */
+  listOrdered(residentSub: string, since?: string): Promise<DoorEvent[]>;
 }
 
 // --- Conversation store (Task 9, FR-8) ---

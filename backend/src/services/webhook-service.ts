@@ -67,6 +67,9 @@ export function parseWebhook(raw: unknown): DoorEvent {
   return {
     eventId: randomUUID(),
     requestId: w.request_id,
+    // Placeholder; the owning resident is resolved server-side from the
+    // device->account mapping in WebhookService.record (never from the body).
+    residentSub: '',
     type: w.event_type as EventType,
     deviceId: w.device_id,
     timestamp,
@@ -91,12 +94,17 @@ export class WebhookService {
   ) {}
 
   /**
-   * Idempotently record the event. Returns whether this was the first delivery
-   * (so the route can decide whether to enqueue a push). This runs BEFORE the
-   * 200 is sent and is cheap (a single conditional put).
+   * Idempotently record the event. Resolves the owning resident from the
+   * device->account mapping server-side (never from the webhook body, FR-8.7)
+   * and stamps it on the event so the /events feed can scope reads per resident
+   * (AT-19). Returns whether this was the first delivery (so the route can
+   * decide whether to enqueue a push). This runs BEFORE the 200 is sent and is
+   * cheap (a resolve plus a single conditional put).
    */
   async record(event: DoorEvent): Promise<WebhookOutcome> {
-    const result = await this.events.putIfAbsent(event);
+    const residentSub = await this.resolveResident(event.deviceId);
+    const scoped: DoorEvent = { ...event, residentSub: residentSub ?? '' };
+    const result = await this.events.putIfAbsent(scoped);
     return { firstDelivery: result.created, event: result.event };
   }
 
@@ -106,7 +114,10 @@ export class WebhookService {
    * is a surfaced result (the app falls back to the FR-3.5 poll), never silent.
    */
   async enqueuePush(event: DoorEvent): Promise<boolean> {
-    const residentSub = await this.resolveResident(event.deviceId);
+    // The event already carries its server-resolved owner (set in record());
+    // fall back to a fresh resolve for events built outside that path.
+    const residentSub =
+      event.residentSub !== '' ? event.residentSub : await this.resolveResident(event.deviceId);
     if (!residentSub) return false;
     const message: PushMessage = {
       residentSub,
