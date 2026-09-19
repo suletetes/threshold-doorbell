@@ -72,7 +72,7 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     torch capped at 3 flashes per second, off by default.
   - _Requirements: FR-3.3, FR-3.4, FR-3.5, FR-9.1 to FR-9.4; AT-16_
 
-- [ ] 12. App: live session (ARCH-1), concurrency, background, auth recovery
+- [x] 12. App: live session (ARCH-1), concurrency, background, auth recovery
   - WebView session; overlays clear of watermark corners; reconnect at most 2; exactly one live session
     (same-device updates context, different-device queues); 5-minute background survival with resume;
     unified auth recovery on session expiry.
@@ -84,12 +84,12 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     detected" state; turn segmentation; persist unfinalized text as provisional.
   - _Requirements: FR-5.1, FR-5.3, FR-5.3a, FR-5.4, FR-5.5, FR-5.7, G1b, G2; AT-4_
 
-- [ ] 14. App: self-transcription suppression (echo gating)
+- [x] 14. App: self-transcription suppression (echo gating)
   - Gate the caption pipeline while reply audio plays, hold 300 ms tail, mark the gap in the transcript,
     enable WebRTC echo cancellation on the inbound track.
   - _Requirements: FR-5.6; AT-18_
 
-- [ ] 15. App: reply bar and outbound speak
+- [x] 15. App: reply bar and outbound speak
   - At most 3 suggestions plus fixed safe set plus free text; synthesize and inject via task 2; "Speaking at
     your door" state; duplicate-send disabled; append `resident` turn; reply bar disabled when
     `outboundAvailable` is false.
@@ -100,7 +100,7 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     a later injection failure; re-probe next session.
   - _Requirements: FR-6.4, FR-6.4a, FR-6.4b; AT-6_
 
-- [ ] 17. App: Captions-Only Mode (receive-only, first-class)
+- [x] 17. App: Captions-Only Mode (receive-only, first-class)
   - Conversation screen without the reply bar; persistent banner; one-tap "Open Ring app" action. No
     visitor-facing prompt (N9). Full regression suite must pass in this mode.
   - _Requirements: FR-12.1 to FR-12.4, N9; AT-6, AT-10_
@@ -116,12 +116,12 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     presence signal used by FR-5.4.
   - _Requirements: FR-11.1, FR-11.2; AT-8_
 
-- [ ] 20. App: permissions and consent flows
+- [x] 20. App: permissions and consent flows
   - In-context requests for notifications and microphone with rationale; denied and permanently-denied
     handling with an OS-settings deep link; notification denial falls back to poll; camera never requested.
   - _Requirements: FR-13.1 to FR-13.5; AT-13_
 
-- [ ] 21. App: recording notice and compliance fallback
+- [x] 21. App: recording notice and compliance fallback
   - First-run acknowledgement gate; in-product and privacy-policy disclosure; optional default-off audible
     door notice; when outbound audio is unavailable offer continue-without-notice or disable-transcription
     and honor it for the session.
@@ -137,19 +137,19 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     sets documented; unsupported selection reported before session start with an alternative.
   - _Requirements: FR-16.1 to FR-16.3; AT-22_
 
-- [ ] 24. Settings and accessibility pass (WCAG 2.2 AA)
+- [x] 24. Settings and accessibility pass (WCAG 2.2 AA)
   - Mode switch with plain Privacy-Mode explanation; caption size and contrast bounded by a 4.5:1 floor;
     haptic toggles; strobe off by default; language; retention display; "Delete all my data";
     recording-notice text; haptic reference. Automated a11y scan plus manual screen-reader pass per screen;
     zero AA violations gates the build.
   - _Requirements: FR-8.5, FR-8.6, FR-10.1 to FR-10.4, FR-14.1, NFR-2; AT-9_
 
-- [ ] 25. Performance: latency harness
+- [x] 25. Performance: latency harness
   - Automated measurement of G1a, G1b, G2, G3 on both reference devices under reference conditions;
     regression fails CI. Includes the JS-bridge PCM budget from ARCH-1.
   - _Requirements: NFR-1, G1a, G1b, G2, G3_
 
-- [ ] 26. Reliability: degradation matrix
+- [x] 26. Reliability: degradation matrix
   - For each dependency (Bedrock, Transcribe, push, visual processor, backend) implement and test the defined
     degraded behavior; assert no session crashes and no dependency failure is silent.
   - _Requirements: NFR-5, FR-15.4; AT-20_
