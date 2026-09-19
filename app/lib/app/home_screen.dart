@@ -5,11 +5,30 @@
 // mode (FR-6.4, FR-12.4). Privacy Mode selection is gated by the model
 // provisioning machine (FR-5.2a) via the session-start coordinator. Every
 // control carries a Semantics label (G4). No dashes in any copy (NFR-10).
+//
+// Presentation (UI/UX audit C5, "the primary action has no visual weight", and
+// section 4, "Information architecture"): this screen used to be a Column
+// holding a paragraph of 18px text, a stock FilledButton, a helper line, and an
+// OutlinedButton reading "Settings" that carried the same weight as the one
+// action the product exists for. Three changes:
+//
+//   1. "Answer the door" is a PrimaryActionCard and is now the first and largest
+//      thing on the screen.
+//   2. Settings moved to an AppBar action. It is a destination, not a peer of
+//      the hero.
+//   3. The Privacy-Mode-unavailable line became a StatusBanner BELOW the hero
+//      instead of a grey sentence wedged between the two buttons, so it no
+//      longer interrupts the action group.
+//
+// Every color, size, radius, and spacing value comes from the design system
+// (design principle 1: no literal in a screen).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../captions/language_selection.dart';
+import '../design/components/components.dart';
+import '../design/tokens.dart';
 import '../reply/reply_bar.dart';
 import '../session/captions_only_screen.dart';
 import '../session/conversation_screen.dart';
@@ -17,63 +36,71 @@ import '../session/session_state.dart';
 import '../settings/settings_screen.dart';
 import 'providers.dart';
 
+/// What the hero action does, in one line under the label. Dash-free (NFR-10).
+const String kHomeHeroSupportingLine = 'Captions appear as your visitor speaks.';
+
+/// The orienting copy, secondary to the action (recognition over recall: the
+/// action comes first, the explanation second). Dash-free (NFR-10).
+const String kHomeReadyExplanation =
+    'Ready. When someone is at your door you can answer with '
+    'captions, and reply out loud when two way audio is available.';
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final coordinator = ref.watch(sessionStartCoordinatorProvider);
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Threshold')),
+      appBar: AppBar(
+        title: const Text('Threshold'),
+        actions: <Widget>[
+          // Settings is a destination, not a peer of the hero action (audit C5).
+          Semantics(
+            button: true,
+            label: 'Open settings',
+            excludeSemantics: true,
+            child: IconButton(
+              key: const ValueKey('home-settings'),
+              onPressed: () => _openSettings(context, ref),
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+            ),
+          ),
+          const SizedBox(width: Spacing.space2),
+        ],
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Spacing.space5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                'Ready. When someone is at your door you can answer with '
-                'captions, and reply out loud when two way audio is available.',
-                style: TextStyle(fontSize: 18, height: 1.3),
-              ),
-              const SizedBox(height: 24),
-              Semantics(
-                button: true,
+              // The hero. Identifiable in under a second (design principle 6).
+              PrimaryActionCard(
+                key: const ValueKey('home-answer'),
+                icon: Icons.doorbell_outlined,
                 label: 'Answer the door',
-                excludeSemantics: true,
-                child: FilledButton(
-                  key: const ValueKey('home-answer'),
-                  onPressed: () => _startSession(context, ref),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Answer the door'),
-                  ),
-                ),
+                supportingText: kHomeHeroSupportingLine,
+                semanticsLabel: 'Answer the door',
+                onPressed: () => _startSession(context, ref),
               ),
-              const SizedBox(height: 12),
-              if (!coordinator.privacyModeAvailable)
-                Semantics(
-                  liveRegion: true,
-                  label: coordinator.privacyUnavailableLabel,
-                  child: Text(
-                    coordinator.privacyUnavailableLabel,
-                    key: const ValueKey('home-privacy-unavailable'),
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF555555)),
-                  ),
+              if (!coordinator.privacyModeAvailable) ...<Widget>[
+                const SizedBox(height: Spacing.space4),
+                // Out of the action group, and now one of the four shared
+                // status treatments rather than a fifth ad hoc one.
+                StatusBanner(
+                  message: coordinator.privacyUnavailableLabel,
+                  messageKey: const ValueKey('home-privacy-unavailable'),
+                  variant: StatusVariant.warning,
                 ),
-              const SizedBox(height: 12),
-              Semantics(
-                button: true,
-                label: 'Open settings',
-                excludeSemantics: true,
-                child: OutlinedButton(
-                  key: const ValueKey('home-settings'),
-                  onPressed: () => _openSettings(context, ref),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Settings'),
-                  ),
-                ),
+              ],
+              const SizedBox(height: Spacing.space6),
+              Text(
+                kHomeReadyExplanation,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -112,12 +139,12 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _openSettings(BuildContext context, WidgetRef ref) async {
     final settings = ref.read(settingsControllerProvider);
+    // SettingsScreen builds its own Scaffold and AppBar. It used to be pushed
+    // inside a second Scaffold with a second AppBar, which stacked two title
+    // bars on top of each other.
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Settings')),
-          body: SettingsScreen(controller: settings),
-        ),
+        builder: (_) => SettingsScreen(controller: settings),
       ),
     );
   }
