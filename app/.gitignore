@@ -10,3 +10,7 @@ build/
 # Android build outputs
 /android/.gradle/
 /android/app/build/
+
+# IDE / tooling leftovers
+/.idea/
+*.iml
