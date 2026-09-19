@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="470" viewBox="0 0 1120 470" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="ag" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1b7f4b"/></marker>
+    <style>
+      .title{font-size:24px;font-weight:700;fill:#12151b}
+      .sub{font-size:14px;fill:#5b6472}
+      .lbl{font-size:15px;font-weight:600;fill:#12151b}
+      .desc{font-size:12px;fill:#5b6472}
+      .step{font-size:12px;font-weight:700;fill:#1565c0}
+      .legend{font-size:12.5px;fill:#3a4150}
+      .e{stroke:#1565c0;stroke-width:2.5;fill:none}
+      .eg{stroke:#1b7f4b;stroke-width:2.5;fill:none}
+    </style>
+  </defs>
+  <rect width="1120" height="470" fill="#f7f8fa"/>
+  <text x="40" y="44" class="title">Inbound flow, visitor speech to on-screen captions</text>
+  <text x="40" y="68" class="sub">Two engines. Clarity Mode uses Amazon Transcribe (default). Privacy Mode transcribes on-device and sends nothing off the phone.</text>
+
+  <!-- nodes row -->
+  <rect x="40" y="150" width="150" height="96" rx="12" fill="#eef2ff" stroke="#1565c0"/>
+  <text x="115" y="184" class="lbl" text-anchor="middle">Visitor speaks</text>
+  <text x="115" y="206" class="desc" text-anchor="middle">at the Ring</text>
+  <text x="115" y="224" class="desc" text-anchor="middle">doorbell</text>
+
+  <rect x="240" y="150" width="160" height="96" rx="12" fill="#eafaf1" stroke="#1b7f4b"/>
+  <text x="320" y="180" class="lbl" text-anchor="middle">WebView</text>
+  <text x="320" y="200" class="lbl" text-anchor="middle">audio tap</text>
+  <text x="320" y="222" class="desc" text-anchor="middle">16 kHz PCM,</text>
+  <text x="320" y="238" class="desc" text-anchor="middle">AudioWorklet</text>
+
+  <!-- branch: clarity -->
+  <rect x="470" y="70" width="200" height="96" rx="12" fill="#fdeef0" stroke="#b3261e"/>
+  <text x="570" y="104" class="lbl" text-anchor="middle">Amazon Transcribe</text>
+  <text x="570" y="126" class="desc" text-anchor="middle">streaming, partial</text>
+  <text x="570" y="144" class="desc" text-anchor="middle">results stabilization</text>
+  <text x="570" y="60" class="step" text-anchor="middle">CLARITY MODE (default)</text>
+
+  <!-- branch: privacy -->
+  <rect x="470" y="230" width="200" height="96" rx="12" fill="#eafaf1" stroke="#1b7f4b"/>
+  <text x="570" y="264" class="lbl" text-anchor="middle">On-device Whisper</text>
+  <text x="570" y="286" class="desc" text-anchor="middle">whisper.cpp + VAD,</text>
+  <text x="570" y="304" class="desc" text-anchor="middle">zero egress</text>
+  <text x="570" y="346" class="step" text-anchor="middle">PRIVACY MODE (opt-in)</text>
+
+  <!-- turn accumulator -->
+  <rect x="730" y="150" width="170" height="96" rx="12" fill="#f4f6fb" stroke="#1565c0"/>
+  <text x="815" y="180" class="lbl" text-anchor="middle">Turn segmentation</text>
+  <text x="815" y="202" class="desc" text-anchor="middle">speaker turns,</text>
+  <text x="815" y="220" class="desc" text-anchor="middle">confidence per token</text>
+
+  <!-- caption surface -->
+  <rect x="940" y="150" width="150" height="96" rx="12" fill="#12151b" stroke="#1565c0"/>
+  <text x="1015" y="182" class="lbl" text-anchor="middle" fill="#ffffff">Caption surface</text>
+  <text x="1015" y="204" class="desc" text-anchor="middle" fill="#c4ccd8">provisional vs</text>
+  <text x="1015" y="222" class="desc" text-anchor="middle" fill="#c4ccd8">confident styling</text>
+
+  <!-- edges -->
+  <path class="eg" d="M190,198 H240" marker-end="url(#ag)"/>
+  <path class="e" d="M400,190 Q435,190 435,150 T470,118" marker-end="url(#a)"/>
+  <path class="eg" d="M400,206 Q435,206 435,250 T470,278" marker-end="url(#ag)"/>
+  <path class="e" d="M670,118 Q705,118 705,160 T730,190" marker-end="url(#a)"/>
+  <path class="eg" d="M670,278 Q705,278 705,220 T730,206" marker-end="url(#ag)"/>
+  <path class="e" d="M900,198 H940" marker-end="url(#a)"/>
+
+  <!-- notes -->
+  <rect x="40" y="360" width="1050" height="80" rx="10" fill="#ffffff" stroke="#d7dde6"/>
+  <text x="56" y="386" class="lbl">Caption rules (FR-5.3 / 5.3a, AT-4)</text>
+  <text x="56" y="410" class="legend">A partial result renders provisional (Transcribe gives no per-token confidence on partials).</text>
+  <text x="56" y="430" class="legend">A finalized token below 0.6 renders de-emphasized; at or above 0.6 renders normal. Foreground is the enforced 4.5:1 color; OS text scale is clamped to 200%.</text>
+</svg>
