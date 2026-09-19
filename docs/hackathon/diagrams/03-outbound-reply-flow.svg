@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="480" viewBox="0 0 1120 480" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="ag" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1b7f4b"/></marker>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#b3261e"/></marker>
+    <style>
+      .title{font-size:24px;font-weight:700;fill:#12151b}
+      .sub{font-size:14px;fill:#5b6472}
+      .lbl{font-size:15px;font-weight:600;fill:#12151b}
+      .desc{font-size:12px;fill:#5b6472}
+      .step{font-size:12px;font-weight:700;fill:#1565c0}
+      .legend{font-size:12.5px;fill:#3a4150}
+      .e{stroke:#1565c0;stroke-width:2.5;fill:none}
+      .eg{stroke:#1b7f4b;stroke-width:2.5;fill:none}
+      .er{stroke:#b3261e;stroke-width:2.5;fill:none;stroke-dasharray:6 4}
+    </style>
+  </defs>
+  <rect width="1120" height="480" fill="#f7f8fa"/>
+  <text x="40" y="44" class="title">Outbound flow, tap a reply to a voice at the door (ARCH-1)</text>
+  <text x="40" y="68" class="sub">The defining capability. A capability probe decides once per session whether spoken replies are available; if not, the session degrades to Captions-Only.</text>
+
+  <!-- resident taps -->
+  <rect x="40" y="150" width="150" height="92" rx="12" fill="#f4f6fb" stroke="#1565c0"/>
+  <text x="115" y="184" class="lbl" text-anchor="middle">Resident</text>
+  <text x="115" y="204" class="desc" text-anchor="middle">taps a smart reply</text>
+  <text x="115" y="222" class="desc" text-anchor="middle">or types text</text>
+
+  <!-- bedrock suggestions (feeder) -->
+  <rect x="40" y="290" width="150" height="82" rx="12" fill="#fdeef0" stroke="#b3261e"/>
+  <text x="115" y="320" class="lbl" text-anchor="middle">Bedrock</text>
+  <text x="115" y="340" class="desc" text-anchor="middle">up to 3 suggestions</text>
+  <text x="115" y="357" class="desc" text-anchor="middle">Clarity Mode only</text>
+
+  <!-- tts -->
+  <rect x="240" y="150" width="160" height="92" rx="12" fill="#f4f6fb" stroke="#1565c0"/>
+  <text x="320" y="184" class="lbl" text-anchor="middle">TTS synthesize</text>
+  <text x="320" y="204" class="desc" text-anchor="middle">flutter_tts to</text>
+  <text x="320" y="222" class="desc" text-anchor="middle">PCM buffer</text>
+
+  <!-- webview inject -->
+  <rect x="450" y="150" width="180" height="92" rx="12" fill="#eafaf1" stroke="#1b7f4b"/>
+  <text x="540" y="180" class="lbl" text-anchor="middle">WebView inject</text>
+  <text x="540" y="200" class="desc" text-anchor="middle">AudioContext to</text>
+  <text x="540" y="216" class="desc" text-anchor="middle">replaceTrack on the</text>
+  <text x="540" y="232" class="desc" text-anchor="middle">outbound audio track</text>
+
+  <!-- ring -->
+  <rect x="680" y="150" width="160" height="92" rx="12" fill="#eef2ff" stroke="#1565c0"/>
+  <text x="760" y="184" class="lbl" text-anchor="middle">Ring doorbell</text>
+  <text x="760" y="204" class="desc" text-anchor="middle">speaker plays</text>
+  <text x="760" y="222" class="desc" text-anchor="middle">the reply</text>
+
+  <!-- visitor hears -->
+  <rect x="890" y="150" width="180" height="92" rx="12" fill="#ffffff" stroke="#c4ccd8"/>
+  <text x="980" y="184" class="lbl" text-anchor="middle">Visitor hears it</text>
+  <text x="980" y="206" class="desc" text-anchor="middle">and replies,</text>
+  <text x="980" y="224" class="desc" text-anchor="middle">captions continue</text>
+
+  <!-- probe / degrade -->
+  <rect x="450" y="300" width="180" height="92" rx="12" fill="#fdf6e3" stroke="#b6892b"/>
+  <text x="540" y="330" class="lbl" text-anchor="middle">Capability probe</text>
+  <text x="540" y="350" class="desc" text-anchor="middle">near-silent test,</text>
+  <text x="540" y="367" class="desc" text-anchor="middle">sticky per session</text>
+
+  <rect x="680" y="300" width="160" height="92" rx="12" fill="#fdeef0" stroke="#b3261e"/>
+  <text x="760" y="330" class="lbl" text-anchor="middle">Captions-Only</text>
+  <text x="760" y="350" class="desc" text-anchor="middle">reply bar hidden,</text>
+  <text x="760" y="367" class="desc" text-anchor="middle">receive-only</text>
+
+  <!-- edges main -->
+  <path class="e" d="M190,196 H240" marker-end="url(#a)"/>
+  <path class="e" d="M115,290 V242" marker-end="url(#a)"/>
+  <path class="e" d="M400,196 H450" marker-end="url(#a)"/>
+  <path class="eg" d="M630,196 H680" marker-end="url(#ag)"/>
+  <path class="eg" d="M840,196 H890" marker-end="url(#ag)"/>
+
+  <!-- probe path -->
+  <path class="er" d="M540,300 V244" marker-end="url(#a)"/>
+  <path class="er" d="M630,346 H680" marker-end="url(#ar)"/>
+  <text x="556" y="288" class="legend" fill="#b6892b">probe result</text>
+  <text x="648" y="338" class="legend" fill="#b3261e">on fail</text>
+
+  <!-- legend -->
+  <rect x="40" y="410" width="1030" height="52" rx="10" fill="#ffffff" stroke="#d7dde6"/>
+  <text x="56" y="432" class="legend">flutter_webrtc lacks Insertable Streams on every platform, so the outbound audio is injected inside a WebView (browser WebRTC). This is ARCH-1.</text>
+  <text x="56" y="452" class="legend">The probe runs once after connect; a later injection failure degrades that session to Captions-Only with no auto-recovery, and the next session re-probes.</text>
+</svg>
