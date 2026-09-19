@@ -9,6 +9,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../captions/caption_surface.dart';
+import '../settings/settings_state.dart';
 import 'conversation_screen.dart';
 import 'ring_app_launcher.dart';
 import 'session_controller.dart';
@@ -24,12 +26,19 @@ class CaptionsOnlyScreen extends StatelessWidget {
     super.key,
     required this.controller,
     required this.launcher,
+    this.settings,
     this.videoSurfaceBuilder,
   });
 
   final SessionController controller;
   final RingAppLauncher launcher;
+
+  /// The resident's accessibility settings driving caption scale + the enforced
+  /// contrast foreground (FR-10.2, NFR-2). Defaults to accessible defaults.
+  final ThresholdSettings? settings;
   final VideoSurfaceBuilder? videoSurfaceBuilder;
+
+  ThresholdSettings get _settings => settings ?? ThresholdSettings.defaults();
 
   @override
   Widget build(BuildContext context) {
@@ -70,12 +79,15 @@ class CaptionsOnlyScreen extends StatelessWidget {
                       margin: const EdgeInsets.all(12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xCC000000),
+                        color: _settings.captionBackground.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        'Captions appear here as your visitor speaks.',
-                        style: TextStyle(color: Colors.white, fontSize: 22, height: 1.3),
+                      // Real caption turns with confidence emphasis + the
+                      // enforced accessibility settings (FR-5.3/5.3a, FR-10.2,
+                      // NFR-2; AT-4, AT-9).
+                      child: CaptionSurface(
+                        turns: controller.captionTurns,
+                        settings: _settings,
                       ),
                     ),
                   ),

@@ -90,6 +90,7 @@ export class AsrRelay {
     private readonly socket: WebSocket,
     private readonly port: TranscribePort,
     private readonly now: () => number = () => Date.now(),
+    private readonly maxReconnects: number = MAX_RECONNECTS,
   ) {}
 
   /**
@@ -192,7 +193,7 @@ export class AsrRelay {
 
   private async reconnect(_sawResult: boolean): Promise<void> {
     if (this.disposed || this.language === null) return;
-    if (this.reconnects >= MAX_RECONNECTS) {
+    if (this.reconnects >= this.maxReconnects) {
       this.failTranscribe();
       return;
     }
@@ -200,11 +201,14 @@ export class AsrRelay {
     try {
       const next = await this.port.open(this.language);
       this.stream = next;
-      // Replay at most the last 2 seconds of buffered audio (design.md §6).
+      // Replay at most the last 2 seconds of buffered audio (design.md §6),
+      // then clear the buffer so the SAME audio is never replayed twice on a
+      // subsequent reconnect (P2-5). Newly fed audio repopulates the window.
       const replay = this.buffer.replay(this.now());
       for (const chunk of replay) {
         next.pushAudio(chunk);
       }
+      this.buffer.clear();
       this.pumpResults(next);
     } catch {
       this.failTranscribe();

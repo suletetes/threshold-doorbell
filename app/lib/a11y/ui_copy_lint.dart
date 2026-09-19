@@ -46,82 +46,186 @@ class DashViolation {
 }
 
 /// Scan a single unit of Dart [source] for forbidden dashes that appear inside
-/// string literals. A best-effort literal scanner tracks single/double quotes
-/// and skips line and block comments (comments are not UI copy, per the scope
-/// note in structure.md). Returns all violations.
+/// string literals. A best-effort literal scanner that models:
+///   * single- and double-quoted strings ('...' and "..."),
+///   * triple-quoted strings ('''...''' and """...""") including MULTI-LINE
+///     bodies (a dash on any line of a triple-quoted string is flagged),
+///   * raw strings (r'...', r"...", r'''...''', r"""...""") where backslashes
+///     are literal so escapes are NOT consumed,
+/// and skips line (`//`) and block (`/* */`) comments (comments are not UI copy,
+/// per the scope note in structure.md). Returns all violations. The scan runs
+/// over the whole source (not line-by-line) so multi-line strings are tracked
+/// across newlines.
 List<DashViolation> scanSource(String source, {String filePath = '<memory>'}) {
   final violations = <DashViolation>[];
-  final lines = source.split('\n');
 
-  var inBlockComment = false;
-  for (var li = 0; li < lines.length; li++) {
-    final line = lines[li];
-    var col = 0;
-    String? quote; // active string delimiter: "'" or '"' or null
-    var inLineComment = false;
+  // Track 1-based line/column as we walk the source.
+  var line = 1;
+  var col = 1;
+  var i = 0;
+  final n = source.length;
 
-    while (col < line.length) {
-      final ch = line[col];
-      final next = col + 1 < line.length ? line[col + 1] : '';
+  String at(int k) => (k >= 0 && k < n) ? source[k] : '';
 
-      if (inBlockComment) {
-        if (ch == '*' && next == '/') {
-          inBlockComment = false;
-          col += 2;
-          continue;
-        }
+  // Advance one character, maintaining line/column.
+  void advance([int by = 1]) {
+    for (var k = 0; k < by && i < n; k++) {
+      if (source[i] == '\n') {
+        line++;
+        col = 1;
+      } else {
         col++;
-        continue;
       }
-
-      if (inLineComment) break; // rest of line is a comment
-
-      if (quote == null) {
-        // Not inside a string: look for comment starts or string starts.
-        if (ch == '/' && next == '/') {
-          inLineComment = true;
-          break;
-        }
-        if (ch == '/' && next == '*') {
-          inBlockComment = true;
-          col += 2;
-          continue;
-        }
-        if (ch == "'" || ch == '"') {
-          quote = ch;
-          col++;
-          continue;
-        }
-        col++;
-        continue;
-      }
-
-      // Inside a string literal.
-      if (ch == r'\') {
-        // Skip the escaped character.
-        col += 2;
-        continue;
-      }
-      if (ch == quote) {
-        quote = null;
-        col++;
-        continue;
-      }
-      if (kForbiddenDashes.contains(ch)) {
-        violations.add(
-          DashViolation(
-            filePath: filePath,
-            line: li + 1,
-            column: col + 1,
-            character: ch,
-            snippet: line.trim(),
-          ),
-        );
-      }
-      col++;
+      i++;
     }
   }
+
+  while (i < n) {
+    final ch = source[i];
+    final next = at(i + 1);
+
+    // Comments (only outside strings, which is where we are here).
+    if (ch == '/' && next == '/') {
+      // Skip to end of line.
+      while (i < n && source[i] != '\n') {
+        advance();
+      }
+      continue;
+    }
+    if (ch == '/' && next == '*') {
+      advance(2);
+      while (i < n && !(source[i] == '*' && at(i + 1) == '/')) {
+        advance();
+      }
+      advance(2); // consume the closing */
+      continue;
+    }
+
+    // String start? Detect an optional raw prefix `r` immediately before a quote.
+    var raw = false;
+    var quoteStart = i;
+    if (ch == 'r' && (next == "'" || next == '"')) {
+      raw = true;
+      quoteStart = i + 1;
+    }
+    final q = at(quoteStart);
+    if (q == "'" || q == '"') {
+      // Triple-quoted when three identical quotes appear together.
+      final triple = at(quoteStart + 1) == q && at(quoteStart + 2) == q;
+      // Consume the raw prefix (if any) and the opening delimiter.
+      if (raw) advance(); // the 'r'
+      advance(triple ? 3 : 1); // opening quote(s)
+      _consumeStringBody(
+        source: source,
+        quote: q,
+        triple: triple,
+        raw: raw,
+        // The body scanner needs mutable position; pass via closure state.
+        onDash: (dashLine, dashCol, dashCh, snippet) {
+          violations.add(DashViolation(
+            filePath: filePath,
+            line: dashLine,
+            column: dashCol,
+            character: dashCh,
+            snippet: snippet,
+          ));
+        },
+        getIndex: () => i,
+        setIndex: (v) => i = v,
+        getLine: () => line,
+        setLine: (v) => line = v,
+        getCol: () => col,
+        setCol: (v) => col = v,
+        sourceLength: n,
+      );
+      continue;
+    }
+
+    advance();
+  }
   return violations;
+}
+
+/// Consume a string body starting at the current index (just past the opening
+/// delimiter) until the matching closing delimiter, reporting any forbidden dash
+/// via [onDash]. Handles raw strings (no escape processing) and triple-quoted
+/// (multi-line, closes on three delimiters). Position/line/col are threaded via
+/// the getter/setter closures so the outer scanner stays in sync.
+void _consumeStringBody({
+  required String source,
+  required String quote,
+  required bool triple,
+  required bool raw,
+  required void Function(int line, int col, String ch, String snippet) onDash,
+  required int Function() getIndex,
+  required void Function(int) setIndex,
+  required int Function() getLine,
+  required void Function(int) setLine,
+  required int Function() getCol,
+  required void Function(int) setCol,
+  required int sourceLength,
+}) {
+  var i = getIndex();
+  var line = getLine();
+  var col = getCol();
+  final n = sourceLength;
+
+  String at(int k) => (k >= 0 && k < n) ? source[k] : '';
+
+  void step([int by = 1]) {
+    for (var k = 0; k < by && i < n; k++) {
+      if (source[i] == '\n') {
+        line++;
+        col = 1;
+      } else {
+        col++;
+      }
+      i++;
+    }
+  }
+
+  String snippetFor(int idx) {
+    // The trimmed source line containing index [idx], for readable reports.
+    var start = idx;
+    while (start > 0 && source[start - 1] != '\n') {
+      start--;
+    }
+    var end = idx;
+    while (end < n && source[end] != '\n') {
+      end++;
+    }
+    return source.substring(start, end).trim();
+  }
+
+  while (i < n) {
+    final ch = source[i];
+    // Escapes: only in non-raw strings. Skip the escaped char.
+    if (!raw && ch == r'\') {
+      step(2);
+      continue;
+    }
+    // Closing delimiter?
+    if (ch == quote) {
+      if (triple) {
+        if (at(i + 1) == quote && at(i + 2) == quote) {
+          step(3);
+          break;
+        }
+        // A lone quote inside a triple-quoted string is literal content.
+      } else {
+        step(1);
+        break;
+      }
+    }
+    if (kForbiddenDashes.contains(ch)) {
+      onDash(line, col, ch, snippetFor(i));
+    }
+    step();
+  }
+
+  setIndex(i);
+  setLine(line);
+  setCol(col);
 }
 
 /// Recursively scan all `.dart` files under [root], excluding generated and

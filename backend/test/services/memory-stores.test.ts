@@ -10,6 +10,7 @@ function makeEvent(overrides: Partial<DoorEvent> = {}): DoorEvent {
   return {
     eventId: 'e1',
     requestId: 'r1',
+    residentSub: 'resident-a',
     type: 'person_detected',
     deviceId: 'd1',
     timestamp: '2026-01-01T00:00:00.000Z',
@@ -82,10 +83,20 @@ describe('MemoryEventStore', () => {
     const store = new MemoryEventStore();
     await store.putIfAbsent(makeEvent({ requestId: 'r2', eventId: 'e2', timestamp: '2026-01-02T00:00:00.000Z' }));
     await store.putIfAbsent(makeEvent({ requestId: 'r1', eventId: 'e1', timestamp: '2026-01-01T00:00:00.000Z' }));
-    const all = await store.listOrdered();
+    const all = await store.listOrdered('resident-a');
     expect(all.map((e) => e.eventId)).toEqual(['e1', 'e2']);
-    const recent = await store.listOrdered('2026-01-02T00:00:00.000Z');
+    const recent = await store.listOrdered('resident-a', '2026-01-02T00:00:00.000Z');
     expect(recent.map((e) => e.eventId)).toEqual(['e2']);
+  });
+
+  it('scopes listOrdered by residentSub: a foreign resident\'s events never leak (AT-19)', async () => {
+    const store = new MemoryEventStore();
+    await store.putIfAbsent(makeEvent({ requestId: 'ra', eventId: 'ea', residentSub: 'resident-a' }));
+    await store.putIfAbsent(makeEvent({ requestId: 'rb', eventId: 'eb', residentSub: 'resident-b' }));
+    const listA = await store.listOrdered('resident-a');
+    expect(listA.map((e) => e.eventId)).toEqual(['ea']);
+    const listB = await store.listOrdered('resident-b');
+    expect(listB.map((e) => e.eventId)).toEqual(['eb']);
   });
 });
 

@@ -91,6 +91,15 @@ class EchoGate {
   /// of [isGateClosed].
   bool get shouldTranscribe => !isGateClosed;
 
+  /// Reopen the gate WITHOUT recording a gap. Used when a reply never actually
+  /// played (TTS/injection failed before any audio reached the door), so there
+  /// is no gated visitor interval to mark (FR-5.6). Idempotent.
+  void cancel() {
+    _playing = false;
+    _gateOpenedAtMs = null;
+    _playbackEndedAtMs = null;
+  }
+
   /// Evaluate the tail: if playback has ended and the 300 ms tail has fully
   /// elapsed, reopen the gate and record the non-visitor gap for the transcript
   /// (design §5.3). Idempotent; safe to poll. Returns the gap if one was closed.

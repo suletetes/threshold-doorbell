@@ -120,14 +120,18 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
 }
 
 /**
- * Derive a stable residentSub from the Ring access token. The fixture token has
- * the form `access-<code>` / `access-refreshed-<...>`; we hash it to a stable
- * opaque subject. The real adapter would call Ring's identity endpoint. Either
- * way the value is server-derived and never taken from client input (FR-8.7).
+ * Derive a stable residentSub 1:1 with the Ring account. The fixture mints an
+ * access token of the form `access-<code>` on a fresh login and
+ * `access-refreshed-<refreshToken>` on a refresh, so we strip ONLY that leading
+ * `access-`/`access-refreshed-` grant marker to recover the underlying account
+ * seed. We must NOT strip any further (e.g. a `refresh-` that is part of the
+ * account seed itself), or two distinct accounts would collapse to one sub:
+ * previously `account-42` and `refresh-account-42` both mapped to
+ * `resident-account-42`. The real adapter derives this from the Ring identity
+ * response, not the token string; either way the value is server-derived and
+ * never taken from client input (FR-8.7).
  */
-function deriveResidentSub(accessToken: string): string {
-  // Strip the fixture prefixes so the same account maps to one sub across
-  // refreshes (access-<code> and access-refreshed-refresh-<code> collapse).
-  const seed = accessToken.replace(/^access-(refreshed-)?/, '').replace(/^refresh-/, '');
+export function deriveResidentSub(accessToken: string): string {
+  const seed = accessToken.replace(/^access-(refreshed-)?/, '');
   return `resident-${seed}`;
 }

@@ -33,7 +33,9 @@ export class MemoryTokenStore implements TokenStorePort {
 }
 
 export class MemoryEventStore implements EventStorePort {
-  // Keyed by requestId to enforce conditional-put idempotency (FR-3.2).
+  // Keyed by requestId to enforce conditional-put idempotency (FR-3.2). The
+  // idempotency key is global (Ring requestIds are unique per delivery); reads
+  // are scoped per resident via the residentSub carried on each event (FR-8.7).
   private readonly byRequestId = new Map<string, DoorEvent>();
 
   async putIfAbsent(event: DoorEvent): Promise<PutEventResult> {
@@ -45,10 +47,14 @@ export class MemoryEventStore implements EventStorePort {
     return { created: true, event: { ...event } };
   }
 
-  async listOrdered(since?: string): Promise<DoorEvent[]> {
-    const all = [...this.byRequestId.values()];
+  async listOrdered(residentSub: string, since?: string): Promise<DoorEvent[]> {
+    // Scope to the requesting resident: another resident's events are never
+    // returned even though the idempotency map is global (FR-8.7, AT-19).
+    const mine = [...this.byRequestId.values()].filter(
+      (e) => e.residentSub === residentSub,
+    );
     const filtered =
-      since === undefined ? all : all.filter((e) => e.timestamp >= since);
+      since === undefined ? mine : mine.filter((e) => e.timestamp >= since);
     // Ascending by timestamp, then eventId for a stable total order.
     return filtered
       .sort((a, b) =>

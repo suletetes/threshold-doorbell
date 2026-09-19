@@ -21,10 +21,10 @@ export async function registerEventRoutes(app: FastifyInstance): Promise<void> {
       request: FastifyRequest<{ Querystring: ListQuery }>,
       reply: FastifyReply,
     ): Promise<Page<DoorEvent>> => {
-      // Session presence is required; residentSub scoping happens at the store
-      // level in the real deployment. In the fixture the event store is the
-      // resident's event feed.
-      void request.session!.sub;
+      // residentSub is server-derived from the verified session and threaded
+      // into the store read so a caller only ever sees their own events
+      // (FR-8.7, AT-19). A foreign resident's events are never returned.
+      const residentSub = request.session!.sub;
       const limit = normalizeLimit(request.query.limit);
       const offset = decodeCursor(request.query.cursor);
       if (offset === null) throw errors.schema('Invalid cursor.');
@@ -35,8 +35,8 @@ export async function registerEventRoutes(app: FastifyInstance): Promise<void> {
           : undefined;
 
       // Ordered ascending by timestamp; newest-relevant events are paged with a
-      // stable cursor (AT-19).
-      const events = await app.container.eventStore.listOrdered(since);
+      // stable cursor (AT-19). Scoped to this resident.
+      const events = await app.container.eventStore.listOrdered(residentSub, since);
       const page = paginate(events, limit, offset);
       reply.code(200).send(page);
       return page;

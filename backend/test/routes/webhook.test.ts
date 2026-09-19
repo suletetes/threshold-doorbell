@@ -76,7 +76,7 @@ describe('POST /webhook (Task 5, AT-2)', () => {
     await flushMicrotasks();
     expect(t.push.sent).toHaveLength(0);
     // Nothing was stored.
-    expect(await t.eventStore.listOrdered()).toHaveLength(0);
+    expect(await t.eventStore.listOrdered('resident-account-1')).toHaveLength(0);
   });
 
   it('rejects a valid signature over a malformed payload with schema 400', async () => {

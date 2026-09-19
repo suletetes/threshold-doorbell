@@ -25,6 +25,7 @@ export interface Device {
 export interface DoorEvent {
   eventId: string;
   requestId: string; // idempotency key
+  residentSub: string; // ALWAYS server-derived from the device->account mapping (FR-8.7)
   type: EventType;
   deviceId: DeviceId;
   timestamp: string;
