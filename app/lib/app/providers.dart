@@ -1,0 +1,100 @@
+// Composition-root providers (Task 30 wiring, P2-1). This assembles the
+// controllers and ports into a running product with Riverpod. Device/Ring-bound
+// bindings (the WebView session, TTS+injection, launching the Ring app, and the
+// backend network calls) sit behind their existing interfaces; the PRODUCTION
+// adapters here defer the device work to the on-device runtime and are overridden
+// by fakes under `flutter test` (see the ProviderScope overrides in the widget
+// test). Nothing here fabricates device behavior: the production adapters either
+// wrap a real integration point or throw a clear "device only" error if invoked
+// in an environment that cannot support it.
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../captions/model_provisioning.dart';
+import '../consent/recording_notice.dart';
+import '../consent/recording_notice_controller.dart';
+import '../reply/outbound_mode.dart';
+import '../reply/reply_controller.dart';
+import '../reply/reply_port.dart';
+import '../reply/suggestion_provider.dart';
+import '../session/ring_app_launcher.dart';
+import '../session/session_controller.dart';
+import '../session/session_port.dart';
+import '../session/session_start_coordinator.dart';
+import '../settings/settings_controller.dart';
+import '../settings/settings_state.dart';
+import 'production_adapters.dart';
+
+/// The on-device model download size disclosed before download (FR-5.2a). A
+/// representative small Whisper model size; the real value comes from the model
+/// manifest on device.
+const int kModelSizeBytes = 75 * 1024 * 1024;
+
+// --- Device/Ring-bound ports (overridden by fakes in tests) ---
+
+final sessionPortProvider = Provider<SessionPort>((ref) {
+  final port = ProductionSessionPort();
+  ref.onDispose(port.dispose);
+  return port;
+});
+
+final replyPortProvider = Provider<ReplyPort>((ref) => ProductionReplyPort());
+
+final ringAppLauncherProvider =
+    Provider<RingAppLauncher>((ref) => ProductionRingAppLauncher());
+
+final bedrockSuggestionPortProvider =
+    Provider<BedrockSuggestionPort>((ref) => ProductionBedrockSuggestionPort());
+
+final consentStoreProvider =
+    Provider<ConsentStore>((ref) => ProductionConsentStore());
+
+final dataErasurePortProvider =
+    Provider<DataErasurePort>((ref) => ProductionDataErasurePort());
+
+// --- Controllers / machines ---
+
+final settingsControllerProvider = ChangeNotifierProvider<SettingsController>((ref) {
+  return SettingsController(erasure: ref.watch(dataErasurePortProvider));
+});
+
+final sessionControllerProvider = ChangeNotifierProvider<SessionController>((ref) {
+  return SessionController(port: ref.watch(sessionPortProvider));
+});
+
+final recordingNoticeControllerProvider =
+    ChangeNotifierProvider<RecordingNoticeController>((ref) {
+  return RecordingNoticeController(ref.watch(consentStoreProvider));
+});
+
+/// The on-device model provisioning machine (FR-5.2a). Its state drives whether
+/// Privacy Mode can be selected.
+final modelProvisioningProvider = Provider<ModelProvisioningMachine>((ref) {
+  return ModelProvisioningMachine(modelSizeBytes: kModelSizeBytes);
+});
+
+/// The suggestion provider that routes Clarity -> Bedrock, Privacy -> on-device
+/// (FR-7.1a).
+final suggestionProvider = Provider<SuggestionProvider>((ref) {
+  return SuggestionProvider(bedrock: ref.watch(bedrockSuggestionPortProvider));
+});
+
+/// The pre-session coordinator that consults model provisioning + the recording
+/// notice fallback (FR-5.2a, FR-14.3a).
+final sessionStartCoordinatorProvider = Provider<SessionStartCoordinator>((ref) {
+  return SessionStartCoordinator(
+    provisioning: ref.watch(modelProvisioningProvider),
+    recordingNotice: ref.watch(recordingNoticeControllerProvider),
+  );
+});
+
+/// The reply controller for the active session. Bound to the session's sticky
+/// outbound-mode machine so the reply bar reflects the current capability.
+final replyControllerProvider = ChangeNotifierProvider<ReplyController>((ref) {
+  final session = ref.watch(sessionControllerProvider);
+  return ReplyController(
+    port: ref.watch(replyPortProvider),
+    outbound: session.outbound,
+    echoGate: ProductionEchoGate.build(),
+  );
+});

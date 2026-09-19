@@ -1,14 +1,22 @@
-import 'package:flutter/material.dart';
+// Threshold composition root (P2-1). A two-way captioned Ring doorbell for deaf
+// and hard-of-hearing residents.
+//
+// This wires the product together: a Riverpod ProviderScope assembles the
+// controllers (session, reply, settings, recording notice) and the device/Ring/
+// network ports (behind their interfaces, with production adapters that defer
+// device work). The home screen routes an answered door to the Conversation
+// screen (two-way) or the Captions-Only screen (receive-only) per the sticky
+// outbound mode, and to Settings. Device-bound work (WebView WebRTC, TTS +
+// outbound injection, launching the Ring app, backend calls) lives behind the
+// existing ports; nothing here fabricates device behavior.
 
-/// Threshold — a two-way captioned Ring doorbell for deaf and hard-of-hearing
-/// residents.
-///
-/// This is the entry point of the skeleton. Real screens live under lib/ui/.
-/// Before wiring any UI, complete the audio spike in lib/reply/audio_spike.dart
-/// (see docs/hackathon/threshold-spec.md §9 R1) — it is the go/no-go for the
-/// whole architecture.
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'app/home_screen.dart';
+
 void main() {
-  runApp(const ThresholdApp());
+  runApp(const ProviderScope(child: ThresholdApp()));
 }
 
 class ThresholdApp extends StatelessWidget {
@@ -24,31 +32,7 @@ class ThresholdApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
         useMaterial3: true,
       ),
-      home: const _PlaceholderHome(),
-    );
-  }
-}
-
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Threshold')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Skeleton ready.\n\n'
-            'Next step: the audio spike (lib/reply/audio_spike.dart). Prove a '
-            'synthesised voice can be sent out of the doorbell before building '
-            'any screens.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18),
-          ),
-        ),
-      ),
+      home: const HomeScreen(),
     );
   }
 }
