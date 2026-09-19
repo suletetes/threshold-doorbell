@@ -1,0 +1,105 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:threshold/captions/language_selection.dart';
+import 'package:threshold/settings/settings_controller.dart';
+import 'package:threshold/settings/settings_screen.dart';
+
+Widget _wrap(SettingsController c, {TextScaler? scaler}) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(textScaler: scaler ?? TextScaler.noScaling),
+        child: SettingsScreen(controller: c),
+      ),
+    );
+
+void main() {
+  group('SettingsScreen (Task 24, FR-8.6, FR-10.1..10.4, NFR-2; AT-9)', () {
+    testWidgets('renders all sections and the Privacy-Mode explanation', (tester) async {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('mode-switch')), findsOneWidget);
+      expect(find.byKey(const ValueKey('caption-scale')), findsOneWidget);
+      expect(find.textContaining('Privacy Mode keeps everything on your phone'), findsOneWidget);
+      // strobe-toggle and delete-all-data are lower in the scroll view.
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('strobe-toggle')), 200);
+      expect(find.byKey(const ValueKey('strobe-toggle')), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
+      expect(find.byKey(const ValueKey('delete-all-data')), findsOneWidget);
+    });
+
+    testWidgets('mode switch queues to next session, shows the notice (FR-10.1)', (tester) async {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('mode-switch')));
+      await tester.pump();
+      expect(c.settings.pendingMode, CaptionMode.privacy);
+      expect(c.settings.activeMode, CaptionMode.clarity);
+      expect(find.textContaining('applies to your next session'), findsOneWidget);
+    });
+
+    testWidgets('strobe is off by default and toggles on tap (FR-9.4)', (tester) async {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      expect(c.settings.strobeEnabled, isFalse);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('strobe-toggle')), 200);
+      await tester.tap(find.byKey(const ValueKey('strobe-toggle')));
+      await tester.pump();
+      expect(c.settings.strobeEnabled, isTrue);
+    });
+
+    testWidgets('contrast readout shows a ratio at or above 4.5 (FR-10.2)', (tester) async {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('contrast-readout')), findsOneWidget);
+      expect(c.settings.captionContrastRatio >= 4.5, isTrue);
+    });
+
+    testWidgets('delete all data requires confirmation then erases (FR-8.6)', (tester) async {
+      final port = FakeDataErasurePort();
+      final c = SettingsController(erasure: port);
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
+      await tester.tap(find.byKey(const ValueKey('delete-all-data')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('delete-confirm-dialog')), findsOneWidget);
+      // Cancel does nothing.
+      await tester.tap(find.byKey(const ValueKey('delete-cancel')));
+      await tester.pumpAndSettle();
+      expect(port.deleteCalls, 0);
+      // Confirm erases.
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
+      await tester.tap(find.byKey(const ValueKey('delete-all-data')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('delete-confirm')));
+      await tester.pumpAndSettle();
+      expect(port.deleteCalls, 1);
+    });
+
+    testWidgets('honors OS text scaling to 200% without overflow (NFR-2)', (tester) async {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c, scaler: const TextScaler.linear(2.0)));
+      await tester.pump();
+      // The screen renders at 200% scaling; no exception means no layout crash.
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+    });
+
+    testWidgets('interactive elements carry Semantics labels (G4, AT-9)', (tester) async {
+      final handle = tester.ensureSemantics();
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      expect(find.bySemanticsLabel(RegExp('Privacy Mode')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp('Caption text size')), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('strobe-toggle')), 200);
+      expect(find.bySemanticsLabel(RegExp('Screen strobe and torch alert')), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
+      expect(find.bySemanticsLabel(RegExp('Delete all my data')), findsOneWidget);
+      handle.dispose();
+    });
+  });
+}
