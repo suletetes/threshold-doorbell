@@ -36,7 +36,14 @@ class DroppingStream implements TranscribeStream {
     await new Promise<void>((resolve) => {
       this.resolveEnd = resolve;
     });
-    // Yield nothing; the stream has dropped.
+    // The stream has dropped, so it produces no results. This generator
+    // intentionally yields nothing; the guarded (never taken) yield below keeps
+    // the return type an AsyncGenerator and satisfies the require-yield lint
+    // without changing behavior (this.ended is always true once resolveEnd
+    // fires, which is the only path here).
+    if (!this.ended) {
+      yield {} as TranscribeResult;
+    }
   }
 
   async close(): Promise<void> {
