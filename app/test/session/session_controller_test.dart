@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:threshold/reply/outbound_mode.dart';
 import 'package:threshold/session/session_concurrency.dart';
 import 'package:threshold/session/session_controller.dart';
 import 'package:threshold/session/session_port.dart';

@@ -13,7 +13,6 @@ import '../captions/language_selection.dart';
 import '../reply/reply_bar.dart';
 import '../session/captions_only_screen.dart';
 import '../session/conversation_screen.dart';
-import '../session/session_controller.dart';
 import '../session/session_state.dart';
 import '../settings/settings_screen.dart';
 import 'providers.dart';
@@ -86,7 +85,6 @@ class HomeScreen extends ConsumerWidget {
   Future<void> _startSession(BuildContext context, WidgetRef ref) async {
     final settings = ref.read(settingsControllerProvider);
     final coordinator = ref.read(sessionStartCoordinatorProvider);
-    final controller = ref.read(sessionControllerProvider);
 
     // Promote any pending mode change for the new session (FR-10.1).
     settings.applyPendingModeForNewSession();

@@ -4,7 +4,6 @@
 // FR-10.2/NFR-2 contrast floor (AT-9), and the caption text scale.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/captions/caption_surface.dart';
 import 'package:threshold/captions/turn_segmentation.dart';

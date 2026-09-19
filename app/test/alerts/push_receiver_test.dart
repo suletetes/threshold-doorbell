@@ -5,7 +5,7 @@ import 'package:threshold/alerts/push_receiver.dart';
 void main() {
   group('Alert dispatch (FR-3.3, FR-3.4)', () {
     test('maps a person_detected push to the person haptic and thumbnail', () {
-      final alert = PushAlert.fromMap({
+      final alert = PushAlert.fromMap(const {
         'type': 'person_detected',
         'timestamp': '2026-01-01T00:00:00.000Z',
         'deviceId': 'd1',
@@ -18,19 +18,19 @@ void main() {
     });
 
     test('maps motion_detected to the motion haptic', () {
-      final alert = PushAlert.fromMap({'type': 'motion_detected', 'deviceId': 'd1'});
+      final alert = PushAlert.fromMap(const {'type': 'motion_detected', 'deviceId': 'd1'});
       expect(dispatchForAlert(alert).haptic, HapticEvent.motion);
     });
 
     test('an unknown event type yields a null haptic without crashing (drift)', () {
-      final alert = PushAlert.fromMap({'type': 'nonsense', 'deviceId': 'd1'});
+      final alert = PushAlert.fromMap(const {'type': 'nonsense', 'deviceId': 'd1'});
       final dispatch = dispatchForAlert(alert);
       expect(dispatch.haptic, isNull);
       expect(dispatch.isKnownEvent, isFalse);
     });
 
     test('handles a missing thumbnail gracefully', () {
-      final alert = PushAlert.fromMap({'type': 'person_detected', 'deviceId': 'd1'});
+      final alert = PushAlert.fromMap(const {'type': 'person_detected', 'deviceId': 'd1'});
       expect(dispatchForAlert(alert).thumbnailUrl, isNull);
     });
   });
