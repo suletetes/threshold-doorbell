@@ -5,6 +5,112 @@ continuously for the hackathon submission (task 30). Each entry records what got
 in the way, how it was resolved, and what it implies for the product or the
 Ring / AWS developer experience. Newest entries first.
 
+## Build, environment, and platform friction (Ring + AWS + Flutter/Android)
+
+These are the entries most useful to the Amazon, Ring, and AWS developer-
+experience teams: real, specific things that got in the way of getting a working
+build and a working Ring integration, with what we expected, what actually
+happened, and a concrete suggestion. Severity is our own build-impact rating.
+
+### `flutter analyze` crashes with "Too many open files"
+
+- **Task attempted:** Run `flutter analyze` as the static-analysis gate in the
+  build sandbox.
+- **Expected vs actual:** Expected a clean analyzer pass. Actual: the Dart
+  analysis server hits the process file-descriptor limit and crashes before it
+  can finish, so the gate never completes.
+- **Severity:** Medium (blocks a standard gate, not the build itself).
+- **Workaround:** Raise the descriptor limit with `ulimit -n 65536` in the shell
+  preamble, and use `dart analyze` (which completes) instead of `flutter
+  analyze` (which still crashes here). We also keep `flutter test`, which
+  compiles all Dart, as a correctness gate.
+- **Actionable suggestion:** The Flutter analysis server should cap or pool its
+  open file descriptors, or fail with a clear "raise your ulimit" message
+  instead of an opaque crash. A one-line note in the Flutter tooling docs about
+  `ulimit -n` in constrained/CI environments would save a lot of time.
+
+### The app had no `android/` directory, so it never built
+
+- **Task attempted:** Build the Android APK for a Flutter app that had been
+  developed as `lib/`-only.
+- **Expected vs actual:** Expected `flutter build apk` to work. Actual: with no
+  `android/` platform directory, there was nothing to assemble; the build could
+  not produce an APK at all.
+- **Severity:** High (no buildable artifact until fixed).
+- **Workaround:** Generate the Android platform scaffolding
+  (`flutter create --platforms=android .` in the app), then re-apply the
+  project-specific Gradle config (desugaring, shrinking, keep rules) on top.
+- **Actionable suggestion:** `flutter build apk` should fail with an explicit
+  "no android/ directory found, run flutter create --platforms=android" message
+  rather than a generic Gradle error, so the missing-scaffold case is obvious.
+
+### `flutter_local_notifications` needs core library desugaring
+
+- **Task attempted:** Build with `flutter_local_notifications` for visitor
+  alerts.
+- **Expected vs actual:** Expected a plain build. Actual: the plugin uses
+  `java.time` APIs that are not available on older Android API levels, so the
+  build fails until core library desugaring is enabled.
+- **Severity:** Medium (hard build failure, well-documented fix).
+- **Workaround:** Set `isCoreLibraryDesugaringEnabled = true` in
+  `compileOptions` and add
+  `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")`.
+- **Actionable suggestion:** The plugin README should state the exact desugaring
+  snippet and the `desugar_jdk_libs` version near the top of the Android setup,
+  because the underlying build error does not name desugaring as the cause.
+
+### `flutter_webrtc` has no Insertable Streams, forcing a WebView audio path
+
+- **Task attempted:** Inject synthesised reply audio into the outbound half of
+  Ring's `sendrecv` WebRTC track (the core feature: the doorbell speaking).
+- **Expected vs actual:** Expected to feed generated PCM into a custom outbound
+  audio track. Actual: the Flutter WebRTC plugin does not expose the Insertable
+  Streams API that the web platform uses for exactly this, and pushing PCM into a
+  native track directly was not a reliable path.
+- **Severity:** Critical (this is the feature the whole product is built on).
+- **Workaround:** Run the audio pipeline inside an in-app WebView, where the
+  browser `AudioContext` to `MediaStreamTrack` injection path is well-trodden,
+  and drive the outbound track from there (the ARCH-1 decision). We spiked this
+  before building any UI so the architecture was de-risked first.
+- **Actionable suggestion:** flutter_webrtc exposing an Insertable Streams or
+  custom-audio-source API would remove the need for a WebView shim entirely.
+  Ring's sample only renders inbound audio, so a short official note that the
+  channel is `sendrecv` and how to send into it would help every team that wants
+  two-way talk.
+
+### Ring testing needs a Protection subscription and a short-lived Playground token
+
+- **Task attempted:** Exercise the Ring Partner API (devices, live view, events)
+  against real infrastructure.
+- **Expected vs actual:** Expected to authenticate and call the API. Actual:
+  full testing requires a Ring account with an active Ring Protection
+  subscription, and the Playground token that lets you work without that expires
+  quickly (roughly half an hour), so long sessions keep dropping mid-task.
+- **Severity:** Medium (gates real-device testing; the hackathon demo path is
+  unaffected).
+- **Workaround:** Do API-shape and integration work against the Playground token
+  and staging users, budget the Protection subscription up front, and structure
+  work so a token refresh does not lose progress. Be honest in the pitch that a
+  shipping product needs certification plus a subscription.
+- **Actionable suggestion:** A longer-lived development token, or a clear
+  in-console countdown of remaining token lifetime, would cut a lot of
+  re-authentication churn during a build sprint.
+
+### Java 25 breaks Gradle
+
+- **Task attempted:** Run the Android Gradle build on whatever JDK the
+  environment defaulted to.
+- **Expected vs actual:** Expected Gradle to run. Actual: on Java 25 the Gradle
+  build fails outright; the Android Gradle Plugin toolchain in use does not
+  support that JDK.
+- **Severity:** High (no Android build at all until the JDK is pinned).
+- **Workaround:** Pin the toolchain to Java 21 (`JAVA_HOME="$(mise where
+  java@21)"` in the shell preamble) for every Gradle invocation.
+- **Actionable suggestion:** The build should fail fast with an explicit
+  "unsupported JDK, use Java 17 or 21" message. Documenting the supported JDK
+  range prominently in the Flutter/AGP Android setup would prevent the confusing
+  downstream Gradle errors a too-new JDK produces.
+
 ## Backend signaling, ASR, and infrastructure (this delegation)
 
 - **`flutter analyze` crashes in the build sandbox.** The Dart analysis server
