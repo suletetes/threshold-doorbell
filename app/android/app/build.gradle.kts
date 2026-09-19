@@ -38,6 +38,19 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // Shrink the release build to cut APK/AAB size. R8 removes unused
+            // code and resource shrinking strips unused resources. The native
+            // plugins (flutter_webrtc, ML Kit, flutter_local_notifications,
+            // flutter_tts) use JNI/reflection, so the keep rules in
+            // proguard-rules.pro protect the classes R8 cannot see. See
+            // docs/hackathon/APK_SIZE.md for measured before/after sizes.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
