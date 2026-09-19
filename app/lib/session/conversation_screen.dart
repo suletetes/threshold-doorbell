@@ -525,6 +525,7 @@ class _StatusPanel extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(Spacing.space5),
         child: Semantics(
+          container: true,
           liveRegion: true,
           label: supporting == null ? message : '$message $supporting',
           excludeSemantics: true,
@@ -645,6 +646,7 @@ class _ErrorPanel extends StatelessWidget {
             // One live region announcing the failure and its cause together, so
             // a screen reader user hears the whole situation, not a fragment.
             Semantics(
+              container: true,
               liveRegion: true,
               label: '$message $kConnectionFailureCause',
               excludeSemantics: true,

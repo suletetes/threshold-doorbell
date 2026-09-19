@@ -168,7 +168,14 @@ class StatusBanner extends StatelessWidget {
                 Icon(icon ?? iconFor(variant), color: role, size: Spacing.space6),
                 const SizedBox(width: Spacing.space3),
                 Expanded(
+                  // container, so the message forms its OWN semantics node. A
+                  // label with no actions is not a semantic boundary, so without
+                  // this it merges into whatever labelled container encloses the
+                  // banner and the live region announcement arrives as part of a
+                  // larger blob. On this product that announcement is sometimes
+                  // the only channel a fact has.
                   child: Semantics(
+                    container: true,
                     liveRegion: liveRegion,
                     label: semanticsLabel ?? message,
                     excludeSemantics: true,
