@@ -121,19 +121,19 @@ void main() {
 
     test('an overlay anchored below the band clears both corners', () {
       const size = Size(400, 800);
-      final overlay = Rect.fromLTWH(0, kWatermarkBandHeight, 400, 200);
+      const overlay = Rect.fromLTWH(0, kWatermarkBandHeight, 400, 200);
       expect(clearsWatermarkCorners(overlay, size), isTrue);
     });
 
     test('an overlay in the top-left corner collides (FR-4.5)', () {
       const size = Size(400, 800);
-      final overlay = Rect.fromLTWH(0, 0, 80, 40);
+      const overlay = Rect.fromLTWH(0, 0, 80, 40);
       expect(clearsWatermarkCorners(overlay, size), isFalse);
     });
 
     test('an overlay in the top-right corner collides (FR-4.5)', () {
       const size = Size(400, 800);
-      final overlay = Rect.fromLTWH(340, 0, 60, 40);
+      const overlay = Rect.fromLTWH(340, 0, 60, 40);
       expect(clearsWatermarkCorners(overlay, size), isFalse);
     });
   });

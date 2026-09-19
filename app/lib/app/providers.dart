@@ -13,7 +13,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../captions/model_provisioning.dart';
 import '../consent/recording_notice.dart';
 import '../consent/recording_notice_controller.dart';
-import '../reply/outbound_mode.dart';
 import '../reply/reply_controller.dart';
 import '../reply/reply_port.dart';
 import '../reply/suggestion_provider.dart';
@@ -22,7 +21,6 @@ import '../session/session_controller.dart';
 import '../session/session_port.dart';
 import '../session/session_start_coordinator.dart';
 import '../settings/settings_controller.dart';
-import '../settings/settings_state.dart';
 import 'production_adapters.dart';
 
 /// The on-device model download size disclosed before download (FR-5.2a). A

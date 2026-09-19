@@ -6,10 +6,27 @@
 // (FR-12.3). There is no visitor-facing prompt (N9). Captions-Only is a
 // first-class mode, not an error state (FR-12.4), so it renders the same live
 // video + caption layout as the two-way screen, minus the reply bar.
+//
+// --- Presentation (UI/UX audit section 3.6 and C2) --------------------------
+//
+// The banner was one of the four ad hoc "status message" treatments the audit
+// found: a hand-rolled Container with a 0xFF2A3A4A fill picked by eye, a raw
+// radius of 12, a raw fontSize of 16, and an OutlinedButton with hardcoded white
+// borders. It is now the shared StatusBanner in the `warning` variant, which is
+// the right semantic for FR-12.4: a degraded but fully usable mode, not an error.
+// The exact FR-12.2 copy and the FR-12.3 action are unchanged; the action gained
+// an icon and real filled-button weight, as the audit asked for by name.
+//
+// The scaffold and the video placeholder now come from the media surface theme
+// shared with the conversation screen, so 0xFF0B0B0F and 0xFF15151B are gone.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../captions/caption_surface.dart';
+import '../design/colors.dart';
+import '../design/components/components.dart';
+import '../design/tokens.dart';
 import '../settings/settings_state.dart';
 import 'conversation_screen.dart';
 import 'ring_app_launcher.dart';
@@ -42,129 +59,203 @@ class CaptionsOnlyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) => _build(context, controller.snapshot),
+    return Theme(
+      // The same media surface theme as the two-way screen: Captions-Only is a
+      // first-class mode (FR-12.4), so it must not look like a different app.
+      data: mediaSurfaceTheme(),
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) => _build(context, controller.snapshot),
+      ),
     );
   }
 
   Widget _build(BuildContext context, SessionSnapshot snap) {
-    final builder = videoSurfaceBuilder ?? (_) => const ColoredBox(color: Color(0xFF15151B));
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0B0F),
-      body: SafeArea(
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            Semantics(
-              label: 'Live video from your doorbell',
-              image: true,
-              child: builder(context),
-            ),
-            Padding(
-              padding: watermarkSafeInsets(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  // Persistent, non-alarming banner (FR-12.2). Not an error color.
-                  _CaptionsOnlyBanner(launcher: launcher),
-                  const Spacer(),
-                  // Caption region: the visitor's speech, receive-only (FR-12.1).
-                  Semantics(
-                    liveRegion: true,
-                    label: 'Visitor captions',
-                    child: Container(
-                      key: const ValueKey('captions-only-region'),
-                      constraints: const BoxConstraints(minHeight: 160),
-                      margin: const EdgeInsets.all(12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: _settings.captionBackground.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      // Real caption turns with confidence emphasis + the
-                      // enforced accessibility settings (FR-5.3/5.3a, FR-10.2,
-                      // NFR-2; AT-4, AT-9).
-                      child: CaptionSurface(
-                        turns: controller.captionTurns,
-                        settings: _settings,
-                      ),
-                    ),
-                  ),
-                  // NO reply bar in Captions-Only Mode (FR-12.1).
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Semantics(
-                        button: true,
-                        label: 'End session',
-                        excludeSemantics: true,
-                        child: FilledButton.tonal(
-                          key: const ValueKey('captions-only-end'),
-                          onPressed: () => controller.end(),
-                          child: const Text('End'),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+    final builder = videoSurfaceBuilder ?? defaultVideoSurface;
+    final semantic = ThresholdSemanticColors.of(context);
+    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: semantic.captionSurface,
+        body: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Semantics(
+                label: 'Live video from your doorbell',
+                image: true,
+                child: builder(context),
               ),
+              Padding(
+                padding: watermarkSafeInsets(),
+                child: isLandscape ? _landscape(context) : _portrait(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _portrait(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _banner(),
+        // Caption region: the visitor's speech, receive-only (FR-12.1).
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: <Widget>[
+              Flexible(child: _captionRegion()),
+            ],
+          ),
+        ),
+        // NO reply bar in Captions-Only Mode (FR-12.1).
+        _endControl(),
+      ],
+    );
+  }
+
+  /// Landscape: the banner and the end control stay on the left, captions get a
+  /// full height column on the right (audit section 4, "Responsive and
+  /// adaptive"). Captions-Only is the mode most likely to be read from a propped
+  /// up phone, because the resident cannot reply from it at all.
+  Widget _landscape(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _banner(),
+              const Spacer(),
+              _endControl(),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(
+              right: Spacing.space3,
+              bottom: Spacing.space3,
             ),
-          ],
+            child: _captionRegion(fillHeight: true),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _banner() {
+    return Padding(
+      padding: const EdgeInsets.all(Spacing.space3),
+      child: StatusBanner(
+        key: const ValueKey('captions-only-banner'),
+        // Non-alarming and not an error: a degraded but usable mode (FR-12.2,
+        // FR-12.4).
+        variant: StatusVariant.warning,
+        icon: Icons.mic_off_outlined,
+        message: kCaptionsOnlyBanner,
+        action: StatusBannerAction(
+          label: 'Open Ring app',
+          icon: Icons.open_in_new,
+          buttonKey: const ValueKey('open-ring-app'),
+          onPressed: () => launcher.openRingApp(),
+        ),
+      ),
+    );
+  }
+
+  Widget _captionRegion({bool fillHeight = false}) {
+    return Padding(
+      padding: fillHeight
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: Spacing.space3),
+      child: _CaptionsOnlyRegion(
+        controller: controller,
+        settings: _settings,
+        fillHeight: fillHeight,
+      ),
+    );
+  }
+
+  Widget _endControl() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.space3),
+        child: Semantics(
+          button: true,
+          label: 'End session',
+          excludeSemantics: true,
+          child: FilledButton.tonalIcon(
+            key: const ValueKey('captions-only-end'),
+            onPressed: () => controller.end(),
+            icon: const Icon(Icons.call_end_rounded, size: Spacing.space5),
+            label: const Text('End'),
+          ),
         ),
       ),
     );
   }
 }
 
-class _CaptionsOnlyBanner extends StatelessWidget {
-  const _CaptionsOnlyBanner({required this.launcher});
-  final RingAppLauncher launcher;
+/// The caption container for the receive-only surface. Same treatment as the
+/// two-way screen so the two modes read as one product (FR-12.4): the resident's
+/// caption background composited over the `captionSurface` role, which is opaque
+/// so inbound video cannot bleed through the surface the 4.5:1 floor was computed
+/// against (FR-10.2, NFR-2).
+class _CaptionsOnlyRegion extends StatelessWidget {
+  const _CaptionsOnlyRegion({
+    required this.controller,
+    required this.settings,
+    required this.fillHeight,
+  });
+
+  final SessionController controller;
+  final ThresholdSettings settings;
+  final bool fillHeight;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      key: const ValueKey('captions-only-banner'),
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        // Non-alarming: informational blue-grey, not an error red (FR-12.2).
-        color: const Color(0xFF2A3A4A),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Semantics(
-            liveRegion: true,
-            label: kCaptionsOnlyBanner,
-            excludeSemantics: true,
-            child: const Text(
-              kCaptionsOnlyBanner,
-              style: TextStyle(color: Colors.white, fontSize: 16, height: 1.3),
-            ),
+    final semantic = ThresholdSemanticColors.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      liveRegion: true,
+      label: 'Visitor captions',
+      child: Container(
+        key: const ValueKey('captions-only-region'),
+        constraints: fillHeight
+            ? null
+            : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
+        padding: const EdgeInsets.all(Spacing.space4),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(settings.captionBackground, semantic.captionSurface),
+          borderRadius: Radii.roundedLarge,
+          border: Border.all(
+            color: semantic.captionOnSurface.withValues(alpha: 0.12),
           ),
-          const SizedBox(height: 12),
-          Semantics(
-            button: true,
-            label: 'Open Ring app',
-            excludeSemantics: true,
-            child: OutlinedButton.icon(
-              key: const ValueKey('open-ring-app'),
-              onPressed: () => launcher.openRingApp(),
-              icon: const Icon(Icons.open_in_new, color: Colors.white),
-              label: const Text(
-                'Open Ring app',
-                style: TextStyle(color: Colors.white),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white70),
-              ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: 0.45),
+              blurRadius: Elevations.level4,
+              offset: const Offset(0, Elevations.level1),
             ),
+          ],
+        ),
+        // Real caption turns with confidence emphasis + the enforced
+        // accessibility settings (FR-5.3/5.3a, FR-10.2, NFR-2; AT-4, AT-9).
+        child: SingleChildScrollView(
+          reverse: true,
+          child: CaptionSurface(
+            turns: controller.captionTurns,
+            settings: settings,
           ),
-        ],
+        ),
       ),
     );
   }

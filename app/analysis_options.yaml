@@ -1,0 +1,73 @@
+# Analyzer and lint policy for the Threshold app.
+#
+# Policy, per the UI/UX audit (section 5, "Tooling") and design principle 8,
+# "the analyzer is the floor, not the ceiling":
+#   1. flutter_lints is the baseline.
+#   2. The warnings that were previously tolerated are promoted to errors, so
+#      dead code and unused declarations fail the build instead of accumulating.
+#   3. The const lints the design system depends on are errors too. A token
+#      driven UI is const heavy by construction, and a missed const in the
+#      caption subtree is a real rebuild cost on a low end device.
+#
+# Run it with `dart analyze` from `app/`. It must report zero issues.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - .dart_tool/**
+
+  language:
+    # Implicit downcasts from dynamic hide real bugs at the port boundaries
+    # (push payloads, stored JSON), which is exactly where this app parses
+    # maps it did not construct.
+    strict-casts: true
+
+  errors:
+    # --- Dead code and unused declarations are defects, not suggestions ---
+    unused_import: error
+    unnecessary_import: error
+    duplicate_import: error
+    unused_local_variable: error
+    unused_field: error
+    unused_element: error
+    dead_code: error
+
+    # --- Correctness ---
+    body_might_complete_normally_catch_error: error
+    invalid_use_of_protected_member: error
+    unnecessary_null_comparison: error
+
+    # --- Const discipline for the token driven UI ---
+    prefer_const_constructors: error
+    prefer_const_constructors_in_immutables: error
+    prefer_const_declarations: error
+    prefer_const_literals_to_create_immutables: error
+
+    # TODO comments are planning notes, not build failures.
+    todo: ignore
+
+linter:
+  rules:
+    # --- Readability ---
+    - always_declare_return_types
+    - avoid_unused_constructor_parameters
+    - prefer_single_quotes
+    - unnecessary_parenthesis
+    - use_super_parameters
+
+    # --- Flutter specific ---
+    - avoid_print
+    - use_colored_box
+    - use_decorated_box
+    - use_full_hex_values_for_flutter_colors
+
+    # Deferred to the screen refactor phases, because enabling them now would
+    # require edits to screen and caption files that are out of scope for the
+    # design system foundation:
+    #   - omit_local_variable_types      (caption_surface, turn_segmentation, contrast)
+    #   - sort_constructors_first        (push_receiver, strobe_config, settings_state)
+    #   - directives_ordering            (session_start_coordinator, 2 tests)
+    #   - avoid_redundant_argument_values (ui_copy_lint, turn_segmentation, 5 tests)
+    #   - prefer_final_locals            (echo_gate_test)

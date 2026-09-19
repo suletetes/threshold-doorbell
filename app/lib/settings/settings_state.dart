@@ -105,7 +105,7 @@ class ThresholdSettings {
         captionScale: 1.0,
         captionForeground: const Color(0xFFFFFFFF),
         captionBackground: const Color(0xFF000000),
-        hapticEnabled: <HapticEvent, bool>{
+        hapticEnabled: const <HapticEvent, bool>{
           HapticEvent.personAtDoor: true,
           HapticEvent.motion: true,
           HapticEvent.conversationStarted: true,

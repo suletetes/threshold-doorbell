@@ -196,7 +196,6 @@ void main() {
 /// A ReplyPort whose speak() blocks until completed, to test the in-flight lock.
 class _BlockingReplyPort implements ReplyPort {
   int speakCalls = 0;
-  final _completers = <void Function(SpeakOutcome)>[];
   SpeakOutcome? _pending;
 
   @override

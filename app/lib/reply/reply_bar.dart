@@ -5,11 +5,41 @@
 // bar is hidden when outbound audio is unavailable; the Captions-Only banner is
 // shown instead by the Captions-Only screen (Task 17). Every control carries a
 // Semantics label and the bar is fully operable with a screen reader (G4).
+//
+// --- Presentation (UI/UX audit section 4, "Feedback states") ----------------
+//
+// The finding that mattered most here: "Success: no success affordance at all.
+// 'Speaking at your door' is a text state with no completion cue, which matters
+// because the user cannot hear that the reply played."
+//
+// That is the gap this closes. When a reply finishes playing at the door, the bar
+// now confirms it with a success banner naming the reply that played. It is the
+// only channel this user has for that fact. The confirmation persists until the
+// resident starts composing again rather than expiring on a timer: a cue that
+// vanishes on its own is a cue someone can miss, which defeats the point.
+//
+// Also gone: the 0xFF15151B bar fill, the 0xFFFFCDD2 error text, the 0xFF9E9E9E
+// hint, the 0xFF23232B field fill, the 0xFF1565C0 speaking bar, and the raw
+// fontSize of 18. The suggestions are real buttons at the 48dp floor instead of
+// 32dp chips.
 
 import 'package:flutter/material.dart';
 
+import '../design/colors.dart';
+import '../design/components/components.dart';
+import '../design/tokens.dart';
 import 'reply_controller.dart';
 import 'reply_suggestions.dart';
+
+/// The completion cue shown after a reply has played at the door. Dash-free
+/// (NFR-10).
+String replyPlayedConfirmation(String reply) => 'Played at your door: $reply';
+
+/// The in-flight label while reply audio is playing (FR-6.3). Dash-free.
+const String kSpeakingAtDoorLabel = 'Speaking at your door';
+
+/// The static stand in for the speaking spinner under reduced motion.
+const IconData kSpeakingStaticIcon = Icons.graphic_eq;
 
 class ReplyBar extends StatefulWidget {
   const ReplyBar({
@@ -31,10 +61,23 @@ class ReplyBar extends StatefulWidget {
 class _ReplyBarState extends State<ReplyBar> {
   final TextEditingController _text = TextEditingController();
 
+  /// The reply that most recently finished playing at the door, or null.
+  ///
+  /// Held in the widget rather than the controller because it is a presentation
+  /// concern: the controller correctly returns to composing as soon as the reply
+  /// is sent, so the SENT state is never on screen long enough to be seen. This
+  /// does not change the controller's behavior in any way.
+  String? _playedReply;
+
   @override
   void dispose() {
     _text.dispose();
     super.dispose();
+  }
+
+  void _clearPlayedConfirmation() {
+    if (_playedReply == null) return;
+    setState(() => _playedReply = null);
   }
 
   @override
@@ -50,81 +93,126 @@ class _ReplyBarState extends State<ReplyBar> {
           return _SpeakingBanner(text: c.inFlightText ?? '');
         }
 
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
         final buttons = composeReplyButtons(widget.contextualSuggestions);
         final busy = c.state == ReplyState.synthesizing;
+        final String? errorMessage = c.errorMessage;
+        final String? played = _playedReply;
+
         return Semantics(
           container: true,
           label: 'Reply options',
-          child: Container(
-            key: const ValueKey('reply-bar'),
-            padding: const EdgeInsets.all(12),
-            color: const Color(0xFF15151B),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                if (c.state == ReplyState.error && c.errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Semantics(
-                      liveRegion: true,
-                      label: c.errorMessage!,
-                      child: Text(
-                        c.errorMessage!,
-                        style: const TextStyle(color: Color(0xFFFFCDD2)),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLow,
+              border: Border(top: BorderSide(color: scheme.outlineVariant)),
+            ),
+            child: Padding(
+              key: const ValueKey('reply-bar'),
+              padding: const EdgeInsets.all(Spacing.space3),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  // The completion cue (audit section 4: there was no success
+                  // affordance at all, and this user cannot hear the reply play).
+                  AnimatedSize(
+                    duration: motionDuration(context, Motion.standard),
+                    curve: Motion.standardCurve,
+                    alignment: Alignment.topCenter,
+                    child: played == null
+                        ? const SizedBox(width: double.infinity)
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: Spacing.space3),
+                            child: StatusBanner(
+                              key: const ValueKey('reply-played'),
+                              variant: StatusVariant.success,
+                              icon: Icons.volume_up_outlined,
+                              message: replyPlayedConfirmation(played),
+                            ),
+                          ),
+                  ),
+                  if (c.state == ReplyState.error && errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: Spacing.space3),
+                      child: StatusBanner(
+                        key: const ValueKey('reply-error'),
+                        variant: StatusVariant.danger,
+                        message: errorMessage,
                       ),
                     ),
+                  Wrap(
+                    spacing: Spacing.space2,
+                    runSpacing: Spacing.space2,
+                    children: <Widget>[
+                      for (final s in buttons)
+                        _SuggestionButton(
+                          label: s,
+                          onTap: busy ? null : () => _send(s, ReplySource.template),
+                        ),
+                    ],
                   ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: <Widget>[
-                    for (final s in buttons)
-                      _SuggestionChip(
-                        label: s,
-                        onTap: busy ? null : () => _send(s, ReplySource.template),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Semantics(
-                        textField: true,
-                        label: 'Type a reply',
-                        child: TextField(
-                          key: const ValueKey('reply-freetext'),
-                          controller: _text,
-                          enabled: !busy,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            hintText: 'Type a reply',
-                            hintStyle: TextStyle(color: Color(0xFF9E9E9E)),
-                            filled: true,
-                            fillColor: Color(0xFF23232B),
-                            border: OutlineInputBorder(),
+                  const SizedBox(height: Spacing.space3),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Semantics(
+                          textField: true,
+                          label: 'Type a reply',
+                          child: TextField(
+                            key: const ValueKey('reply-freetext'),
+                            controller: _text,
+                            enabled: !busy,
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: scheme.onSurface),
+                            decoration: InputDecoration(
+                              hintText: 'Type a reply',
+                              hintStyle: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                              filled: true,
+                              fillColor: scheme.surfaceContainerHighest,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: Spacing.space4,
+                                vertical: Spacing.space3,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: Radii.roundedMedium,
+                                borderSide: BorderSide(color: scheme.outline),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: Radii.roundedMedium,
+                                borderSide: BorderSide(color: scheme.outline),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: Radii.roundedMedium,
+                                borderSide: BorderSide(color: scheme.primary, width: 2),
+                              ),
+                            ),
+                            // Starting a new reply retires the previous one's cue.
+                            onChanged: (_) => _clearPlayedConfirmation(),
+                            onSubmitted: (v) => _send(v, ReplySource.freetext),
                           ),
-                          onSubmitted: (v) => _send(v, ReplySource.freetext),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Semantics(
-                      button: true,
-                      label: 'Send reply',
-                      excludeSemantics: true,
-                      child: FilledButton(
-                        key: const ValueKey('reply-send'),
-                        onPressed: busy
-                            ? null
-                            : () => _send(_text.text, ReplySource.freetext),
-                        child: const Text('Send'),
+                      const SizedBox(width: Spacing.space2),
+                      Semantics(
+                        button: true,
+                        label: 'Send reply',
+                        excludeSemantics: true,
+                        child: FilledButton.icon(
+                          key: const ValueKey('reply-send'),
+                          onPressed: busy
+                              ? null
+                              : () => _send(_text.text, ReplySource.freetext),
+                          icon: const Icon(Icons.send_rounded, size: Spacing.space5),
+                          label: const Text('Send'),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -134,15 +222,24 @@ class _ReplyBarState extends State<ReplyBar> {
 
   Future<void> _send(String text, ReplySource source) async {
     if (!widget.controller.canSend(text)) return;
+    _clearPlayedConfirmation();
     await widget.controller.send(text, source: source);
+    // Read the outcome BEFORE reset(), which returns the bar to composing.
+    final played = widget.controller.state == ReplyState.sent ? text.trim() : null;
     if (source == ReplySource.freetext) _text.clear();
     // After a sent/error reply, return to composing so the bar is usable again.
     widget.controller.reset();
+    if (played != null && mounted) {
+      setState(() => _playedReply = played);
+    }
   }
 }
 
-class _SuggestionChip extends StatelessWidget {
-  const _SuggestionChip({required this.label, required this.onTap});
+/// One suggested reply. A real button at the theme's 48dp minimum rather than a
+/// 32dp Material chip (audit section 4, "Touch targets and gestures": nothing in
+/// the codebase asserted the minimum).
+class _SuggestionButton extends StatelessWidget {
+  const _SuggestionButton({required this.label, required this.onTap});
   final String label;
   final VoidCallback? onTap;
 
@@ -152,9 +249,17 @@ class _SuggestionChip extends StatelessWidget {
       button: true,
       label: 'Reply: $label',
       excludeSemantics: true,
-      child: ActionChip(
-        label: Text(label),
+      child: FilledButton.tonal(
         onPressed: onTap,
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, TouchTarget.minimum),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.space4,
+            vertical: Spacing.space2,
+          ),
+          shape: const StadiumBorder(),
+        ),
+        child: Text(label),
       ),
     );
   }
@@ -162,32 +267,54 @@ class _SuggestionChip extends StatelessWidget {
 
 /// "Speaking at your door" state (FR-6.3). Resubmission is disabled: there are
 /// no controls here, so the same reply cannot be sent again while it plays.
+///
+/// Deliberately not a StatusBanner: this is a transient in-flight progress state
+/// carrying a spinner, not a status message with an optional action. It does use
+/// the `live` semantic role, because that is exactly what it reports, active
+/// two-way audio.
 class _SpeakingBanner extends StatelessWidget {
   const _SpeakingBanner({required this.text});
   final String text;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final live = ThresholdSemanticColors.of(context).live;
     return Semantics(
       liveRegion: true,
-      label: 'Speaking at your door',
-      child: Container(
-        key: const ValueKey('speaking-banner'),
-        padding: const EdgeInsets.all(16),
-        color: const Color(0xFF1565C0),
-        child: const Row(
-          children: <Widget>[
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            SizedBox(width: 12),
-            Text(
-              'Speaking at your door',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-          ],
+      label: kSpeakingAtDoorLabel,
+      excludeSemantics: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(live.withValues(alpha: 0.18), scheme.surfaceContainerLow),
+          border: Border(top: BorderSide(color: live, width: 2)),
+        ),
+        child: Padding(
+          key: const ValueKey('speaking-banner'),
+          padding: const EdgeInsets.all(Spacing.space4),
+          child: Row(
+            children: <Widget>[
+              // Reduced motion gets a static marker instead of a spinner. The
+              // live region already announces the state in words, so nothing is
+              // lost and nothing moves.
+              if (prefersReducedMotion(context))
+                Icon(kSpeakingStaticIcon, size: Spacing.space5, color: live)
+              else
+                SizedBox(
+                  width: Spacing.space5,
+                  height: Spacing.space5,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: live),
+                ),
+              const SizedBox(width: Spacing.space3),
+              Expanded(
+                child: Text(
+                  kSpeakingAtDoorLabel,
+                  style: theme.textTheme.titleSmall?.copyWith(color: scheme.onSurface),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
