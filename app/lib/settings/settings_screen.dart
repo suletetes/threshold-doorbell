@@ -9,11 +9,29 @@
 // A real screen-reader (TalkBack / VoiceOver) pass is a device-only step and is
 // deferred to the developer's machine; the Semantics tree asserted by the widget
 // tests is the headless proxy for it here.
+//
+// --- Presentation (UI/UX audit section 4) -----------------------------------
+//
+// "Settings is a flat list with no grouping hierarchy, despite containing mode,
+// captions, haptics, strobe, language, retention, erasure, and the recording
+// notice. That is at least four distinct concerns." It is now four groups with
+// SectionHeader (Captions, Alerts, Language, Privacy and data), with the haptic
+// reference as a subordinate dense header inside Alerts. Every control and every
+// Semantics label is unchanged; only the order and the grouping moved.
+//
+// "Delete all my data" now reads as destructive: it carries the `danger` semantic
+// role instead of a 0xFFB00020 literal picked by hand, and the confirm action in
+// its dialog does too.
+//
+// The inline `_section` helper, with its raw fontSize of 18 and raw w700, is gone.
 
 import 'package:flutter/material.dart';
 
 import '../alerts/haptic_vocabulary.dart';
 import '../captions/language_selection.dart';
+import '../design/colors.dart';
+import '../design/components/components.dart';
+import '../design/tokens.dart';
 import 'settings_controller.dart';
 import 'settings_state.dart';
 
@@ -22,6 +40,9 @@ const String kPrivacyModeExplanation =
     'Privacy Mode keeps everything on your phone. Captions are made on device '
     'and cloud suggestions are not used. Clarity Mode uses the cloud for the '
     'most accurate captions and short suggested replies.';
+
+/// The maximum OS text scale this screen honors (NFR-2): 200%.
+const double kMaxSettingsTextScale = 2.0;
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.controller});
@@ -35,7 +56,7 @@ class SettingsScreen extends StatelessWidget {
     final media = MediaQuery.of(context);
     final scaler = media.textScaler.clamp(
       minScaleFactor: 1.0,
-      maxScaleFactor: 2.0,
+      maxScaleFactor: kMaxSettingsTextScale,
     );
     return MediaQuery(
       data: media.copyWith(textScaler: scaler),
@@ -47,20 +68,35 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _build(BuildContext context, ThresholdSettings s) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final semantic = ThresholdSemanticColors.of(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.space4,
+          vertical: Spacing.space2,
+        ),
         children: <Widget>[
-          _section('Caption mode'),
+          // --- Captions -------------------------------------------------------
+          const SectionHeader(
+            title: 'Captions',
+            supportingText: 'How captions are made, how big they are, and how '
+                'much they stand out.',
+          ),
           Semantics(
             label: 'Privacy Mode explanation',
-            child: const Text(kPrivacyModeExplanation),
+            child: Text(
+              kPrivacyModeExplanation,
+              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            ),
           ),
+          const SizedBox(height: Spacing.space2),
           _ModeSwitch(controller: controller, settings: s),
-          const Divider(),
 
-          _section('Caption size'),
+          const SectionHeader(title: 'Caption size', dense: true),
           Semantics(
             slider: true,
             label: 'Caption text size',
@@ -75,9 +111,8 @@ class SettingsScreen extends StatelessWidget {
               onChanged: controller.setCaptionScale,
             ),
           ),
-          const Divider(),
 
-          _section('Caption contrast'),
+          const SectionHeader(title: 'Caption contrast', dense: true),
           Semantics(
             liveRegion: true,
             label: 'Caption contrast ratio '
@@ -87,11 +122,15 @@ class SettingsScreen extends StatelessWidget {
               key: const ValueKey('contrast-readout'),
               'Contrast ${s.captionContrastRatio.toStringAsFixed(1)} to 1 '
               '(minimum 4.5 to 1)',
+              style: theme.textTheme.bodyMedium,
             ),
           ),
-          const Divider(),
 
-          _section('Alerts'),
+          // --- Alerts ---------------------------------------------------------
+          const SectionHeader(
+            title: 'Alerts',
+            supportingText: 'How your phone tells you someone is at the door.',
+          ),
           for (final pattern in HapticVocabulary.all)
             Semantics(
               toggled: s.hapticEnabled[pattern.event] ?? true,
@@ -114,40 +153,7 @@ class SettingsScreen extends StatelessWidget {
               onChanged: controller.setStrobeEnabled,
             ),
           ),
-          const Divider(),
-
-          _section('Recognition language'),
-          Semantics(
-            label: 'Recognition language, currently ${s.language}',
-            child: Text(
-              key: const ValueKey('language-readout'),
-              'Language: ${s.language}',
-            ),
-          ),
-          const Divider(),
-
-          _section('Data'),
-          Semantics(
-            label: s.retentionLabel,
-            child: Text(key: const ValueKey('retention-readout'), s.retentionLabel),
-          ),
-          const SizedBox(height: 12),
-          Semantics(
-            button: true,
-            label: 'Delete all my data',
-            excludeSemantics: true,
-            child: FilledButton.tonal(
-              key: const ValueKey('delete-all-data'),
-              style: FilledButton.styleFrom(
-                foregroundColor: const Color(0xFFB00020),
-              ),
-              onPressed: () => _confirmDelete(context),
-              child: const Text('Delete all my data'),
-            ),
-          ),
-          const Divider(),
-
-          _section('Haptic reference'),
+          const SectionHeader(title: 'Haptic reference', dense: true),
           for (final pattern in HapticVocabulary.all)
             Semantics(
               label: 'Haptic pattern: ${pattern.label}',
@@ -157,27 +163,74 @@ class SettingsScreen extends StatelessWidget {
                 trailing: Text('${pattern.totalDurationMs} ms'),
               ),
             ),
+
+          // --- Language -------------------------------------------------------
+          const SectionHeader(
+            title: 'Language',
+            supportingText: 'The language captions are recognized in.',
+          ),
+          Semantics(
+            label: 'Recognition language, currently ${s.language}',
+            child: Text(
+              key: const ValueKey('language-readout'),
+              'Language: ${s.language}',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+
+          // --- Privacy and data -----------------------------------------------
+          const SectionHeader(
+            title: 'Privacy and data',
+            supportingText: 'What is kept, for how long, and how to erase it.',
+          ),
+          Semantics(
+            label: s.retentionLabel,
+            child: Text(
+              key: const ValueKey('retention-readout'),
+              s.retentionLabel,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          const SizedBox(height: Spacing.space4),
+          Semantics(
+            button: true,
+            label: 'Delete all my data',
+            excludeSemantics: true,
+            child: FilledButton.tonalIcon(
+              key: const ValueKey('delete-all-data'),
+              // The danger role, replacing a 0xFFB00020 literal. Destructive
+              // actions should look destructive before they are pressed, not
+              // only in the dialog that follows.
+              style: FilledButton.styleFrom(
+                foregroundColor: semantic.danger,
+                backgroundColor: Color.alphaBlend(
+                  semantic.danger.withValues(alpha: 0.12),
+                  scheme.surfaceContainerHigh,
+                ),
+                side: BorderSide(
+                  color: semantic.danger.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
+              ),
+              onPressed: () => _confirmDelete(context),
+              icon: const Icon(Icons.delete_outline, size: Spacing.space5),
+              label: const Text('Delete all my data'),
+            ),
+          ),
+          const SizedBox(height: Spacing.space7),
         ],
       ),
     );
   }
 
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Semantics(
-          header: true,
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-        ),
-      );
-
   Future<void> _confirmDelete(BuildContext context) async {
+    final semantic = ThresholdSemanticColors.of(context);
+    final scheme = Theme.of(context).colorScheme;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('delete-confirm-dialog'),
+        icon: Icon(Icons.warning_amber_rounded, color: semantic.danger, size: Spacing.space8),
         title: const Text('Delete all your data'),
         content: const Text(
           'This erases all your transcripts and revokes your Ring connection. '
@@ -191,6 +244,12 @@ class SettingsScreen extends StatelessWidget {
           ),
           FilledButton(
             key: const ValueKey('delete-confirm'),
+            // The destructive action carries the danger role through to the
+            // confirmation, so the weight of the choice is consistent.
+            style: FilledButton.styleFrom(
+              backgroundColor: semantic.danger,
+              foregroundColor: scheme.onError,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete everything'),
           ),
@@ -209,6 +268,7 @@ class _ModeSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Semantics(
           toggled: settings.pendingMode == CaptionMode.privacy,
@@ -217,6 +277,7 @@ class _ModeSwitch extends StatelessWidget {
             key: const ValueKey('mode-switch'),
             title: const Text('Privacy Mode'),
             subtitle: const Text('Applies to your next session.'),
+            secondary: const Icon(Icons.lock_outline),
             value: settings.pendingMode == CaptionMode.privacy,
             onChanged: (v) => controller.requestModeChange(
               v ? CaptionMode.privacy : CaptionMode.clarity,
@@ -224,15 +285,12 @@ class _ModeSwitch extends StatelessWidget {
           ),
         ),
         if (settings.pendingMode != settings.activeMode)
-          Semantics(
-            liveRegion: true,
-            label: 'The mode change applies to your next session.',
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'The mode change applies to your next session.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
+          const Padding(
+            padding: EdgeInsets.only(top: Spacing.space2),
+            child: StatusBanner(
+              key: ValueKey('mode-pending-notice'),
+              message: 'The mode change applies to your next session.',
+              icon: Icons.schedule_outlined,
             ),
           ),
       ],
