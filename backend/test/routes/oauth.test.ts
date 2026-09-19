@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
 import { decodeState } from '../../src/security/oauth-state.js';
+import { deriveResidentSub } from '../../src/routes/oauth.js';
 import { SESSION_COOKIE, verifySession } from '../../src/security/session.js';
 
 let app: FastifyInstance | undefined;
@@ -107,6 +108,60 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().expiresAt).toBeTruthy();
     expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toBeDefined();
+  });
+
+  it('derives distinct residentSubs for distinct accounts (no collision, P2-2)', () => {
+    // The fixture access token is `access-<code>`. Two accounts whose codes are
+    // `account-42` and `refresh-account-42` must never collapse to one sub.
+    const subA = deriveResidentSub('access-account-42');
+    const subB = deriveResidentSub('access-refresh-account-42');
+    expect(subA).not.toBe(subB);
+    expect(subA).toBe('resident-account-42');
+    expect(subB).toBe('resident-refresh-account-42');
+  });
+
+  it('two distinct accounts logging in never collapse to the same session sub (P2-2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    async function login(code: string): Promise<string> {
+      const start = await app!.inject({ method: 'GET', url: '/oauth/start' });
+      const state = new URL(start.headers.location as string).searchParams.get('state')!;
+      const res = await app!.inject({
+        method: 'GET',
+        url: `/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+      });
+      const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
+      return verifySession(cookie.value, t.config.sessionSecret)!.sub;
+    }
+    const subA = await login('account-42');
+    const subB = await login('refresh-account-42');
+    expect(subA).not.toBe(subB);
+  });
+
+  it('a refresh keeps the same sub as the original login (P2-2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // Log in and capture the derived sub.
+    const start = await app.inject({ method: 'GET', url: '/oauth/start' });
+    const state = new URL(start.headers.location as string).searchParams.get('state')!;
+    const login = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-42&state=${encodeURIComponent(state)}`,
+    });
+    const loginCookie = login.cookies.find((c) => c.name === SESSION_COOKIE)!;
+    const loginSub = verifySession(loginCookie.value, t.config.sessionSecret)!.sub;
+
+    // Refresh using that session; the rolled-forward session must carry the
+    // same sub (refresh never re-derives identity from the token string).
+    const refresh = await app.inject({
+      method: 'POST',
+      url: '/oauth/refresh',
+      headers: { authorization: `Bearer ${sessionFor(loginSub, t.config.sessionSecret)}` },
+    });
+    expect(refresh.statusCode).toBe(200);
+    const refreshCookie = refresh.cookies.find((c) => c.name === SESSION_COOKIE)!;
+    const refreshedSub = verifySession(refreshCookie.value, t.config.sessionSecret)!.sub;
+    expect(refreshedSub).toBe(loginSub);
   });
 
   it('POST /oauth/refresh surfaces refresh_failed via the single recovery path', async () => {
