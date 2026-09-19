@@ -12,6 +12,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
+import '../captions/turn_segmentation.dart';
 import '../reply/outbound_mode.dart';
 import 'session_concurrency.dart';
 import 'session_port.dart';
@@ -56,6 +57,10 @@ class SessionController extends ChangeNotifier {
   /// new machine so it re-probes from scratch (FR-6.4b); we replace it on start.
   OutboundModeMachine _outbound = OutboundModeMachine();
 
+  /// Accumulates live caption results into labeled turns (FR-5.5, FR-5.7). The
+  /// caption surface renders these; a new session starts a fresh accumulator.
+  TurnAccumulator _captions = TurnAccumulator();
+
   /// Events queued for other devices while this session is active (FR-4.7).
   final List<QueuedEvent> _queued = <QueuedEvent>[];
 
@@ -75,6 +80,19 @@ class SessionController extends ChangeNotifier {
 
   /// The active device id while a session exists, else null (FR-4.6/4.7).
   String? get activeDeviceId => _isSessionActive() ? _deviceId : null;
+
+  /// The live caption turns to render on the caption surface (FR-5.5). Rebuilt
+  /// as results arrive via [ingestCaption].
+  List<CaptionTurn> get captionTurns => _captions.turns;
+
+  /// Ingest a caption result from the ASR/on-device pipeline (Clarity via
+  /// /asr/stream, Privacy via the on-device engine). Extends or starts a turn
+  /// per the tested segmentation rules and notifies listeners so the caption
+  /// surface repaints (FR-5.5, FR-5.7; AT-4).
+  void ingestCaption(CaptionResult result) {
+    _captions.apply(result);
+    notifyListeners();
+  }
 
   SessionSnapshot get snapshot => SessionSnapshot(
         state: _state,
@@ -125,6 +143,7 @@ class SessionController extends ChangeNotifier {
     _errorMessage = null;
     _media = null;
     _outbound = OutboundModeMachine(); // fresh: re-probe from scratch (FR-6.4b)
+    _captions = TurnAccumulator(); // fresh caption turns for the new session
     _queued.clear();
     _sameDeviceHapticReplays = 0;
 

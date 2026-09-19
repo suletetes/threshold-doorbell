@@ -11,6 +11,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../captions/caption_surface.dart';
+import '../settings/settings_state.dart';
 import 'session_controller.dart';
 import 'session_state.dart';
 import 'watermark_safe_area.dart';
@@ -25,13 +27,25 @@ class ConversationScreen extends StatelessWidget {
   const ConversationScreen({
     super.key,
     required this.controller,
+    this.settings,
+    this.replyBar,
     this.videoSurfaceBuilder,
   });
 
   final SessionController controller;
 
+  /// The resident's accessibility settings driving caption scale + the enforced
+  /// contrast foreground (FR-10.2, NFR-2). Defaults to accessible defaults.
+  final ThresholdSettings? settings;
+
+  /// Optional reply bar built by the composition root (Task 15). When null (as
+  /// in headless caption tests) no reply bar is shown.
+  final Widget? replyBar;
+
   /// Optional device video surface. Defaults to the labelled placeholder.
   final VideoSurfaceBuilder? videoSurfaceBuilder;
+
+  ThresholdSettings get _settings => settings ?? ThresholdSettings.defaults();
 
   @override
   Widget build(BuildContext context) {
@@ -122,9 +136,19 @@ class ConversationScreen extends StatelessWidget {
         );
       case SessionState.authRecovering:
         // The modal prompt covers this; keep the last live layout beneath.
-        return _LiveOverlay(controller: controller, snap: snap);
+        return _LiveOverlay(
+          controller: controller,
+          snap: snap,
+          settings: _settings,
+          replyBar: replyBar,
+        );
       case SessionState.live:
-        return _LiveOverlay(controller: controller, snap: snap);
+        return _LiveOverlay(
+          controller: controller,
+          snap: snap,
+          settings: _settings,
+          replyBar: replyBar,
+        );
       case SessionState.idle:
         return const SizedBox.shrink();
     }
@@ -134,10 +158,17 @@ class ConversationScreen extends StatelessWidget {
 /// The live overlay: caption region (bottom, dominant) plus the end-session
 /// control. Reply bar is added by Task 15 and hidden when Captions-Only.
 class _LiveOverlay extends StatelessWidget {
-  const _LiveOverlay({required this.controller, required this.snap});
+  const _LiveOverlay({
+    required this.controller,
+    required this.snap,
+    required this.settings,
+    this.replyBar,
+  });
 
   final SessionController controller;
   final SessionSnapshot snap;
+  final ThresholdSettings settings;
+  final Widget? replyBar;
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +193,8 @@ class _LiveOverlay extends StatelessWidget {
         ),
         const Spacer(),
         // Caption region dominates the lower part of the screen (design §8.2).
+        // Renders REAL caption turns with confidence emphasis + the enforced
+        // accessibility settings (FR-5.3/5.3a, FR-10.2, NFR-2; AT-4, AT-9).
         Semantics(
           liveRegion: true,
           label: 'Visitor captions',
@@ -171,15 +204,18 @@ class _LiveOverlay extends StatelessWidget {
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xCC000000),
+              color: settings.captionBackground.withValues(alpha: 0.8),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
-              'Captions appear here as your visitor speaks.',
-              style: TextStyle(color: Colors.white, fontSize: 22, height: 1.3),
+            child: CaptionSurface(
+              turns: controller.captionTurns,
+              settings: settings,
             ),
           ),
         ),
+        // The reply bar (Task 15) when the composition root supplies one and
+        // outbound is available (the bar hides itself when unavailable).
+        if (replyBar != null) replyBar!,
       ],
     );
   }
