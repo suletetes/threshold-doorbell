@@ -67,7 +67,7 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     never invoked for Privacy-Mode sessions.
   - _Requirements: FR-7.1, FR-7.3, FR-7.4; AT-7_
 
-- [ ] 11. App: push alerts, haptic vocabulary, photosensitivity-safe strobe
+- [x] 11. App: push alerts, haptic vocabulary, photosensitivity-safe strobe
   - FCM; exactly three haptic patterns; full-bleed thumbnail; foreground paginated poll fallback; strobe and
     torch capped at 3 flashes per second, off by default.
   - _Requirements: FR-3.3, FR-3.4, FR-3.5, FR-9.1 to FR-9.4; AT-16_
@@ -78,7 +78,7 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     unified auth recovery on session expiry.
   - _Requirements: FR-4.1 to FR-4.8; AT-3, AT-11, AT-12, AT-25_
 
-- [ ] 13. App: Clarity-Mode captions, confidence styling, presence, no-speech
+- [x] 13. App: Clarity-Mode captions, confidence styling, presence, no-speech
   - Tap inbound audio in the WebView to 16 kHz mono PCM; stream to `/asr/stream`; render partials in
     provisional style; on finalization apply the 0.6 token threshold; presence per FR-5.4; "No speech
     detected" state; turn segmentation; persist unfinalized text as provisional.
@@ -95,7 +95,7 @@ degradation matrix, threat model, UI-copy lint, model provisioning, documentatio
     `outboundAvailable` is false.
   - _Requirements: FR-6.1, FR-6.3, FR-6.5, FR-7.2, FR-7.5, G3; AT-5, AT-7_
 
-- [ ] 16. App: sticky outbound mode wiring
+- [x] 16. App: sticky outbound mode wiring
   - Consume the probe result at session start; keep it sticky; degrade to Captions-Only for the remainder on
     a later injection failure; re-probe next session.
   - _Requirements: FR-6.4, FR-6.4a, FR-6.4b; AT-6_
