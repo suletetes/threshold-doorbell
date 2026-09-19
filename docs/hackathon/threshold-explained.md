@@ -78,6 +78,16 @@ Visitor speaks  →  doorbell  →  phone  →  speech-to-text  →  captions on
 Resident taps a reply  →  text-to-speech  →  doorbell speaker  →  visitor hears it
 ```
 
+Here it is as a picture:
+
+![System overview](diagrams/01-system-overview.svg)
+
+The two halves of the conversation, in detail:
+
+![Inbound: visitor speech to captions](diagrams/02-inbound-caption-flow.svg)
+
+![Outbound: tap a reply to a voice at the door](diagrams/03-outbound-reply-flow.svg)
+
 ---
 
 ## The clever technical insight (why this is even possible)

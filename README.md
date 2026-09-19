@@ -32,6 +32,13 @@ Resident taps a reply  →  text-to-speech  →  doorbell speaker  →  visitor 
 The insight: Ring's WebRTC audio channel is **bidirectional** (`sendrecv`), but Amazon's own sample uses
 only the inbound half. Threshold is built on the channel everyone else leaves idle.
 
+## Architecture
+
+![System overview](docs/hackathon/diagrams/01-system-overview.svg)
+
+More views (inbound captions, the ARCH-1 outbound reply path, and the event/alert flow) are in
+[`docs/hackathon/diagrams/`](docs/hackathon/diagrams/README.md).
+
 ## Tech stack
 
 | Concern | Technology |

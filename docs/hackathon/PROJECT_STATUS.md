@@ -1,5 +1,9 @@
 # Threshold: Project Status
 
+Architecture diagrams: see [`diagrams/`](diagrams/README.md) for the system overview and the three flow
+views.
+
+
 A single honest snapshot of what is done, what is verified, and what only you can finish.
 Last updated after PR #7 merged to `main`.
 

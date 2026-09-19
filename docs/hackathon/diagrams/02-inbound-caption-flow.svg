@@ -1,71 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="470" viewBox="0 0 1120 470" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="500" viewBox="0 0 1160 500" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
   <defs>
-    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1565c0"/></marker>
-    <marker id="ag" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1b7f4b"/></marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/></linearGradient>
+    <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eafaf1"/><stop offset="1" stop-color="#d8f3e4"/></linearGradient>
+    <linearGradient id="gAws" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeef0"/><stop offset="1" stop-color="#fbdfe3"/></linearGradient>
+    <linearGradient id="gCap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2030"/><stop offset="1" stop-color="#0d1017"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1a2540" flood-opacity="0.14"/></filter>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1b7f4b"/></marker>
     <style>
-      .title{font-size:24px;font-weight:700;fill:#12151b}
+      .title{font-size:25px;font-weight:800;fill:#12151b}
       .sub{font-size:14px;fill:#5b6472}
-      .lbl{font-size:15px;font-weight:600;fill:#12151b}
-      .desc{font-size:12px;fill:#5b6472}
-      .step{font-size:12px;font-weight:700;fill:#1565c0}
+      .lbl{font-size:15px;font-weight:700;fill:#12151b}
+      .desc{font-size:11.5px;fill:#5b6472}
+      .step{font-size:11px;font-weight:800;letter-spacing:.8px;fill:#1565c0}
+      .stepg{font-size:11px;font-weight:800;letter-spacing:.8px;fill:#1b7f4b}
       .legend{font-size:12.5px;fill:#3a4150}
-      .e{stroke:#1565c0;stroke-width:2.5;fill:none}
-      .eg{stroke:#1b7f4b;stroke-width:2.5;fill:none}
+      .e{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eg{stroke:#1b7f4b;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
     </style>
   </defs>
-  <rect width="1120" height="470" fill="#f7f8fa"/>
-  <text x="40" y="44" class="title">Inbound flow, visitor speech to on-screen captions</text>
-  <text x="40" y="68" class="sub">Two engines. Clarity Mode uses Amazon Transcribe (default). Privacy Mode transcribes on-device and sends nothing off the phone.</text>
+  <rect width="1160" height="500" fill="url(#bg)"/>
+  <text x="44" y="46" class="title">Inbound Flow &#183; Visitor Speech to On-screen Captions</text>
+  <text x="44" y="70" class="sub">Two engines. Clarity Mode uses Amazon Transcribe (default). Privacy Mode transcribes on-device and sends nothing off the phone.</text>
 
-  <!-- nodes row -->
-  <rect x="40" y="150" width="150" height="96" rx="12" fill="#eef2ff" stroke="#1565c0"/>
-  <text x="115" y="184" class="lbl" text-anchor="middle">Visitor speaks</text>
-  <text x="115" y="206" class="desc" text-anchor="middle">at the Ring</text>
-  <text x="115" y="224" class="desc" text-anchor="middle">doorbell</text>
+  <g filter="url(#sh)"><rect x="44" y="164" width="150" height="98" rx="16" fill="url(#gRing)" stroke="#1565c0" stroke-width="1.5"/>
+    <rect x="62" y="184" width="22" height="34" rx="6" fill="#1565c0" opacity="0.85"/></g>
+  <text x="119" y="212" class="lbl" text-anchor="middle">Visitor speaks</text>
+  <text x="119" y="234" class="desc" text-anchor="middle">at the Ring doorbell</text>
 
-  <rect x="240" y="150" width="160" height="96" rx="12" fill="#eafaf1" stroke="#1b7f4b"/>
-  <text x="320" y="180" class="lbl" text-anchor="middle">WebView</text>
-  <text x="320" y="200" class="lbl" text-anchor="middle">audio tap</text>
-  <text x="320" y="222" class="desc" text-anchor="middle">16 kHz PCM,</text>
-  <text x="320" y="238" class="desc" text-anchor="middle">AudioWorklet</text>
+  <g filter="url(#sh)"><rect x="244" y="164" width="164" height="98" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
+  <text x="326" y="196" class="lbl" text-anchor="middle">WebView audio tap</text>
+  <text x="326" y="220" class="desc" text-anchor="middle">16 kHz mono PCM</text>
+  <text x="326" y="238" class="desc" text-anchor="middle">AudioWorklet</text>
 
-  <!-- branch: clarity -->
-  <rect x="470" y="70" width="200" height="96" rx="12" fill="#fdeef0" stroke="#b3261e"/>
-  <text x="570" y="104" class="lbl" text-anchor="middle">Amazon Transcribe</text>
-  <text x="570" y="126" class="desc" text-anchor="middle">streaming, partial</text>
-  <text x="570" y="144" class="desc" text-anchor="middle">results stabilization</text>
-  <text x="570" y="60" class="step" text-anchor="middle">CLARITY MODE (default)</text>
+  <g filter="url(#sh)"><rect x="470" y="78" width="210" height="96" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/>
+    <rect x="488" y="96" width="18" height="18" rx="5" fill="#b3261e" opacity="0.85"/></g>
+  <text x="470" y="66" class="step">CLARITY MODE &#183; DEFAULT</text>
+  <text x="585" y="112" class="lbl" text-anchor="middle">Amazon Transcribe</text>
+  <text x="585" y="134" class="desc" text-anchor="middle">streaming, partial</text>
+  <text x="585" y="152" class="desc" text-anchor="middle">results stabilization</text>
 
-  <!-- branch: privacy -->
-  <rect x="470" y="230" width="200" height="96" rx="12" fill="#eafaf1" stroke="#1b7f4b"/>
-  <text x="570" y="264" class="lbl" text-anchor="middle">On-device Whisper</text>
-  <text x="570" y="286" class="desc" text-anchor="middle">whisper.cpp + VAD,</text>
-  <text x="570" y="304" class="desc" text-anchor="middle">zero egress</text>
-  <text x="570" y="346" class="step" text-anchor="middle">PRIVACY MODE (opt-in)</text>
+  <g filter="url(#sh)"><rect x="470" y="252" width="210" height="96" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
+  <text x="470" y="372" class="stepg">PRIVACY MODE &#183; OPT-IN</text>
+  <text x="585" y="286" class="lbl" text-anchor="middle">On-device Whisper</text>
+  <text x="585" y="308" class="desc" text-anchor="middle">whisper.cpp + VAD</text>
+  <text x="585" y="326" class="desc" text-anchor="middle">zero egress</text>
 
-  <!-- turn accumulator -->
-  <rect x="730" y="150" width="170" height="96" rx="12" fill="#f4f6fb" stroke="#1565c0"/>
-  <text x="815" y="180" class="lbl" text-anchor="middle">Turn segmentation</text>
-  <text x="815" y="202" class="desc" text-anchor="middle">speaker turns,</text>
-  <text x="815" y="220" class="desc" text-anchor="middle">confidence per token</text>
+  <g filter="url(#sh)"><rect x="740" y="164" width="176" height="98" rx="16" fill="#ffffff" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="828" y="196" class="lbl" text-anchor="middle">Turn segmentation</text>
+  <text x="828" y="218" class="desc" text-anchor="middle">speaker turns,</text>
+  <text x="828" y="236" class="desc" text-anchor="middle">confidence per token</text>
 
-  <!-- caption surface -->
-  <rect x="940" y="150" width="150" height="96" rx="12" fill="#12151b" stroke="#1565c0"/>
-  <text x="1015" y="182" class="lbl" text-anchor="middle" fill="#ffffff">Caption surface</text>
-  <text x="1015" y="204" class="desc" text-anchor="middle" fill="#c4ccd8">provisional vs</text>
-  <text x="1015" y="222" class="desc" text-anchor="middle" fill="#c4ccd8">confident styling</text>
+  <g filter="url(#sh)"><rect x="956" y="164" width="160" height="98" rx="16" fill="url(#gCap)" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="1036" y="196" class="lbl" text-anchor="middle" fill="#ffffff">Caption surface</text>
+  <text x="1036" y="218" class="desc" text-anchor="middle" fill="#c4ccd8">provisional vs</text>
+  <text x="1036" y="236" class="desc" text-anchor="middle" fill="#c4ccd8">confident styling</text>
 
-  <!-- edges -->
-  <path class="eg" d="M190,198 H240" marker-end="url(#ag)"/>
-  <path class="e" d="M400,190 Q435,190 435,150 T470,118" marker-end="url(#a)"/>
-  <path class="eg" d="M400,206 Q435,206 435,250 T470,278" marker-end="url(#ag)"/>
-  <path class="e" d="M670,118 Q705,118 705,160 T730,190" marker-end="url(#a)"/>
-  <path class="eg" d="M670,278 Q705,278 705,220 T730,206" marker-end="url(#ag)"/>
-  <path class="e" d="M900,198 H940" marker-end="url(#a)"/>
+  <path class="eg" d="M194,213 C220,213 222,213 244,213" marker-end="url(#ag)"/>
+  <path class="e" d="M408,196 C440,196 440,140 460,130 L470,126" marker-end="url(#a)"/>
+  <path class="eg" d="M408,230 C440,230 440,288 460,298 L470,300" marker-end="url(#ag)"/>
+  <path class="e" d="M680,126 C712,126 712,190 730,200 L740,204" marker-end="url(#a)"/>
+  <path class="eg" d="M680,300 C712,300 712,232 730,222 L740,220" marker-end="url(#ag)"/>
+  <path class="e" d="M916,213 C936,213 938,213 956,213" marker-end="url(#a)"/>
 
-  <!-- notes -->
-  <rect x="40" y="360" width="1050" height="80" rx="10" fill="#ffffff" stroke="#d7dde6"/>
-  <text x="56" y="386" class="lbl">Caption rules (FR-5.3 / 5.3a, AT-4)</text>
-  <text x="56" y="410" class="legend">A partial result renders provisional (Transcribe gives no per-token confidence on partials).</text>
-  <text x="56" y="430" class="legend">A finalized token below 0.6 renders de-emphasized; at or above 0.6 renders normal. Foreground is the enforced 4.5:1 color; OS text scale is clamped to 200%.</text>
+  <g filter="url(#sh)"><rect x="44" y="390" width="1072" height="86" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="60" y="416" class="lbl">Caption rules (FR-5.3 / 5.3a, AT-4)</text>
+  <text x="60" y="440" class="legend">A partial result renders provisional, because Amazon Transcribe gives no per-token confidence on partials.</text>
+  <text x="60" y="460" class="legend">A finalized token below 0.6 renders de-emphasized; at or above 0.6 renders normal. Foreground is the enforced 4.5:1 color; OS text scale is clamped to 200%.</text>
 </svg>

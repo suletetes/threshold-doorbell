@@ -1,63 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="430" viewBox="0 0 1120 430" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="460" viewBox="0 0 1160 460" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
   <defs>
-    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#1565c0"/></marker>
-    <marker id="ad" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#8a93a2"/></marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/></linearGradient>
+    <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eafaf1"/><stop offset="1" stop-color="#d8f3e4"/></linearGradient>
+    <linearGradient id="gBk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf6e3"/><stop offset="1" stop-color="#f7ecc9"/></linearGradient>
+    <linearGradient id="gAlert" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2030"/><stop offset="1" stop-color="#0d1017"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1a2540" flood-opacity="0.14"/></filter>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="ad" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a93a2"/></marker>
     <style>
-      .title{font-size:24px;font-weight:700;fill:#12151b}
+      .title{font-size:25px;font-weight:800;fill:#12151b}
       .sub{font-size:14px;fill:#5b6472}
-      .lbl{font-size:15px;font-weight:600;fill:#12151b}
-      .desc{font-size:12px;fill:#5b6472}
+      .lbl{font-size:15px;font-weight:700;fill:#12151b}
+      .desc{font-size:11.5px;fill:#5b6472}
       .legend{font-size:12.5px;fill:#3a4150}
-      .e{stroke:#1565c0;stroke-width:2.5;fill:none}
-      .ed{stroke:#8a93a2;stroke-width:2;fill:none;stroke-dasharray:6 4}
+      .e{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .ed{stroke:#8a93a2;stroke-width:2.2;fill:none;stroke-dasharray:6 4;stroke-linecap:round}
     </style>
   </defs>
-  <rect width="1120" height="430" fill="#f7f8fa"/>
-  <text x="40" y="44" class="title">Event flow, someone at the door to a haptic alert</text>
-  <text x="40" y="68" class="sub">A deaf user cannot hear a chime, so the alert is haptic and visual. The webhook path is idempotent and acknowledges within 5 seconds.</text>
+  <rect width="1160" height="460" fill="url(#bg)"/>
+  <text x="44" y="46" class="title">Event Flow &#183; Someone at the Door to a Haptic Alert</text>
+  <text x="44" y="70" class="sub">A deaf user cannot hear a chime, so the alert is haptic and visual. The webhook path is idempotent and acknowledges within 5 seconds.</text>
 
-  <rect x="40" y="150" width="150" height="92" rx="12" fill="#eef2ff" stroke="#1565c0"/>
-  <text x="115" y="184" class="lbl" text-anchor="middle">Ring detects</text>
-  <text x="115" y="204" class="desc" text-anchor="middle">person or motion</text>
-  <text x="115" y="222" class="desc" text-anchor="middle">at the door</text>
+  <g filter="url(#sh)"><rect x="44" y="156" width="150" height="92" rx="16" fill="url(#gRing)" stroke="#1565c0" stroke-width="1.5"/>
+    <rect x="60" y="174" width="20" height="30" rx="6" fill="#1565c0" opacity="0.85"/></g>
+  <text x="119" y="188" class="lbl" text-anchor="middle">Ring detects</text>
+  <text x="119" y="210" class="desc" text-anchor="middle">person or motion</text>
+  <text x="119" y="228" class="desc" text-anchor="middle">at the door</text>
 
-  <rect x="240" y="150" width="180" height="92" rx="12" fill="#fdf6e3" stroke="#b6892b"/>
-  <text x="330" y="180" class="lbl" text-anchor="middle">Webhook receiver</text>
-  <text x="330" y="200" class="desc" text-anchor="middle">HMAC verify, dedupe</text>
-  <text x="330" y="216" class="desc" text-anchor="middle">by requestId, 200 in 5s</text>
-  <text x="330" y="234" class="desc" text-anchor="middle">then push async</text>
+  <g filter="url(#sh)"><rect x="244" y="156" width="184" height="92" rx="16" fill="url(#gBk)" stroke="#b6892b" stroke-width="1.5"/></g>
+  <text x="336" y="184" class="lbl" text-anchor="middle">Webhook receiver</text>
+  <text x="336" y="204" class="desc" text-anchor="middle">HMAC verify, dedupe</text>
+  <text x="336" y="220" class="desc" text-anchor="middle">by requestId, 200 in 5s</text>
+  <text x="336" y="238" class="desc" text-anchor="middle">then push async</text>
 
-  <rect x="470" y="150" width="150" height="92" rx="12" fill="#f4f6fb" stroke="#1565c0"/>
-  <text x="545" y="184" class="lbl" text-anchor="middle">Push (FCM)</text>
-  <text x="545" y="204" class="desc" text-anchor="middle">event, thumbnail,</text>
-  <text x="545" y="222" class="desc" text-anchor="middle">deviceId, timestamp</text>
+  <g filter="url(#sh)"><rect x="478" y="156" width="150" height="92" rx="16" fill="#ffffff" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="553" y="188" class="lbl" text-anchor="middle">Push (FCM)</text>
+  <text x="553" y="210" class="desc" text-anchor="middle">event, thumbnail,</text>
+  <text x="553" y="228" class="desc" text-anchor="middle">deviceId, timestamp</text>
 
-  <rect x="670" y="150" width="170" height="92" rx="12" fill="#12151b" stroke="#1565c0"/>
-  <text x="755" y="180" class="lbl" text-anchor="middle" fill="#ffffff">Alert screen</text>
-  <text x="755" y="200" class="desc" text-anchor="middle" fill="#c4ccd8">full-bleed thumbnail,</text>
-  <text x="755" y="218" class="desc" text-anchor="middle" fill="#c4ccd8">distinct haptic pattern</text>
+  <g filter="url(#sh)"><rect x="678" y="156" width="176" height="92" rx="16" fill="url(#gAlert)" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="766" y="184" class="lbl" text-anchor="middle" fill="#ffffff">Alert screen</text>
+  <text x="766" y="204" class="desc" text-anchor="middle" fill="#c4ccd8">full-bleed thumbnail,</text>
+  <text x="766" y="222" class="desc" text-anchor="middle" fill="#c4ccd8">distinct haptic pattern</text>
 
-  <rect x="890" y="150" width="180" height="92" rx="12" fill="#eafaf1" stroke="#1b7f4b"/>
-  <text x="980" y="184" class="lbl" text-anchor="middle">Answer the door</text>
-  <text x="980" y="204" class="desc" text-anchor="middle">opens the live</text>
-  <text x="980" y="222" class="desc" text-anchor="middle">session</text>
+  <g filter="url(#sh)"><rect x="904" y="156" width="212" height="92" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
+  <text x="1010" y="188" class="lbl" text-anchor="middle">Answer the door</text>
+  <text x="1010" y="210" class="desc" text-anchor="middle">opens the live</text>
+  <text x="1010" y="228" class="desc" text-anchor="middle">session</text>
 
-  <!-- fallback poll -->
-  <rect x="470" y="300" width="150" height="80" rx="12" fill="#ffffff" stroke="#c4ccd8"/>
-  <text x="545" y="330" class="lbl" text-anchor="middle">Foreground poll</text>
-  <text x="545" y="350" class="desc" text-anchor="middle">if push is denied</text>
-  <text x="545" y="367" class="desc" text-anchor="middle">or fails</text>
+  <g filter="url(#sh)"><rect x="478" y="312" width="150" height="80" rx="16" fill="#ffffff" stroke="#c4ccd8" stroke-width="1.5"/></g>
+  <text x="553" y="342" class="lbl" text-anchor="middle">Foreground poll</text>
+  <text x="553" y="362" class="desc" text-anchor="middle">if push is denied</text>
+  <text x="553" y="379" class="desc" text-anchor="middle">or fails</text>
 
-  <path class="e" d="M190,196 H240" marker-end="url(#a)"/>
-  <path class="e" d="M420,196 H470" marker-end="url(#a)"/>
-  <path class="e" d="M620,196 H670" marker-end="url(#a)"/>
-  <path class="e" d="M840,196 H890" marker-end="url(#a)"/>
-  <path class="ed" d="M330,242 V340 H470" marker-end="url(#ad)"/>
-  <path class="ed" d="M545,300 V242" marker-end="url(#ad)"/>
-  <text x="346" y="286" class="legend" fill="#8a93a2">fallback path</text>
+  <path class="e" d="M194,202 C220,202 222,202 244,202" marker-end="url(#a)"/>
+  <path class="e" d="M428,202 C454,202 456,202 478,202" marker-end="url(#a)"/>
+  <path class="e" d="M628,202 C654,202 656,202 678,202" marker-end="url(#a)"/>
+  <path class="e" d="M854,202 C880,202 882,202 904,202" marker-end="url(#a)"/>
+  <path class="ed" d="M336,248 C336,300 336,352 470,352" marker-end="url(#ad)"/>
+  <path class="ed" d="M553,312 C553,290 553,280 553,248" marker-end="url(#ad)"/>
+  <text x="352" y="298" class="legend" fill="#8a93a2">fallback path</text>
 
-  <rect x="40" y="300" width="380" height="80" rx="10" fill="#ffffff" stroke="#d7dde6"/>
-  <text x="56" y="326" class="lbl">Haptic vocabulary (FR-9)</text>
-  <text x="56" y="348" class="legend">Three distinct patterns: person at door,</text>
-  <text x="56" y="366" class="legend">motion, conversation started. Optional strobe capped at 3 flashes/sec.</text>
+  <g filter="url(#sh)"><rect x="44" y="312" width="400" height="80" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="60" y="338" class="lbl">Haptic vocabulary (FR-9)</text>
+  <text x="60" y="360" class="legend">Three distinct patterns: person at door, motion,</text>
+  <text x="60" y="378" class="legend">conversation started. Optional strobe capped at 3 flashes/sec.</text>
 </svg>
