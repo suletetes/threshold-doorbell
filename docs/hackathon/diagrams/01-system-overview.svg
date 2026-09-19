@@ -1,124 +1,139 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="660" viewBox="0 0 1160 660" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#5b6472"/>
-    </marker>
-    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#1565c0"/>
-    </marker>
-    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#1b7f4b"/>
-    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/>
+    </linearGradient>
+    <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eafaf1"/><stop offset="1" stop-color="#d8f3e4"/></linearGradient>
+    <linearGradient id="gAws" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeef0"/><stop offset="1" stop-color="#fbdfe3"/></linearGradient>
+    <linearGradient id="gStore" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef1f5"/><stop offset="1" stop-color="#e2e7ee"/></linearGradient>
+    <linearGradient id="gBk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf6e3"/><stop offset="1" stop-color="#f7ecc9"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1a2540" flood-opacity="0.14"/></filter>
+    <marker id="mGrey" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b6472"/></marker>
+    <marker id="mBlue" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="mGreen" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1b7f4b"/></marker>
     <style>
-      .title{font-size:26px;font-weight:700;fill:#12151b}
+      .title{font-size:27px;font-weight:800;fill:#12151b}
       .sub{font-size:14px;fill:#5b6472}
-      .zone{font-size:13px;font-weight:700;letter-spacing:.5px;fill:#8a93a2}
-      .box{rx:12;ry:12;stroke-width:1.5}
-      .lbl{font-size:15px;font-weight:600;fill:#12151b}
-      .desc{font-size:12px;fill:#5b6472}
+      .zone{font-size:12px;font-weight:800;letter-spacing:1.2px;fill:#98a1b0}
+      .lbl{font-size:15.5px;font-weight:700;fill:#12151b}
+      .desc{font-size:11.5px;fill:#5b6472}
       .legend{font-size:12.5px;fill:#3a4150}
-      .edge{stroke:#5b6472;stroke-width:2;fill:none}
-      .edgeBlue{stroke:#1565c0;stroke-width:2.5;fill:none}
-      .edgeGreen{stroke:#1b7f4b;stroke-width:2.5;fill:none}
+      .e{stroke:#5b6472;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eB{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eG{stroke:#1b7f4b;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .tag{font-size:11px;font-weight:700;fill:#ffffff}
     </style>
   </defs>
 
-  <rect width="1120" height="620" fill="#f7f8fa"/>
-  <text x="40" y="46" class="title">Threshold, system overview</text>
-  <text x="40" y="70" class="sub">A two-way captioned Ring doorbell for deaf and hard-of-hearing residents. Amazon Developer Hackathon 2026, Ring track.</text>
+  <rect width="1160" height="660" fill="url(#bg)"/>
+  <text x="44" y="48" class="title">Threshold &#183; System Overview</text>
+  <text x="44" y="72" class="sub">A two-way captioned Ring doorbell for deaf and hard-of-hearing residents. Amazon Developer Hackathon 2026, Ring track.</text>
 
-  <!-- Zone labels -->
-  <text x="150" y="118" class="zone" text-anchor="middle">AT THE DOOR</text>
-  <text x="470" y="118" class="zone" text-anchor="middle">RESIDENT DEVICE (FLUTTER)</text>
-  <text x="900" y="118" class="zone" text-anchor="middle">BACKEND + AWS</text>
+  <!-- swimlane separators -->
+  <line x1="300" y1="100" x2="300" y2="560" stroke="#dde3ec" stroke-width="1.5" stroke-dasharray="2 6"/>
+  <line x1="690" y1="100" x2="690" y2="560" stroke="#dde3ec" stroke-width="1.5" stroke-dasharray="2 6"/>
+  <text x="170" y="120" class="zone" text-anchor="middle">AT THE DOOR</text>
+  <text x="495" y="120" class="zone" text-anchor="middle">RESIDENT DEVICE &#183; FLUTTER</text>
+  <text x="925" y="120" class="zone" text-anchor="middle">BACKEND + AWS</text>
 
-  <!-- Ring device -->
-  <rect x="60" y="150" width="180" height="120" class="box" fill="#eef2ff" stroke="#1565c0"/>
-  <text x="150" y="182" class="lbl" text-anchor="middle">Ring doorbell</text>
-  <text x="150" y="206" class="desc" text-anchor="middle">visitor speaks + is seen</text>
-  <text x="150" y="224" class="desc" text-anchor="middle">WebRTC / WHEP</text>
-  <text x="150" y="242" class="desc" text-anchor="middle">audio sendrecv, video recvonly</text>
+  <!-- Ring device object (doorbell glyph) -->
+  <g filter="url(#sh)">
+    <rect x="60" y="160" width="200" height="128" rx="16" fill="url(#gRing)" stroke="#1565c0" stroke-width="1.5"/>
+    <rect x="80" y="182" width="30" height="46" rx="8" fill="#1565c0" opacity="0.9"/>
+    <circle cx="95" cy="198" r="6" fill="#e8f0ff"/>
+    <rect x="88" y="212" width="14" height="9" rx="3" fill="#e8f0ff"/>
+  </g>
+  <text x="180" y="188" class="lbl" text-anchor="middle">Ring doorbell</text>
+  <text x="180" y="228" class="desc" text-anchor="middle">visitor speaks + is seen</text>
+  <text x="180" y="246" class="desc" text-anchor="middle">WebRTC / WHEP</text>
+  <text x="180" y="264" class="desc" text-anchor="middle">audio sendrecv, video recvonly</text>
 
-  <!-- Visitor -->
-  <rect x="60" y="330" width="180" height="86" class="box" fill="#ffffff" stroke="#c4ccd8"/>
-  <text x="150" y="362" class="lbl" text-anchor="middle">Visitor</text>
-  <text x="150" y="384" class="desc" text-anchor="middle">heard and spoken to,</text>
-  <text x="150" y="400" class="desc" text-anchor="middle">no app, no screen</text>
+  <!-- Visitor object (person glyph) -->
+  <g filter="url(#sh)">
+    <rect x="60" y="352" width="200" height="96" rx="16" fill="#ffffff" stroke="#c4ccd8" stroke-width="1.5"/>
+    <circle cx="92" cy="388" r="10" fill="#c4ccd8"/>
+    <path d="M76,420 q16,-20 32,0" fill="none" stroke="#c4ccd8" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="150" y="384" class="lbl" text-anchor="middle">Visitor</text>
+  <text x="150" y="408" class="desc" text-anchor="middle">heard and spoken to</text>
+  <text x="150" y="426" class="desc" text-anchor="middle">no app, no screen</text>
 
-  <!-- Flutter app cluster -->
-  <rect x="330" y="140" width="290" height="360" rx="16" ry="16" fill="#ffffff" stroke="#d7dde6" stroke-dasharray="5 4"/>
-  <rect x="352" y="160" width="246" height="70" class="box" fill="#eafaf1" stroke="#1b7f4b"/>
-  <text x="475" y="188" class="lbl" text-anchor="middle">WebView session (ARCH-1)</text>
-  <text x="475" y="210" class="desc" text-anchor="middle">one RTCPeerConnection, audio inject</text>
+  <!-- Flutter app object (phone) -->
+  <g filter="url(#sh)">
+    <rect x="330" y="150" width="320" height="392" rx="22" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.6"/>
+    <rect x="486" y="164" width="8" height="8" rx="4" fill="#1b7f4b" opacity="0.5"/>
+  </g>
+  <g>
+    <rect x="352" y="188" width="276" height="72" rx="12" fill="#ffffff" stroke="#1b7f4b" stroke-width="1.3"/>
+    <text x="490" y="216" class="lbl" text-anchor="middle">WebView session (ARCH-1)</text>
+    <text x="490" y="238" class="desc" text-anchor="middle">one RTCPeerConnection, audio inject</text>
+  </g>
+  <g><rect x="352" y="272" width="276" height="60" rx="12" fill="#ffffff" stroke="#1565c0" stroke-width="1.3"/>
+    <text x="490" y="298" class="lbl" text-anchor="middle">Caption surface</text>
+    <text x="490" y="318" class="desc" text-anchor="middle">confidence styling, 4.5:1 floor</text></g>
+  <g><rect x="352" y="344" width="276" height="60" rx="12" fill="#ffffff" stroke="#1565c0" stroke-width="1.3"/>
+    <text x="490" y="370" class="lbl" text-anchor="middle">Reply bar + TTS</text>
+    <text x="490" y="390" class="desc" text-anchor="middle">tap or type, spoken at the door</text></g>
+  <g><rect x="352" y="416" width="276" height="60" rx="12" fill="#ffffff" stroke="#1565c0" stroke-width="1.3"/>
+    <text x="490" y="442" class="lbl" text-anchor="middle">Alerts + haptics</text>
+    <text x="490" y="462" class="desc" text-anchor="middle">distinct patterns, WCAG 2.2 AA</text></g>
 
-  <rect x="352" y="244" width="246" height="60" class="box" fill="#f4f6fb" stroke="#1565c0"/>
-  <text x="475" y="270" class="lbl" text-anchor="middle">Caption surface</text>
-  <text x="475" y="290" class="desc" text-anchor="middle">confidence styling, 4.5:1 floor</text>
+  <!-- Backend cloud object -->
+  <g filter="url(#sh)">
+    <rect x="720" y="150" width="390" height="392" rx="22" fill="#ffffff" stroke="#d7dde6" stroke-width="1.6"/>
+  </g>
+  <g><rect x="742" y="172" width="346" height="60" rx="12" fill="url(#gBk)" stroke="#b6892b" stroke-width="1.3"/>
+    <text x="915" y="198" class="lbl" text-anchor="middle">Fastify backend (stateless)</text>
+    <text x="915" y="218" class="desc" text-anchor="middle">OAuth, webhook, signaling, ASR relay</text></g>
 
-  <rect x="352" y="318" width="246" height="60" class="box" fill="#f4f6fb" stroke="#1565c0"/>
-  <text x="475" y="344" class="lbl" text-anchor="middle">Reply bar + TTS</text>
-  <text x="475" y="364" class="desc" text-anchor="middle">tap or type, spoken at the door</text>
+  <g><rect x="742" y="246" width="166" height="82" rx="12" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.3"/>
+    <rect x="758" y="262" width="20" height="20" rx="5" fill="#b3261e" opacity="0.85"/>
+    <text x="825" y="278" class="lbl" text-anchor="middle">Transcribe</text>
+    <text x="825" y="300" class="desc" text-anchor="middle">Clarity captions</text>
+    <text x="825" y="318" class="desc" text-anchor="middle">streaming</text></g>
+  <g><rect x="922" y="246" width="166" height="82" rx="12" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.3"/>
+    <rect x="938" y="262" width="20" height="20" rx="5" fill="#b3261e" opacity="0.85"/>
+    <text x="1005" y="278" class="lbl" text-anchor="middle">Bedrock</text>
+    <text x="1005" y="300" class="desc" text-anchor="middle">smart replies</text>
+    <text x="1005" y="318" class="desc" text-anchor="middle">bounded, text only</text></g>
 
-  <rect x="352" y="392" width="246" height="60" class="box" fill="#f4f6fb" stroke="#1565c0"/>
-  <text x="475" y="418" class="lbl" text-anchor="middle">Alerts + haptics</text>
-  <text x="475" y="438" class="desc" text-anchor="middle">distinct patterns, WCAG 2.2 AA</text>
+  <g><rect x="742" y="342" width="166" height="72" rx="12" fill="url(#gStore)" stroke="#5b6472" stroke-width="1.3"/>
+    <text x="825" y="372" class="lbl" text-anchor="middle">DynamoDB + KMS</text>
+    <text x="825" y="392" class="desc" text-anchor="middle">text only, 90d TTL</text></g>
+  <g><rect x="922" y="342" width="166" height="72" rx="12" fill="url(#gStore)" stroke="#5b6472" stroke-width="1.3"/>
+    <text x="1005" y="372" class="lbl" text-anchor="middle">Ring Partner API</text>
+    <text x="1005" y="392" class="desc" text-anchor="middle">events, live view</text></g>
 
-  <!-- Backend cluster -->
-  <rect x="710" y="140" width="360" height="360" rx="16" ry="16" fill="#ffffff" stroke="#d7dde6" stroke-dasharray="5 4"/>
-  <rect x="732" y="160" width="316" height="60" class="box" fill="#fdf6e3" stroke="#b6892b"/>
-  <text x="890" y="186" class="lbl" text-anchor="middle">Fastify backend (stateless)</text>
-  <text x="890" y="206" class="desc" text-anchor="middle">OAuth, webhook, signaling, ASR relay</text>
+  <g><rect x="742" y="428" width="346" height="48" rx="12" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.3"/>
+    <text x="915" y="457" class="desc" text-anchor="middle">On-device Whisper (Privacy Mode): audio never leaves the phone</text></g>
 
-  <rect x="732" y="234" width="150" height="76" class="box" fill="#fdeef0" stroke="#b3261e"/>
-  <text x="807" y="262" class="lbl" text-anchor="middle">Amazon</text>
-  <text x="807" y="282" class="lbl" text-anchor="middle">Transcribe</text>
-  <text x="807" y="300" class="desc" text-anchor="middle">Clarity captions</text>
-
-  <rect x="898" y="234" width="150" height="76" class="box" fill="#fdeef0" stroke="#b3261e"/>
-  <text x="973" y="262" class="lbl" text-anchor="middle">Amazon</text>
-  <text x="973" y="282" class="lbl" text-anchor="middle">Bedrock</text>
-  <text x="973" y="300" class="desc" text-anchor="middle">smart replies</text>
-
-  <rect x="732" y="324" width="150" height="70" class="box" fill="#eef1f5" stroke="#5b6472"/>
-  <text x="807" y="352" class="lbl" text-anchor="middle">DynamoDB + KMS</text>
-  <text x="807" y="372" class="desc" text-anchor="middle">text only, 90d TTL</text>
-
-  <rect x="898" y="324" width="150" height="70" class="box" fill="#eef1f5" stroke="#5b6472"/>
-  <text x="973" y="352" class="lbl" text-anchor="middle">Ring Partner API</text>
-  <text x="973" y="372" class="desc" text-anchor="middle">events, live view</text>
-
-  <rect x="732" y="408" width="316" height="44" class="box" fill="#eafaf1" stroke="#1b7f4b"/>
-  <text x="890" y="435" class="desc" text-anchor="middle">On-device Whisper (Privacy Mode): audio never leaves the phone</text>
-
-  <!-- Edges: door <-> app (green = audio) -->
-  <path class="edgeGreen" d="M240,196 H300 Q320,196 320,216 V190 H350" marker-end="url(#arrowGreen)"/>
-  <path class="edgeGreen" d="M352,205 H322 Q302,205 302,225 V300 H150 V330" marker-end="url(#arrowGreen)"/>
-  <text x="266" y="160" class="legend" fill="#1b7f4b">audio in/out</text>
-
-  <!-- visitor speaks into ring -->
-  <path class="edge" d="M150,330 V276" marker-end="url(#arrow)"/>
-
-  <!-- app <-> backend (blue = control/data) -->
-  <path class="edgeBlue" d="M598,200 H700" marker-end="url(#arrowBlue)"/>
-  <path class="edgeBlue" d="M700,280 H620" marker-end="url(#arrowBlue)"/>
-  <text x="650" y="192" class="legend" fill="#1565c0">HTTPS + WSS</text>
-
+  <!-- EDGES -->
+  <!-- visitor speaks into ring (grey up) -->
+  <path class="e" d="M150,352 V300" marker-end="url(#mGrey)"/>
+  <!-- ring <-> app audio (green, both directions) -->
+  <path class="eG" d="M260,208 C296,208 300,210 330,210" marker-end="url(#mGreen)"/>
+  <path class="eG" d="M330,234 C300,234 300,236 262,236 262,236 210,236 210,352" marker-end="url(#mGreen)"/>
+  <text x="292" y="196" class="legend" fill="#1b7f4b">audio</text>
+  <!-- app <-> backend (blue, both) -->
+  <path class="eB" d="M650,210 C686,210 690,206 720,206" marker-end="url(#mBlue)"/>
+  <path class="eB" d="M720,300 C690,300 688,300 668,300 668,300 650,300 650,300" marker-end="url(#mBlue)"/>
+  <text x="672" y="200" class="legend" fill="#1565c0">HTTPS + WSS</text>
   <!-- backend internal -->
-  <path class="edge" d="M807,220 V234" marker-end="url(#arrow)"/>
-  <path class="edge" d="M973,220 V234" marker-end="url(#arrow)"/>
-  <path class="edge" d="M807,310 V324" marker-end="url(#arrow)"/>
-  <path class="edge" d="M973,310 V324" marker-end="url(#arrow)"/>
+  <path class="e" d="M825,232 V246" marker-end="url(#mGrey)"/>
+  <path class="e" d="M1005,232 V246" marker-end="url(#mGrey)"/>
+  <path class="e" d="M825,328 V342" marker-end="url(#mGrey)"/>
+  <path class="e" d="M1005,328 V342" marker-end="url(#mGrey)"/>
+  <!-- backend <-> ring api (blue big loop) -->
+  <path class="eB" d="M1088,378 C1130,378 1130,140 260,140 240,140 200,140 180,160" marker-end="url(#mBlue)"/>
 
-  <!-- backend <-> ring api -->
-  <path class="edgeBlue" d="M1048,359 H1070 V150 H240 V168" marker-end="url(#arrowBlue)"/>
-
-  <!-- Legend -->
-  <rect x="40" y="470" width="270" height="120" rx="10" ry="10" fill="#ffffff" stroke="#d7dde6"/>
-  <text x="56" y="494" class="lbl">Legend</text>
-  <line x1="56" y1="516" x2="96" y2="516" class="edgeGreen" marker-end="url(#arrowGreen)"/>
-  <text x="104" y="520" class="legend">Audio (visitor speech, spoken reply)</text>
-  <line x1="56" y1="540" x2="96" y2="540" class="edgeBlue" marker-end="url(#arrowBlue)"/>
-  <text x="104" y="544" class="legend">Control and data (HTTPS / WSS)</text>
-  <line x1="56" y1="564" x2="96" y2="564" class="edge" marker-end="url(#arrow)"/>
-  <text x="104" y="568" class="legend">Internal / dependency call</text>
+  <!-- LEGEND card -->
+  <g filter="url(#sh)"><rect x="44" y="486" width="256" height="118" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="60" y="510" class="lbl">Legend</text>
+  <line x1="60" y1="532" x2="98" y2="532" class="eG" marker-end="url(#mGreen)"/>
+  <text x="106" y="536" class="legend">Audio (visitor speech, spoken reply)</text>
+  <line x1="60" y1="556" x2="98" y2="556" class="eB" marker-end="url(#mBlue)"/>
+  <text x="106" y="560" class="legend">Control and data (HTTPS / WSS)</text>
+  <line x1="60" y1="580" x2="98" y2="580" class="e" marker-end="url(#mGrey)"/>
+  <text x="106" y="584" class="legend">Internal / dependency call</text>
 </svg>
