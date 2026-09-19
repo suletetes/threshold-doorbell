@@ -270,6 +270,8 @@ void main() {
     });
   });
 
+  _reducedMotionGroup();
+
   group('Reply copy (NFR-10)', () {
     test('no dashes in the reply bar strings', () {
       for (final copy in <String>[
@@ -279,6 +281,61 @@ void main() {
         expect(copy.contains('\u2014'), isFalse);
         expect(copy.contains('\u2013'), isFalse);
       }
+    });
+  });
+}
+
+
+/// Reduced motion (audit design principle 3: "every animation must check reduced
+/// motion"). A CircularProgressIndicator is the one animation Flutter does not
+/// stop on its own, so the speaking state substitutes a static marker. Nothing is
+/// lost: the live region already announces the state in words.
+void _reducedMotionGroup() {
+  group('The speaking spinner respects reduced motion', () {
+    Widget host(ReplyController c, {required bool disableAnimations}) => MaterialApp(
+          theme: ThresholdTheme.dark(),
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(disableAnimations: disableAnimations),
+              child: Scaffold(
+                body: ReplyBar(controller: c, contextualSuggestions: const <String>[]),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('a static marker replaces the spinner when animations are off',
+        (tester) async {
+      final port = _BlockingReplyPort();
+      final c = ReplyController(port: port, outbound: _twoWay());
+      await tester.pumpWidget(host(c, disableAnimations: true));
+      await tester.pump();
+      final sending = c.send('Coming now', source: ReplySource.template);
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byIcon(kSpeakingStaticIcon), findsOneWidget);
+      // The state is still announced, which is what actually carries the meaning.
+      expect(find.text(kSpeakingAtDoorLabel), findsOneWidget);
+      port.finish(SpeakOutcome.spoken);
+      await sending;
+      await tester.pumpAndSettle();
+      c.dispose();
+    });
+
+    testWidgets('the spinner is used normally', (tester) async {
+      final port = _BlockingReplyPort();
+      final c = ReplyController(port: port, outbound: _twoWay());
+      await tester.pumpWidget(host(c, disableAnimations: false));
+      await tester.pump();
+      final sending = c.send('Coming now', source: ReplySource.template);
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byIcon(kSpeakingStaticIcon), findsNothing);
+      port.finish(SpeakOutcome.spoken);
+      await sending;
+      await tester.pumpAndSettle();
+      c.dispose();
     });
   });
 }

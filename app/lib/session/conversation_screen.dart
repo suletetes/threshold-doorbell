@@ -533,11 +533,7 @@ class _StatusPanel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               if (showSpinner)
-                const SizedBox(
-                  width: Spacing.space7,
-                  height: Spacing.space7,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                )
+                const _WorkingIndicator()
               else if (leadingIcon != null)
                 Icon(leadingIcon, size: Spacing.space8, color: scheme.onSurfaceVariant),
               const SizedBox(height: Spacing.space5),
@@ -563,6 +559,33 @@ class _StatusPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The "working on it" marker for a transient state.
+///
+/// A spinning CircularProgressIndicator is the one animation in the app that
+/// Flutter does not stop for a reduced-motion user, and it is also the one this
+/// screen can most afford to lose: the panel's live region already states what is
+/// happening in words. So under reduced motion this becomes a static marker and
+/// nothing on the screen moves at all (audit design principle 3).
+class _WorkingIndicator extends StatelessWidget {
+  const _WorkingIndicator();
+
+  /// The static stand in shown when the platform asks for reduced motion.
+  static const IconData staticIcon = Icons.more_horiz_rounded;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (prefersReducedMotion(context)) {
+      return Icon(staticIcon, size: Spacing.space8, color: scheme.primary);
+    }
+    return const SizedBox(
+      width: Spacing.space7,
+      height: Spacing.space7,
+      child: CircularProgressIndicator(strokeWidth: 3),
     );
   }
 }

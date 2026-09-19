@@ -38,6 +38,9 @@ String replyPlayedConfirmation(String reply) => 'Played at your door: $reply';
 /// The in-flight label while reply audio is playing (FR-6.3). Dash-free.
 const String kSpeakingAtDoorLabel = 'Speaking at your door';
 
+/// The static stand in for the speaking spinner under reduced motion.
+const IconData kSpeakingStaticIcon = Icons.graphic_eq;
+
 class ReplyBar extends StatefulWidget {
   const ReplyBar({
     super.key,
@@ -292,11 +295,17 @@ class _SpeakingBanner extends StatelessWidget {
           padding: const EdgeInsets.all(Spacing.space4),
           child: Row(
             children: <Widget>[
-              SizedBox(
-                width: Spacing.space5,
-                height: Spacing.space5,
-                child: CircularProgressIndicator(strokeWidth: 2, color: live),
-              ),
+              // Reduced motion gets a static marker instead of a spinner. The
+              // live region already announces the state in words, so nothing is
+              // lost and nothing moves.
+              if (prefersReducedMotion(context))
+                Icon(kSpeakingStaticIcon, size: Spacing.space5, color: live)
+              else
+                SizedBox(
+                  width: Spacing.space5,
+                  height: Spacing.space5,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: live),
+                ),
               const SizedBox(width: Spacing.space3),
               Expanded(
                 child: Text(

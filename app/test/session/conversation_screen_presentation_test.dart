@@ -224,6 +224,53 @@ void main() {
     });
   });
 
+  group('Nothing moves at all under reduced motion (audit principle 3)', () {
+    testWidgets('the connecting spinner becomes a static marker', (tester) async {
+      final port = FakeSessionPort();
+      final c = SessionController(port: port);
+      final opening = c.open(deviceId: 'dev-1');
+      await tester.pumpWidget(_wrap(c, disableAnimations: true));
+      await tester.pump();
+      // A spinning CircularProgressIndicator is the one animation Flutter does
+      // not stop on its own, so the panel substitutes a static marker. The live
+      // region still announces the state in words, so nothing is lost.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      await opening;
+      await tester.pumpAndSettle();
+      c.dispose();
+      await port.dispose();
+    });
+
+    testWidgets('the paused panel still shows its own state icon', (tester) async {
+      final (c, port) = await _live();
+      c.onBackgrounded();
+      await tester.pumpWidget(_wrap(c, disableAnimations: true));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('status-backgrounded')), findsOneWidget);
+      expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      c.dispose();
+      await port.dispose();
+    });
+
+    testWidgets('the caption skeleton lands on its resting value immediately',
+        (tester) async {
+      final port = FakeSessionPort();
+      final c = SessionController(port: port);
+      final opening = c.open(deviceId: 'dev-1');
+      await tester.pumpWidget(_wrap(c, disableAnimations: true));
+      await tester.pump();
+      for (final block in tester.widgetList<SkeletonBlock>(find.byType(SkeletonBlock))) {
+        expect(block.height, Spacing.space4);
+      }
+      expect(tester.takeException(), isNull);
+      await opening;
+      await tester.pumpAndSettle();
+      c.dispose();
+      await port.dispose();
+    });
+  });
+
   group('Connecting states preview the caption region (perceived performance)', () {
     testWidgets('the connecting panel shows skeleton lines', (tester) async {
       final port = FakeSessionPort();
