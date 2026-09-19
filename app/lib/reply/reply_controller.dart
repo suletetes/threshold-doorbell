@@ -54,21 +54,34 @@ class ResidentTurn {
 
 typedef NowMs = int Function();
 
+/// Waits [d] before continuing; injectable so the 300 ms echo tail is
+/// deterministic under `flutter test` (a fake advances the clock instead of
+/// sleeping).
+typedef DelayFn = Future<void> Function(Duration d);
+
 class ReplyController extends ChangeNotifier {
   ReplyController({
     required ReplyPort port,
     required OutboundModeMachine outbound,
     EchoGate? echoGate,
     NowMs? nowMs,
+    DelayFn? delay,
   })  : _port = port,
         _outbound = outbound,
         _echoGate = echoGate,
-        _nowMs = nowMs ?? (() => DateTime.now().millisecondsSinceEpoch);
+        _nowMs = nowMs ?? (() => DateTime.now().millisecondsSinceEpoch),
+        _delay = delay ?? Future<void>.delayed;
 
   final ReplyPort _port;
   final OutboundModeMachine _outbound;
   final EchoGate? _echoGate;
   final NowMs _nowMs;
+  final DelayFn _delay;
+
+  /// The transcript gaps recorded by the echo gate across this controller's
+  /// replies (FR-5.6, AT-18). Exposed so the transcript/session can persist and
+  /// tests can assert the gate marking actually fired in production.
+  List<TranscriptGap> get echoGaps => _echoGate?.gaps ?? const <TranscriptGap>[];
 
   ReplyState _state = ReplyState.composing;
   String? _inFlightText; // the reply currently being spoken (FR-6.3)
@@ -106,8 +119,15 @@ class ReplyController extends ChangeNotifier {
     _inFlightText = trimmed;
     _errorMessage = null;
 
-    // SYNTHESIZING (with retry-once on TTS failure, design §5.3).
+    // GATE_ASR_ON: close the caption gate BEFORE reply audio plays so the
+    // doorbell's return of our own synthesized speech is never captioned as the
+    // visitor (FR-5.6). The gate stays closed through synthesis and playback.
+    _echoGate?.onReplyPlaybackStart();
+
+    // SYNTHESIZING (with retry-once on TTS failure, design §5.3). speak()
+    // resolves only after the reply audio has finished playing at the door.
     _set(ReplyState.synthesizing);
+    _set(ReplyState.speakingAtDoor);
     var outcome = await _port.speak(trimmed);
     if (outcome == SpeakOutcome.ttsFailed) {
       outcome = await _port.speak(trimmed); // retry exactly once
@@ -115,12 +135,15 @@ class ReplyController extends ChangeNotifier {
 
     switch (outcome) {
       case SpeakOutcome.ttsFailed:
+        // Never spoke: reopen the gate immediately, no gap to mark.
+        _abandonGate();
         _inFlightText = null;
         _errorMessage = 'Could not play the reply. Please try again.';
         _set(ReplyState.error);
         return;
       case SpeakOutcome.injectionFailed:
         // Degrade this session to Captions-Only for the remainder (FR-6.4b).
+        _abandonGate();
         _outbound.recordInjection(success: false);
         _inFlightText = null;
         _errorMessage = 'Spoken replies are no longer available in this session.';
@@ -130,19 +153,35 @@ class ReplyController extends ChangeNotifier {
         break;
     }
 
-    // GATE_ASR_ON -> SPEAKING_AT_DOOR: gate captions while our reply plays.
-    _echoGate?.onReplyPlaybackStart();
-    _set(ReplyState.speakingAtDoor);
     // Record the successful injection so the sticky machine stays two-way.
     _outbound.recordInjection(success: true);
 
-    // Playback complete: GATE_OFF (+300 ms tail handled by the EchoGate).
+    // GATE_OFF(+300 ms): playback finished. Hold the gate closed for the 300 ms
+    // tail, then settle() to reopen it AND record the non-visitor transcript gap
+    // (FR-5.6, AT-18). This is the wiring the audit found missing: previously
+    // the gate opened and closed in one synchronous tick and settle() never ran.
     _echoGate?.onReplyPlaybackEnd();
+    await _settleEchoTail();
 
     // SENT: append the resident turn to the transcript (FR-6.5).
     _turns.add(ResidentTurn(text: trimmed, source: source, atMs: _nowMs()));
     _inFlightText = null;
     _set(ReplyState.sent);
+  }
+
+  /// Hold the gate closed for the 300 ms echo tail, then settle it so the gap is
+  /// recorded (FR-5.6, AT-18). Uses the injectable delay/clock for determinism.
+  Future<void> _settleEchoTail() async {
+    final gate = _echoGate;
+    if (gate == null) return;
+    await _delay(kEchoTail);
+    gate.settle();
+  }
+
+  /// Reopen the gate after a failed reply without recording a gap: playback
+  /// never happened, so there is no gated visitor interval to mark.
+  void _abandonGate() {
+    _echoGate?.cancel();
   }
 
   /// Return the bar to the composing state after a sent/error reply.

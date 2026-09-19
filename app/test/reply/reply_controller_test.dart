@@ -36,6 +36,73 @@ void main() {
       expect(gate.gaps.length, 1);
     });
 
+    test('the controller drives the 300 ms echo tail and records the gap itself (P2-3, FR-5.6, AT-18)', () async {
+      var now = 0;
+      final gate = EchoGate(nowMs: () => now);
+      final port = FakeReplyPort();
+      // The injected delay advances the fake clock by exactly the tail so the
+      // controller's own settle() records the gap without wall-clock waits.
+      final c = ReplyController(
+        port: port,
+        outbound: _twoWay(),
+        echoGate: gate,
+        nowMs: () => now,
+        delay: (d) async {
+          now += d.inMilliseconds;
+        },
+      );
+      await c.send('Hello', source: ReplySource.freetext);
+      // The controller (not the test) settled the tail and marked the gap.
+      expect(gate.gaps.length, 1);
+      expect(c.echoGaps.length, 1);
+      // The gap spans at least the 300 ms tail (FR-5.6).
+      expect(gate.gaps.single.durationMs >= kEchoTail.inMilliseconds, isTrue);
+    });
+
+    test('the gate stays CLOSED for the whole tail window and only reopens after 300 ms (P2-3)', () async {
+      var now = 0;
+      final gate = EchoGate(nowMs: () => now);
+      final port = FakeReplyPort();
+      // A delay that does NOT advance the clock lets us inspect the tail window
+      // before it elapses.
+      final c = ReplyController(
+        port: port,
+        outbound: _twoWay(),
+        echoGate: gate,
+        nowMs: () => now,
+        delay: (_) async {},
+      );
+      await c.send('Hello', source: ReplySource.freetext);
+      // Playback ended but the tail has not elapsed: the gate is still closed
+      // and no gap has been recorded yet.
+      expect(gate.isGateClosed, isTrue);
+      expect(gate.gaps, isEmpty);
+      // Advance past the tail and settle: now the gate reopens with a gap.
+      now += kEchoTail.inMilliseconds;
+      expect(gate.settle(), isNotNull);
+      expect(gate.shouldTranscribe, isTrue);
+    });
+
+    test('a TTS failure reopens the gate without recording a gap (no playback occurred, P2-3)', () async {
+      var now = 0;
+      final gate = EchoGate(nowMs: () => now);
+      final port = FakeReplyPort(plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.ttsFailed]);
+      final c = ReplyController(
+        port: port,
+        outbound: _twoWay(),
+        echoGate: gate,
+        nowMs: () => now,
+        delay: (d) async {
+          now += d.inMilliseconds;
+        },
+      );
+      await c.send('Hello', source: ReplySource.freetext);
+      expect(c.state, ReplyState.error);
+      // No reply audio played, so no non-visitor gap is marked.
+      expect(gate.gaps, isEmpty);
+      expect(gate.shouldTranscribe, isTrue);
+    });
+
     test('duplicate send is disabled while a reply is in flight (FR-6.3)', () async {
       // A never-completing speak keeps the controller in synthesizing.
       final port = _BlockingReplyPort();
