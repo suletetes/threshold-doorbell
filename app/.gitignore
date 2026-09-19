@@ -6,3 +6,7 @@ build/
 *.log
 
 # Do NOT ignore pubspec.lock: the app pins its dependency graph (structure.md).
+
+# Android build outputs
+/android/.gradle/
+/android/app/build/
