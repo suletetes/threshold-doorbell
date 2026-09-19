@@ -53,6 +53,51 @@ void main() {
       expect(v[1].line, 2);
     });
 
+    test('flags an em-dash inside a single-line triple-quoted string (P2-6)', () {
+      const src = "const s = '''Replies unavailable \u2014 try later''';";
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2014');
+    });
+
+    test('flags an en-dash on a later line of a MULTI-LINE triple-quoted string (P2-6)', () {
+      // The old line-by-line scanner reset string tracking at each newline and
+      // missed a dash on line 2+ of a triple-quoted body.
+      const src = "const s = '''\nOpen hours\n9\u20135 daily\n''';";
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2013');
+      expect(v.single.line, 3); // the dash is on the third line
+    });
+
+    test('flags an em-dash inside a double triple-quoted string (P2-6)', () {
+      const src = 'const s = """done \u2014 here""";';
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2014');
+    });
+
+    test('flags a dash inside a raw string (raw copy is still UI copy, P2-6)', () {
+      const src = "const s = r'path \u2014 raw';";
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2014');
+    });
+
+    test('a backslash in a raw string does not swallow a following dash (P2-6)', () {
+      // In a raw string the backslash is literal, so the dash after it must
+      // still be flagged (the non-raw escape logic must not apply here).
+      const src = "const s = r'a\\\u2014b';";
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2014');
+    });
+
+    test('a clean triple-quoted string passes (P2-6)', () {
+      const src = "const s = '''\nAll good here.\nSpaced - hyphen fine.\n''';";
+      expect(scanSource(src), isEmpty);
+    });
+
     test('the real lib/ tree contains no forbidden dashes (AT-24)', () {
       // Resolve lib/ relative to the package root regardless of the test CWD.
       final libDir = Directory('lib');
