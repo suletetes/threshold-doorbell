@@ -82,6 +82,8 @@ Privacy Mode (on-device Whisper, so doorstep audio never leaves the handset).
 
 ![Event and alert flow](diagrams/04-alert-event-flow.svg)
 
+![Data and privacy model](diagrams/05-data-privacy-model.svg)
+
 #### How we built it
 
 - Flutter app (iOS and Android), Riverpod state, built to a real design system

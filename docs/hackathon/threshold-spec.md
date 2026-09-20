@@ -134,6 +134,8 @@ Rendered diagrams (source in `diagrams/`, see `diagrams/README.md`):
 
 ![Event and alert flow](diagrams/04-alert-event-flow.svg)
 
+![Data and privacy model](diagrams/05-data-privacy-model.svg)
+
 The text sketch below is kept as a quick reference.
 
 ```

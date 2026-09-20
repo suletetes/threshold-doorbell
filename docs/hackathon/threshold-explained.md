@@ -129,6 +129,11 @@ Terms that'll come up when we build this. Skim now, refer back later.
 | **Flutter** | The framework we're building the app in — one codebase runs on both iPhone and Android. |
 | **The "spike"** | A small throwaway test we do *first* to prove the riskiest unknown works before we build anything real (see below). |
 
+Here is how the data and privacy story fits together: what leaves the device in Clarity Mode, what stays on
+the phone in Privacy Mode, how little we store, and how a resident can erase everything.
+
+![Data and privacy model](diagrams/05-data-privacy-model.svg)
+
 ---
 
 ## What we are NOT building (so we don't over-scope)
