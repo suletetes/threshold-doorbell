@@ -104,18 +104,20 @@
   <path class="eB" d="M736,214 C780,214 800,260 830,278 L840,286" marker-end="url(#mBlue)"/>
   <!-- store to ring tokens grouping (grey) -->
   <path class="e" d="M956,198 H980" marker-end="url(#mGrey)"/>
-  <!-- Privacy Mode: audio stays (green loop back into device) -->
-  <path class="eG" d="M240,332 C252,332 258,332 264,332" marker-end="url(#mGreen)"/>
+  <!-- Privacy Mode: audio stays on device (self-contained loop anchored on the Privacy box) -->
+  <path class="eG" d="M300,376 C300,398 432,398 432,376" marker-end="url(#mGreen)"/>
+  <text x="366" y="392" class="stepg" text-anchor="middle">audio stays on device</text>
 
   <!-- Privacy Mode still uses backend for signaling/events (blue crosses boundary) -->
   <path class="eB" d="M468,352 C504,352 504,220 540,214" marker-end="url(#mBlue)"/>
   <text x="486" y="300" class="legend" fill="#1565c0" transform="rotate(-58 486 300)">signaling + events</text>
 
   <!-- Erasure + minimization card (dark navy accent) -->
-  <g filter="url(#sh)"><rect x="44" y="494" width="612" height="86" rx="12" fill="url(#gCap)" stroke="#0d1017"/></g>
-  <text x="60" y="520" class="lbll">Erasure and data minimization</text>
-  <text x="60" y="544" class="descl">Delete all my data (FR-8.6) erases every conversation for the resident and revokes the Ring tokens in one transaction.</text>
-  <text x="60" y="564" class="descl">No raw audio or video is ever persisted (N6). The 90d DynamoDB TTL auto-deletes stored text turns (FR-8.5).</text>
+  <g filter="url(#sh)"><rect x="44" y="494" width="612" height="92" rx="12" fill="url(#gCap)" stroke="#0d1017"/></g>
+  <text x="60" y="518" class="lbll">Erasure and data minimization</text>
+  <text x="60" y="538" class="descl">Delete all my data (FR-8.6) erases every conversation for the</text>
+  <text x="60" y="556" class="descl">resident and revokes the Ring tokens in one transaction.</text>
+  <text x="60" y="574" class="descl">No raw audio or video is ever persisted (N6) &#183; 90d DynamoDB TTL auto-deletes text turns (FR-8.5).</text>
 
   <!-- LEGEND card -->
   <g filter="url(#sh)"><rect x="676" y="494" width="440" height="86" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
