@@ -118,7 +118,7 @@
   <!-- app <-> backend (blue, both) -->
   <path class="eB" d="M650,210 C686,210 690,206 720,206" marker-end="url(#mBlue)"/>
   <path class="eB" d="M720,300 C690,300 688,300 668,300 668,300 650,300 650,300" marker-end="url(#mBlue)"/>
-  <text x="672" y="200" class="legend" fill="#1565c0">HTTPS + WSS</text>
+  <text x="685" y="198" class="legend" fill="#1565c0" text-anchor="middle">HTTPS/WSS</text>
   <!-- backend internal -->
   <path class="e" d="M825,232 V246" marker-end="url(#mGrey)"/>
   <path class="e" d="M1005,232 V246" marker-end="url(#mGrey)"/>
@@ -128,10 +128,10 @@
   <path class="eB" d="M1088,378 C1130,378 1130,140 260,140 240,140 200,140 180,160" marker-end="url(#mBlue)"/>
 
   <!-- LEGEND card -->
-  <g filter="url(#sh)"><rect x="44" y="486" width="256" height="118" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <g filter="url(#sh)"><rect x="44" y="486" width="272" height="118" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
   <text x="60" y="510" class="lbl">Legend</text>
   <line x1="60" y1="532" x2="98" y2="532" class="eG" marker-end="url(#mGreen)"/>
-  <text x="106" y="536" class="legend">Audio (visitor speech, spoken reply)</text>
+  <text x="106" y="536" class="legend">Audio (visitor speech, reply)</text>
   <line x1="60" y1="556" x2="98" y2="556" class="eB" marker-end="url(#mBlue)"/>
   <text x="106" y="560" class="legend">Control and data (HTTPS / WSS)</text>
   <line x1="60" y1="580" x2="98" y2="580" class="e" marker-end="url(#mGrey)"/>
