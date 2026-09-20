@@ -36,13 +36,13 @@
 
   <g filter="url(#sh)"><rect x="470" y="78" width="210" height="96" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/>
     <rect x="488" y="96" width="18" height="18" rx="5" fill="#b3261e" opacity="0.85"/></g>
-  <text x="470" y="66" class="step">CLARITY MODE &#183; DEFAULT</text>
+  <text x="575" y="68" class="step" text-anchor="middle">CLARITY MODE &#183; DEFAULT</text>
   <text x="585" y="112" class="lbl" text-anchor="middle">Amazon Transcribe</text>
   <text x="585" y="134" class="desc" text-anchor="middle">streaming, partial</text>
   <text x="585" y="152" class="desc" text-anchor="middle">results stabilization</text>
 
   <g filter="url(#sh)"><rect x="470" y="252" width="210" height="96" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
-  <text x="470" y="372" class="stepg">PRIVACY MODE &#183; OPT-IN</text>
+  <text x="575" y="242" class="stepg" text-anchor="middle">PRIVACY MODE &#183; OPT-IN</text>
   <text x="585" y="286" class="lbl" text-anchor="middle">On-device Whisper</text>
   <text x="585" y="308" class="desc" text-anchor="middle">whisper.cpp + VAD</text>
   <text x="585" y="326" class="desc" text-anchor="middle">zero egress</text>
