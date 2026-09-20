@@ -73,10 +73,10 @@
   <path class="e" d="M404,204 C430,204 432,204 454,204" marker-end="url(#a)"/>
   <path class="eg" d="M638,204 C664,204 666,204 688,204" marker-end="url(#ag)"/>
   <path class="eg" d="M848,204 C874,204 876,204 898,204" marker-end="url(#ag)"/>
-  <path class="er" d="M546,312 C546,290 546,280 546,250" marker-end="url(#a)"/>
+  <path class="er" d="M546,312 C546,290 546,280 546,250" marker-end="url(#ar)"/>
   <path class="er" d="M638,357 C664,357 666,357 688,357" marker-end="url(#ar)"/>
   <text x="556" y="300" class="legend" fill="#b6892b">probe result</text>
-  <text x="648" y="348" class="legend" fill="#b3261e">on fail</text>
+  <text x="663" y="350" class="legend" fill="#b3261e" text-anchor="middle">on fail</text>
 
   <g filter="url(#sh)"><rect x="44" y="428" width="1072" height="62" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
   <text x="60" y="452" class="legend">flutter_webrtc lacks Insertable Streams on every platform, so the outbound audio is injected inside a WebView (browser WebRTC). This is ARCH-1.</text>

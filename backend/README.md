@@ -5,6 +5,22 @@ doorbell. Source of truth for behavior is `.kiro/specs/threshold-doorbell/`.
 
 ## Architecture (ports and adapters)
 
+![System overview](../docs/hackathon/diagrams/01-system-overview.svg)
+
+*Where this backend sits: it owns OAuth, webhooks, the signaling broker, the ASR relay, and the AWS calls, and holds the Ring tokens the device never sees.*
+
+![Data and privacy model](../docs/hackathon/diagrams/05-data-privacy-model.svg)
+
+*What crosses the trust boundary: text turns and control traffic, never raw audio or video.*
+
+![Inbound caption flow](../docs/hackathon/diagrams/02-inbound-caption-flow.svg)
+
+*The ASR relay path this backend owns: Clarity Mode streams audio to Amazon Transcribe, Privacy Mode stays on the device.*
+
+![Event and alert flow](../docs/hackathon/diagrams/04-alert-event-flow.svg)
+
+*The idempotent webhook, the push, and the poll fallback that turn a Ring event into an alert.*
+
 Every external dependency is an interface (a port) in `src/services/` with a
 real adapter and a fixture adapter. Routes and domain logic depend only on the
 port, never on an SDK. This is what lets the whole backend build, test, and demo

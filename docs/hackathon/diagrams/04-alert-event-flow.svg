@@ -12,7 +12,9 @@
       .title{font-size:25px;font-weight:800;fill:#12151b}
       .sub{font-size:14px;fill:#5b6472}
       .lbl{font-size:15px;font-weight:700;fill:#12151b}
+      .lbll{font-size:15px;font-weight:700;fill:#ffffff}
       .desc{font-size:11.5px;fill:#5b6472}
+      .descl{font-size:11.5px;fill:#c4ccd8}
       .legend{font-size:12.5px;fill:#3a4150}
       .e{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
       .ed{stroke:#8a93a2;stroke-width:2.2;fill:none;stroke-dasharray:6 4;stroke-linecap:round}
@@ -40,9 +42,9 @@
   <text x="553" y="228" class="desc" text-anchor="middle">deviceId, timestamp</text>
 
   <g filter="url(#sh)"><rect x="678" y="156" width="176" height="92" rx="16" fill="url(#gAlert)" stroke="#1565c0" stroke-width="1.5"/></g>
-  <text x="766" y="184" class="lbl" text-anchor="middle" fill="#ffffff">Alert screen</text>
-  <text x="766" y="204" class="desc" text-anchor="middle" fill="#c4ccd8">full-bleed thumbnail,</text>
-  <text x="766" y="222" class="desc" text-anchor="middle" fill="#c4ccd8">distinct haptic pattern</text>
+  <text x="766" y="184" class="lbll" text-anchor="middle">Alert screen</text>
+  <text x="766" y="204" class="descl" text-anchor="middle">full-bleed thumbnail,</text>
+  <text x="766" y="222" class="descl" text-anchor="middle">distinct haptic pattern</text>
 
   <g filter="url(#sh)"><rect x="904" y="156" width="212" height="92" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
   <text x="1010" y="188" class="lbl" text-anchor="middle">Answer the door</text>
@@ -65,5 +67,5 @@
   <g filter="url(#sh)"><rect x="44" y="312" width="400" height="80" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
   <text x="60" y="338" class="lbl">Haptic vocabulary (FR-9)</text>
   <text x="60" y="360" class="legend">Three distinct patterns: person at door, motion,</text>
-  <text x="60" y="378" class="legend">conversation started. Optional strobe capped at 3 flashes/sec.</text>
+  <text x="60" y="378" class="legend">conversation started. Strobe capped at 3 flashes/sec.</text>
 </svg>

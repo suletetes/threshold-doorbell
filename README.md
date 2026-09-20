@@ -36,7 +36,25 @@ only the inbound half. Threshold is built on the channel everyone else leaves id
 
 ![System overview](docs/hackathon/diagrams/01-system-overview.svg)
 
-More views (inbound captions, the ARCH-1 outbound reply path, and the event/alert flow) are in
+*System overview: the door, the resident device, and the backend + AWS zone.*
+
+![Inbound caption flow](docs/hackathon/diagrams/02-inbound-caption-flow.svg)
+
+*Inbound: visitor speech becomes streaming captions on the resident's screen.*
+
+![Outbound reply flow, ARCH-1](docs/hackathon/diagrams/03-outbound-reply-flow.svg)
+
+*Outbound: a tapped reply is spoken at the door through the WebView audio path (ARCH-1).*
+
+![Event and alert flow](docs/hackathon/diagrams/04-alert-event-flow.svg)
+
+*Events: a detection at the door becomes a haptic and visual alert within 5 seconds.*
+
+![Data and privacy model](docs/hackathon/diagrams/05-data-privacy-model.svg)
+
+*Data and privacy: what leaves the device in Clarity Mode versus what stays on it in Privacy Mode.*
+
+Diagram sources and an index are in
 [`docs/hackathon/diagrams/`](docs/hackathon/diagrams/README.md).
 
 ## Tech stack

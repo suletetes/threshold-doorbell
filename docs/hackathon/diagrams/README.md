@@ -40,6 +40,15 @@ The idempotent webhook path, the push, the haptic and visual alert, and the poll
 
 ![Alert and event flow](04-alert-event-flow.svg)
 
+### 5. Data and privacy model
+What leaves the device and what stays on it. Clarity Mode (default) relays audio to Amazon Transcribe and
+persists text turns to DynamoDB + KMS (text only, `expiresAt = startedAt + 90d` TTL), with Bedrock smart
+replies that are text-only and Clarity-only. Privacy Mode transcribes on-device with zero egress of audio or
+transcript text and never calls Bedrock, yet still uses the backend for signaling and events. Erasure deletes
+every conversation and revokes the Ring tokens in one transaction.
+
+![Data and privacy model](05-data-privacy-model.svg)
+
 ## Notes
 
 - These diagrams model what is actually built and merged (31 tasks, the design system, the
