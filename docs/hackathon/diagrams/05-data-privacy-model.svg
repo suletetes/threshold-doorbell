@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="600" viewBox="0 0 1160 600" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="640" viewBox="0 0 1160 640" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/></linearGradient>
     <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
@@ -30,7 +30,7 @@
     </style>
   </defs>
 
-  <rect width="1160" height="600" fill="url(#bg)"/>
+  <rect width="1160" height="640" fill="url(#bg)"/>
   <text x="44" y="48" class="title">Threshold &#183; Data and Privacy Model</text>
   <text x="44" y="72" class="sub">What leaves the device and what stays on it. Clarity Mode uses the cloud for captions and replies. Privacy Mode keeps audio and text on the phone.</text>
 
@@ -106,28 +106,29 @@
   <path class="e" d="M956,198 H980" marker-end="url(#mGrey)"/>
   <!-- Privacy Mode: audio stays on device (self-contained loop anchored on the Privacy box) -->
   <path class="eG" d="M300,376 C300,398 432,398 432,376" marker-end="url(#mGreen)"/>
-  <text x="366" y="392" class="stepg" text-anchor="middle">audio stays on device</text>
+  <text x="366" y="418" class="stepg" text-anchor="middle">audio stays on device</text>
 
   <!-- Privacy Mode still uses backend for signaling/events (blue crosses boundary) -->
   <path class="eB" d="M468,352 C504,352 504,220 540,214" marker-end="url(#mBlue)"/>
-  <text x="486" y="300" class="legend" fill="#1565c0" transform="rotate(-58 486 300)">signaling + events</text>
+  <text x="476" y="352" class="legend" fill="#1565c0" transform="rotate(-80 476 352)">signaling + events</text>
 
   <!-- Erasure + minimization card (dark navy accent) -->
-  <g filter="url(#sh)"><rect x="44" y="494" width="612" height="92" rx="12" fill="url(#gCap)" stroke="#0d1017"/></g>
-  <text x="60" y="518" class="lbll">Erasure and data minimization</text>
-  <text x="60" y="538" class="descl">Delete all my data (FR-8.6) erases every conversation for the</text>
-  <text x="60" y="556" class="descl">resident and revokes the Ring tokens in one transaction.</text>
-  <text x="60" y="574" class="descl">No raw audio or video is ever persisted (N6) &#183; 90d DynamoDB TTL auto-deletes text turns (FR-8.5).</text>
+  <g filter="url(#sh)"><rect x="44" y="494" width="612" height="120" rx="12" fill="url(#gCap)" stroke="#0d1017"/></g>
+  <text x="60" y="516" class="lbll">Erasure and data minimization</text>
+  <text x="60" y="536" class="descl">Delete all my data (FR-8.6) erases every conversation for the</text>
+  <text x="60" y="554" class="descl">resident and revokes the Ring tokens in one transaction.</text>
+  <text x="60" y="572" class="descl">No raw audio or video is ever persisted (N6).</text>
+  <text x="60" y="590" class="descl">90d DynamoDB TTL auto-deletes text turns (FR-8.5).</text>
 
-  <!-- LEGEND card -->
-  <g filter="url(#sh)"><rect x="676" y="494" width="440" height="86" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
-  <text x="692" y="518" class="lbl">Legend</text>
-  <line x1="692" y1="540" x2="730" y2="540" class="eG" marker-end="url(#mGreen)"/>
-  <text x="738" y="544" class="legend">Audio (on device or relayed in Clarity Mode)</text>
-  <line x1="692" y1="562" x2="730" y2="562" class="eB" marker-end="url(#mBlue)"/>
-  <text x="738" y="566" class="legend">Control and data (HTTPS / WSS, text turns)</text>
-  <line x1="932" y1="540" x2="970" y2="540" class="eR" marker-end="url(#mRed)"/>
-  <text x="978" y="544" class="legend">AWS service call</text>
-  <line x1="932" y1="562" x2="970" y2="562" class="e" marker-end="url(#mGrey)"/>
-  <text x="978" y="566" class="legend">Internal storage</text>
+  <!-- LEGEND card (single column, four rows) -->
+  <g filter="url(#sh)"><rect x="676" y="494" width="440" height="128" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="692" y="516" class="lbl">Legend</text>
+  <line x1="692" y1="536" x2="730" y2="536" class="eG" marker-end="url(#mGreen)"/>
+  <text x="738" y="540" class="legend">Audio (on device or relayed in Clarity Mode)</text>
+  <line x1="692" y1="558" x2="730" y2="558" class="eB" marker-end="url(#mBlue)"/>
+  <text x="738" y="562" class="legend">Control and data (HTTPS / WSS, text turns)</text>
+  <line x1="692" y1="580" x2="730" y2="580" class="eR" marker-end="url(#mRed)"/>
+  <text x="738" y="584" class="legend">AWS service call</text>
+  <line x1="692" y1="602" x2="730" y2="602" class="e" marker-end="url(#mGrey)"/>
+  <text x="738" y="606" class="legend">Internal storage</text>
 </svg>
