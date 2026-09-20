@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="600" viewBox="0 0 1160 600" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/></linearGradient>
+    <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eafaf1"/><stop offset="1" stop-color="#d8f3e4"/></linearGradient>
+    <linearGradient id="gAws" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeef0"/><stop offset="1" stop-color="#fbdfe3"/></linearGradient>
+    <linearGradient id="gStore" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef1f5"/><stop offset="1" stop-color="#e2e7ee"/></linearGradient>
+    <linearGradient id="gBk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf6e3"/><stop offset="1" stop-color="#f7ecc9"/></linearGradient>
+    <linearGradient id="gCap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2030"/><stop offset="1" stop-color="#0d1017"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1a2540" flood-opacity="0.14"/></filter>
+    <marker id="mGrey" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b6472"/></marker>
+    <marker id="mBlue" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="mGreen" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1b7f4b"/></marker>
+    <marker id="mRed" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#b3261e"/></marker>
+    <style>
+      .title{font-size:27px;font-weight:800;fill:#12151b}
+      .sub{font-size:14px;fill:#5b6472}
+      .zone{font-size:12px;font-weight:800;letter-spacing:1.2px;fill:#98a1b0}
+      .lbl{font-size:15.5px;font-weight:700;fill:#12151b}
+      .lbll{font-size:15.5px;font-weight:700;fill:#ffffff}
+      .desc{font-size:11.5px;fill:#5b6472}
+      .descl{font-size:11.5px;fill:#c4ccd8}
+      .step{font-size:11px;font-weight:800;letter-spacing:.8px;fill:#1565c0}
+      .stepg{font-size:11px;font-weight:800;letter-spacing:.8px;fill:#1b7f4b}
+      .legend{font-size:12.5px;fill:#3a4150}
+      .e{stroke:#5b6472;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eB{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eG{stroke:#1b7f4b;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eR{stroke:#b3261e;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+
+  <rect width="1160" height="600" fill="url(#bg)"/>
+  <text x="44" y="48" class="title">Threshold &#183; Data and Privacy Model</text>
+  <text x="44" y="72" class="sub">What leaves the device and what stays on it. Clarity Mode uses the cloud for captions and replies. Privacy Mode keeps audio and text on the phone.</text>
+
+  <!-- trust boundary -->
+  <line x1="500" y1="104" x2="500" y2="470" stroke="#b3261e" stroke-width="1.6" stroke-dasharray="3 7" opacity="0.7"/>
+  <text x="270" y="122" class="zone" text-anchor="middle">ON DEVICE &#183; FLUTTER (ARCH-1)</text>
+  <text x="820" y="122" class="zone" text-anchor="middle">BACKEND + AWS (TRUST BOUNDARY)</text>
+  <text x="500" y="462" class="legend" text-anchor="middle" fill="#b3261e">Trust boundary &#183; app never holds the Ring secret or tokens</text>
+
+  <!-- Device: audio source -->
+  <g filter="url(#sh)"><rect x="44" y="150" width="196" height="96" rx="16" fill="url(#gRing)" stroke="#1565c0" stroke-width="1.5"/>
+    <rect x="62" y="170" width="22" height="34" rx="6" fill="#1565c0" opacity="0.85"/></g>
+  <text x="130" y="182" class="lbl" text-anchor="middle">Visitor audio</text>
+  <text x="130" y="206" class="desc" text-anchor="middle">16 kHz mono PCM,</text>
+  <text x="130" y="224" class="desc" text-anchor="middle">tapped in the WebView</text>
+
+  <!-- Clarity Mode on device -->
+  <g filter="url(#sh)"><rect x="44" y="286" width="196" height="90" rx="16" fill="url(#gApp)" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="130" y="308" class="step" text-anchor="middle">CLARITY MODE &#183; DEFAULT</text>
+  <text x="130" y="332" class="lbl" text-anchor="middle">Audio relayed out</text>
+  <text x="130" y="354" class="desc" text-anchor="middle">over backend ASR relay</text>
+
+  <!-- Privacy Mode on device -->
+  <g filter="url(#sh)"><rect x="264" y="286" width="204" height="90" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.6"/></g>
+  <text x="366" y="308" class="stepg" text-anchor="middle">PRIVACY MODE &#183; OPT-IN</text>
+  <text x="366" y="332" class="lbl" text-anchor="middle">On-device Whisper</text>
+  <text x="366" y="354" class="desc" text-anchor="middle">zero egress of audio and text</text>
+
+  <!-- Backend: ASR relay -->
+  <g filter="url(#sh)"><rect x="540" y="150" width="196" height="96" rx="16" fill="url(#gBk)" stroke="#b6892b" stroke-width="1.5"/></g>
+  <text x="638" y="182" class="lbl" text-anchor="middle">Fastify backend</text>
+  <text x="638" y="206" class="desc" text-anchor="middle">ASR relay, signaling,</text>
+  <text x="638" y="224" class="desc" text-anchor="middle">events (stateless)</text>
+
+  <!-- Transcribe -->
+  <g filter="url(#sh)"><rect x="540" y="286" width="196" height="90" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/>
+    <rect x="558" y="302" width="18" height="18" rx="5" fill="#b3261e" opacity="0.85"/></g>
+  <text x="638" y="322" class="lbl" text-anchor="middle">Amazon Transcribe</text>
+  <text x="638" y="344" class="desc" text-anchor="middle">streaming captions</text>
+  <text x="638" y="362" class="desc" text-anchor="middle">Clarity Mode only</text>
+
+  <!-- Bedrock -->
+  <g filter="url(#sh)"><rect x="760" y="286" width="196" height="90" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/>
+    <rect x="778" y="302" width="18" height="18" rx="5" fill="#b3261e" opacity="0.85"/></g>
+  <text x="858" y="322" class="lbl" text-anchor="middle">Amazon Bedrock</text>
+  <text x="858" y="344" class="desc" text-anchor="middle">smart replies, text only</text>
+  <text x="858" y="362" class="desc" text-anchor="middle">Clarity only, not in Privacy</text>
+
+  <!-- DynamoDB + KMS store (conversations) -->
+  <g filter="url(#sh)"><rect x="760" y="150" width="196" height="96" rx="16" fill="url(#gStore)" stroke="#5b6472" stroke-width="1.5"/></g>
+  <text x="858" y="180" class="lbl" text-anchor="middle">DynamoDB + KMS</text>
+  <text x="858" y="202" class="desc" text-anchor="middle">conversations: text turns only</text>
+  <text x="858" y="220" class="desc" text-anchor="middle">expiresAt = startedAt + 90d TTL</text>
+
+  <!-- Ring tokens store -->
+  <g filter="url(#sh)"><rect x="980" y="150" width="136" height="96" rx="16" fill="url(#gStore)" stroke="#5b6472" stroke-width="1.5"/></g>
+  <text x="1048" y="180" class="lbl" text-anchor="middle">ring_tokens</text>
+  <text x="1048" y="202" class="desc" text-anchor="middle">KMS-encrypted,</text>
+  <text x="1048" y="220" class="desc" text-anchor="middle">backend only</text>
+
+  <!-- EDGES -->
+  <!-- Clarity: audio out to backend relay (green crosses boundary) -->
+  <path class="eG" d="M240,320 C300,320 320,198 400,198 460,198 500,198 540,198" marker-end="url(#mGreen)"/>
+  <text x="360" y="188" class="legend" fill="#1b7f4b">audio (Clarity)</text>
+  <!-- backend relay to Transcribe (red internal) -->
+  <path class="eR" d="M638,246 V286" marker-end="url(#mRed)"/>
+  <!-- Transcribe text back to backend, persisted to store (blue) -->
+  <path class="eB" d="M736,320 C812,320 838,268 858,258 L858,246" marker-end="url(#mBlue)"/>
+  <text x="800" y="272" class="legend" fill="#1565c0">text turns</text>
+  <!-- backend to Bedrock (blue, text only) -->
+  <path class="eB" d="M736,214 C780,214 800,260 830,278 L840,286" marker-end="url(#mBlue)"/>
+  <!-- store to ring tokens grouping (grey) -->
+  <path class="e" d="M956,198 H980" marker-end="url(#mGrey)"/>
+  <!-- Privacy Mode: audio stays (green loop back into device) -->
+  <path class="eG" d="M240,332 C252,332 258,332 264,332" marker-end="url(#mGreen)"/>
+
+  <!-- Privacy Mode still uses backend for signaling/events (blue crosses boundary) -->
+  <path class="eB" d="M468,352 C504,352 504,220 540,214" marker-end="url(#mBlue)"/>
+  <text x="486" y="300" class="legend" fill="#1565c0" transform="rotate(-58 486 300)">signaling + events</text>
+
+  <!-- Erasure + minimization card (dark navy accent) -->
+  <g filter="url(#sh)"><rect x="44" y="494" width="612" height="86" rx="12" fill="url(#gCap)" stroke="#0d1017"/></g>
+  <text x="60" y="520" class="lbll">Erasure and data minimization</text>
+  <text x="60" y="544" class="descl">Delete all my data (FR-8.6) erases every conversation for the resident and revokes the Ring tokens in one transaction.</text>
+  <text x="60" y="564" class="descl">No raw audio or video is ever persisted (N6). The 90d DynamoDB TTL auto-deletes stored text turns (FR-8.5).</text>
+
+  <!-- LEGEND card -->
+  <g filter="url(#sh)"><rect x="676" y="494" width="440" height="86" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="692" y="518" class="lbl">Legend</text>
+  <line x1="692" y1="540" x2="730" y2="540" class="eG" marker-end="url(#mGreen)"/>
+  <text x="738" y="544" class="legend">Audio (on device or relayed in Clarity Mode)</text>
+  <line x1="692" y1="562" x2="730" y2="562" class="eB" marker-end="url(#mBlue)"/>
+  <text x="738" y="566" class="legend">Control and data (HTTPS / WSS, text turns)</text>
+  <line x1="932" y1="540" x2="970" y2="540" class="eR" marker-end="url(#mRed)"/>
+  <text x="978" y="544" class="legend">AWS service call</text>
+  <line x1="932" y1="562" x2="970" y2="562" class="e" marker-end="url(#mGrey)"/>
+  <text x="978" y="566" class="legend">Internal storage</text>
+</svg>
