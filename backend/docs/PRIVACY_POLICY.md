@@ -54,6 +54,10 @@ In every mode, the doorstep audio itself is never persisted.
 
 ## What leaves your device
 
+![Data and privacy model](../../docs/hackathon/diagrams/05-data-privacy-model.svg)
+
+*What leaves the device and what stays on it: Clarity Mode relays audio to the cloud for captions and replies, Privacy Mode keeps audio and text on the phone, and only text turns are ever persisted.*
+
 - Your Ring access and refresh tokens are held **only on the backend**,
   encrypted with AWS KMS. They are **never stored on your device** (FR-1.6). Your
   device holds only a short-lived session credential.

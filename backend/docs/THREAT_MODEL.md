@@ -18,6 +18,10 @@ Source of truth for behavior: `.kiro/specs/threshold-doorbell/` (design.md §7).
 
 ## 2. Trust boundaries
 
+![Data and privacy model](../../docs/hackathon/diagrams/05-data-privacy-model.svg)
+
+*The trust boundary in one view: the device never holds the Ring secret or tokens, and only text turns and control traffic cross to the backend and AWS.*
+
 1. Device to backend: HTTPS/WSS, TLS 1.2+. The device is untrusted for
    authorization decisions. It presents only the session credential.
 2. Backend to Ring: server-side OAuth. The client secret and tokens never cross
