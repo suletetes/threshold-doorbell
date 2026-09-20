@@ -67,5 +67,5 @@
   <g filter="url(#sh)"><rect x="44" y="312" width="400" height="80" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
   <text x="60" y="338" class="lbl">Haptic vocabulary (FR-9)</text>
   <text x="60" y="360" class="legend">Three distinct patterns: person at door, motion,</text>
-  <text x="60" y="378" class="legend">conversation started. Optional strobe capped at 3 flashes/sec.</text>
+  <text x="60" y="378" class="legend">conversation started. Strobe capped at 3 flashes/sec.</text>
 </svg>
