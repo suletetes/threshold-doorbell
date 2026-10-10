@@ -13,11 +13,16 @@
 
 import type { RingSessionHandle, RingSignalingPort } from './ring-signaling.js';
 
+/** Default maximum lifetime of a signaling slot before it is force-released. */
+export const MAX_SESSION_MS = 10 * 60 * 1000; // 10 minutes (FR-4.3 safety cap)
+
 /** A tracked active session for a resident. */
 interface ActiveSession {
   residentSub: string;
   deviceId: string;
   sessionUrl: string;
+  /** Timer that force-releases the slot if the session outlives its TTL. */
+  ttl: ReturnType<typeof setTimeout> | null;
 }
 
 /** Raised when a resident already holds a live session (FR-4.7 -> WS 4409). */
@@ -31,7 +36,10 @@ export class SessionAlreadyActiveError extends Error {
 export class SignalingService {
   private readonly active = new Map<string, ActiveSession>();
 
-  constructor(private readonly signaling: RingSignalingPort) {}
+  constructor(
+    private readonly signaling: RingSignalingPort,
+    private readonly maxSessionMs: number = MAX_SESSION_MS,
+  ) {}
 
   /** True when the resident currently holds a live session. */
   hasActiveSession(residentSub: string): boolean {
@@ -59,15 +67,37 @@ export class SignalingService {
       throw new SessionAlreadyActiveError();
     }
     // Reserve the slot before the async relay so two racing opens cannot both
-    // pass the check. A relay failure below frees it again.
-    this.active.set(residentSub, { residentSub, deviceId, sessionUrl: '' });
+    // pass the check. A relay failure below frees it again. A TTL timer force
+    // releases the slot if the session outlives its maximum duration, so a
+    // leaked slot can never lock a resident out indefinitely (HIGH-19).
+    const ttl = setTimeout(() => {
+      void this.close(residentSub);
+    }, this.maxSessionMs);
+    // Do not keep the event loop alive solely for this timer.
+    if (typeof ttl.unref === 'function') ttl.unref();
+    this.active.set(residentSub, { residentSub, deviceId, sessionUrl: '', ttl });
     try {
       const handle = await this.signaling.startSession({ sdpOffer, deviceId });
-      this.active.set(residentSub, { residentSub, deviceId, sessionUrl: handle.sessionUrl });
+      const current = this.active.get(residentSub);
+      // If the slot was released while the relay was in flight (close during
+      // handshake), release the freshly issued Ring URL and do not re-reserve.
+      if (!current || current.ttl !== ttl) {
+        await this.signaling.releaseSession(handle.sessionUrl);
+        return handle;
+      }
+      this.active.set(residentSub, { residentSub, deviceId, sessionUrl: handle.sessionUrl, ttl });
       return handle;
     } catch (err) {
-      this.active.delete(residentSub);
+      this.clearSlot(residentSub, ttl);
       throw err;
+    }
+  }
+
+  private clearSlot(residentSub: string, ttl: ActiveSession['ttl']): void {
+    if (ttl) clearTimeout(ttl);
+    const current = this.active.get(residentSub);
+    if (current && current.ttl === ttl) {
+      this.active.delete(residentSub);
     }
   }
 
@@ -80,6 +110,7 @@ export class SignalingService {
     const session = this.active.get(residentSub);
     if (!session) return;
     this.active.delete(residentSub);
+    if (session.ttl) clearTimeout(session.ttl);
     if (session.sessionUrl !== '') {
       await this.signaling.releaseSession(session.sessionUrl);
     }

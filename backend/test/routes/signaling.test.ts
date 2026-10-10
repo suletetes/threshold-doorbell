@@ -134,6 +134,32 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
     b.close();
   });
 
+  it('releases the slot when the socket disconnects during the Ring handshake (HIGH-19, P3)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    // Make the Ring handshake slow so we can disconnect while open() is pending.
+    t.ringSignaling.setStartDelay(80);
+
+    const first = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    first.send(offer());
+    // Terminate before the delayed startSession resolves (mid-handshake).
+    first.terminate();
+
+    // The slot must be released once the pending open settles; it must NOT stay
+    // reserved and lock the resident out.
+    await waitFor(() => !t.signalingService.hasActiveSession(SUB));
+    expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
+
+    // A fresh attempt for the same resident must succeed, not be closed 4409.
+    t.ringSignaling.setStartDelay(0);
+    const second = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    second.send(offer());
+    const answer = await nextJson(second);
+    expect(answer).toMatchObject({ type: 'answer' });
+    second.close();
+  });
+
   it('a Ring relay failure surfaces a connect error and frees the slot for retry (FR-4.4)', async () => {
     const t = await buildTestApp();
     app = t.app;
