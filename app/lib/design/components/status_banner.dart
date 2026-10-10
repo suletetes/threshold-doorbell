@@ -195,6 +195,7 @@ class StatusBanner extends StatelessWidget {
                 child: Semantics(
                   button: true,
                   label: bannerAction.semanticsLabel ?? bannerAction.label,
+                  onTap: bannerAction.onPressed,
                   excludeSemantics: true,
                   child: _BannerButton(action: bannerAction, role: role),
                 ),

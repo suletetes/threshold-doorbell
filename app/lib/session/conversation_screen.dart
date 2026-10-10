@@ -389,6 +389,7 @@ class _LiveOverlay extends StatelessWidget {
         child: Semantics(
           button: true,
           label: 'End session',
+          onTap: () => controller.end(),
           excludeSemantics: true,
           child: FilledButton.tonalIcon(
             key: const ValueKey('end-session'),
@@ -730,6 +731,7 @@ class _ErrorPanel extends StatelessWidget {
             Semantics(
               button: true,
               label: 'Try again',
+              onTap: _retry,
               excludeSemantics: true,
               child: FilledButton.icon(
                 key: const ValueKey('error-retry'),
@@ -742,6 +744,7 @@ class _ErrorPanel extends StatelessWidget {
             Semantics(
               button: true,
               label: 'Go back',
+              onTap: () => _escape(context),
               excludeSemantics: true,
               child: TextButton.icon(
                 key: const ValueKey('error-go-back'),

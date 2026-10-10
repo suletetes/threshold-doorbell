@@ -207,6 +207,11 @@ class _ReplyBarState extends State<ReplyBar> {
                       Semantics(
                         button: true,
                         label: 'Send reply',
+                        // Real tap action for TalkBack double-tap (HIGH-06);
+                        // null while busy so it matches the disabled button.
+                        onTap: busy
+                            ? null
+                            : () => _send(_text.text, ReplySource.freetext),
                         excludeSemantics: true,
                         child: FilledButton.icon(
                           key: const ValueKey('reply-send'),
@@ -256,6 +261,7 @@ class _SuggestionButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Reply: $label',
+      onTap: onTap,
       excludeSemantics: true,
       child: FilledButton.tonal(
         onPressed: onTap,

@@ -76,6 +76,11 @@ class _PrimaryActionCardState extends State<PrimaryActionCard> {
     return Semantics(
       button: true,
       label: widget.semanticsLabel ?? widget.label,
+      // Give the merged node a real tap action so TalkBack / VoiceOver
+      // double-tap activates it (HIGH-06). excludeSemantics merges the inner
+      // button away for a single clean node, but that also drops the inner
+      // tap action, so it is reinstated here on the wrapper.
+      onTap: widget.onPressed,
       excludeSemantics: true,
       child: AnimatedScale(
         scale: _pressed ? PrimaryActionCard.pressedScale : 1,

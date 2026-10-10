@@ -72,6 +72,7 @@ class HomeScreen extends ConsumerWidget {
           Semantics(
             button: true,
             label: 'Open settings',
+            onTap: () => _openSettings(context, ref),
             excludeSemantics: true,
             child: IconButton(
               key: const ValueKey('home-settings'),

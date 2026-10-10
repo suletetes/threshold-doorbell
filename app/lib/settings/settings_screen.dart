@@ -195,6 +195,7 @@ class SettingsScreen extends StatelessWidget {
           Semantics(
             button: true,
             label: 'Delete all my data',
+            onTap: controller.erasureInFlight ? null : () => _confirmDelete(context),
             excludeSemantics: true,
             child: FilledButton.tonalIcon(
               key: const ValueKey('delete-all-data'),

@@ -242,6 +242,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
         child: Semantics(
           button: true,
           label: 'End session',
+          onTap: () => controller.end(),
           excludeSemantics: true,
           child: FilledButton.tonalIcon(
             key: const ValueKey('captions-only-end'),
