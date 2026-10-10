@@ -9,6 +9,8 @@
 
 import 'dart:async';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../consent/recording_notice.dart';
 import '../reply/echo_gate.dart';
 import '../reply/reply_port.dart';
@@ -78,25 +80,56 @@ class ProductionBedrockSuggestionPort implements BedrockSuggestionPort {
   }
 }
 
-/// Persisted consent state (FR-14.1). The real binding wraps shared_preferences.
+/// Persisted consent state (FR-14.1, HIGH-10, LOW-06). Backed by
+/// shared_preferences so the one-time recording-notice acknowledgement, the
+/// audible-notice preference, and the remembered compliance default survive a
+/// relaunch. Previously this kept its state in a plain `bool _ack` field, so
+/// consent was forgotten on every launch and FR-14.1 "one-time acknowledgement"
+/// could not hold. Loaded before the first frame in the composition root.
 class ProductionConsentStore implements ConsentStore {
-  bool _ack = false;
-  bool _audible = false;
-  ComplianceChoice? _default;
+  ProductionConsentStore(this._prefs);
+
+  final SharedPreferences _prefs;
+
+  static const String _prefix = 'threshold.consent.';
+  static const String _ackKey = '${_prefix}acknowledged';
+  static const String _audibleKey = '${_prefix}audibleNotice';
+  static const String _defaultChoiceKey = '${_prefix}defaultChoice';
+
+  /// Open the platform store. Call once at startup.
+  static Future<ProductionConsentStore> open() async {
+    final prefs = await SharedPreferences.getInstance();
+    return ProductionConsentStore(prefs);
+  }
 
   @override
-  Future<bool> isAcknowledged() async => _ack;
+  Future<bool> isAcknowledged() async => _prefs.getBool(_ackKey) ?? false;
+
   @override
-  Future<void> setAcknowledged(bool value) async => _ack = value;
+  Future<void> setAcknowledged(bool value) async =>
+      _prefs.setBool(_ackKey, value);
+
   @override
-  Future<bool> audibleNoticeEnabled() async => _audible;
+  Future<bool> audibleNoticeEnabled() async =>
+      _prefs.getBool(_audibleKey) ?? false;
+
   @override
-  Future<void> setAudibleNoticeEnabled(bool value) async => _audible = value;
+  Future<void> setAudibleNoticeEnabled(bool value) async =>
+      _prefs.setBool(_audibleKey, value);
+
   @override
-  Future<ComplianceChoice?> defaultComplianceChoice() async => _default;
+  Future<ComplianceChoice?> defaultComplianceChoice() async {
+    final name = _prefs.getString(_defaultChoiceKey);
+    if (name == null) return null;
+    for (final choice in ComplianceChoice.values) {
+      if (choice.name == name) return choice;
+    }
+    return null;
+  }
+
   @override
   Future<void> setDefaultComplianceChoice(ComplianceChoice choice) async =>
-      _default = choice;
+      _prefs.setString(_defaultChoiceKey, choice.name);
 }
 
 /// "Delete all my data" erasure (FR-8.6). The real binding calls DELETE /me/data.

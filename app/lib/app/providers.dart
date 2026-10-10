@@ -22,6 +22,7 @@ import '../session/session_controller.dart';
 import '../session/session_port.dart';
 import '../session/session_start_coordinator.dart';
 import '../settings/settings_controller.dart';
+import '../settings/settings_store.dart';
 import 'production_adapters.dart';
 
 /// The on-device model download size disclosed before download (FR-5.2a). A
@@ -49,16 +50,35 @@ final authPortProvider = Provider<AuthPort>((ref) => ProductionAuthPort());
 final bedrockSuggestionPortProvider =
     Provider<BedrockSuggestionPort>((ref) => ProductionBedrockSuggestionPort());
 
+/// The persisted consent store (FR-14.1, HIGH-10). In production main() loads a
+/// shared_preferences-backed [ProductionConsentStore] before the first frame and
+/// overrides this provider, so consent survives a relaunch. The default here is
+/// an in-memory fake, used only under `flutter test` and never in a release
+/// build (release always goes through bootstrapOverrides in main.dart).
 final consentStoreProvider =
-    Provider<ConsentStore>((ref) => ProductionConsentStore());
+    Provider<ConsentStore>((ref) => FakeConsentStore());
+
+/// The persisted settings store (HIGH-10). As with [consentStoreProvider],
+/// production overrides this with a shared_preferences-backed store before the
+/// first frame; the in-memory default is used only in tests.
+final settingsStoreProvider =
+    Provider<SettingsStore>((ref) => InMemorySettingsStore());
 
 final dataErasurePortProvider =
     Provider<DataErasurePort>((ref) => ProductionDataErasurePort());
 
 // --- Controllers / machines ---
 
+/// The settings controller, seeded from the persisted store (HIGH-10). main()
+/// loads the saved settings before the first frame and overrides this provider
+/// with the hydrated controller; the fallback here builds an unpersisted
+/// controller so widget tests that only override the store or supply their own
+/// controller still work.
 final settingsControllerProvider = ChangeNotifierProvider<SettingsController>((ref) {
-  return SettingsController(erasure: ref.watch(dataErasurePortProvider));
+  return SettingsController(
+    erasure: ref.watch(dataErasurePortProvider),
+    store: ref.watch(settingsStoreProvider),
+  );
 });
 
 final sessionControllerProvider = ChangeNotifierProvider<SessionController>((ref) {

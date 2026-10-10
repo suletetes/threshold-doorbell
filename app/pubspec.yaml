@@ -31,6 +31,9 @@ dependencies:
   flutter_riverpod: ^2.6.0
   shared_preferences: ^2.3.0
 
+  # --- Value-type equality helpers (immutable settings, LOW-06) ---
+  collection: ^1.18.0
+
   # --- Push / alerts ---
   flutter_local_notifications: ^18.0.0
 

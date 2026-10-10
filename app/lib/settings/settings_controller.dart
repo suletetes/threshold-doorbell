@@ -5,12 +5,15 @@
 // confirmed "Delete all my data" erasure (FR-8.6) behind a port. A
 // ChangeNotifier so the Settings screen rebuilds.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import '../alerts/haptic_vocabulary.dart';
 import '../captions/language_selection.dart';
 import 'settings_state.dart';
+import 'settings_store.dart';
 
 /// Erasure port for "Delete all my data" (FR-8.6): erases all transcripts and
 /// revokes stored Ring tokens on the backend. Network-bound, behind a fake.
@@ -41,13 +44,36 @@ class SettingsController extends ChangeNotifier {
   SettingsController({
     required DataErasurePort erasure,
     ThresholdSettings? initial,
+    SettingsStore? store,
   })  : _erasure = erasure,
+        _store = store,
         _settings = initial ?? ThresholdSettings.defaults();
 
   final DataErasurePort _erasure;
+
+  /// Persists settings across relaunches (HIGH-10). Optional so a test can
+  /// construct a controller with no persistence; the composition root always
+  /// supplies a shared_preferences-backed store.
+  final SettingsStore? _store;
   ThresholdSettings _settings;
 
   ThresholdSettings get settings => _settings;
+
+  /// Build a controller from a persisted store (HIGH-10). Loads the saved
+  /// settings before the controller is first read so the first frame already
+  /// reflects the resident's configuration; falls back to accessible defaults
+  /// when nothing has been saved yet.
+  static Future<SettingsController> load({
+    required DataErasurePort erasure,
+    required SettingsStore store,
+  }) async {
+    final saved = await store.load();
+    return SettingsController(
+      erasure: erasure,
+      initial: saved ?? ThresholdSettings.defaults(),
+      store: store,
+    );
+  }
 
   /// The current erasure request status (HIGH-08). The screen renders a banner
   /// from this and disables the delete button while [ErasureStatus.inFlight].
@@ -56,8 +82,23 @@ class SettingsController extends ChangeNotifier {
   bool get erasureInFlight => _erasureStatus == ErasureStatus.inFlight;
 
   void _update(ThresholdSettings next) {
+    if (next == _settings) return; // value equality (LOW-06): skip no-op writes
     _settings = next;
+    // Persist so the change survives a relaunch (HIGH-10). Fire and forget: a
+    // failed write must not block the UI, and the in-memory value is already
+    // updated. A thrown store error is swallowed rather than escaping a setter.
+    unawaited(_persist(next));
     notifyListeners();
+  }
+
+  Future<void> _persist(ThresholdSettings settings) async {
+    final store = _store;
+    if (store == null) return;
+    try {
+      await store.save(settings);
+    } catch (_) {
+      // Persistence is best effort; never surface a store failure to the UI.
+    }
   }
 
   /// Switch caption mode. The change applies to the NEXT session (FR-10.1); the
@@ -126,14 +167,29 @@ class SettingsController extends ChangeNotifier {
       ok = false;
     }
     if (ok) {
-      // Clear local state so an erasure leaves nothing behind on the device.
+      // Clear local state so an erasure leaves nothing behind on the device,
+      // including the persisted copy (HIGH-10): the reset must survive a
+      // relaunch too, not resurrect the old settings from the store.
       _settings = ThresholdSettings.defaults();
+      unawaited(_persistClearThenDefaults());
       _erasureStatus = ErasureStatus.success;
     } else {
       _erasureStatus = ErasureStatus.failure;
     }
     notifyListeners();
     return ok;
+  }
+
+  /// After an erasure, clear the persisted store so the defaults survive a
+  /// relaunch (HIGH-10): the resident asked for everything to be removed.
+  Future<void> _persistClearThenDefaults() async {
+    final store = _store;
+    if (store == null) return;
+    try {
+      await store.clear();
+    } catch (_) {
+      // Best effort: a failed clear must not surface out of the erasure flow.
+    }
   }
 
   /// Dismiss the erasure banner (HIGH-08), returning to the idle state.

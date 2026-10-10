@@ -6,6 +6,7 @@
 // the model records both the active and the pending mode. Pure so bounds and the
 // contrast floor are unit-testable.
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
@@ -29,13 +30,18 @@ class ThresholdSettings {
     required double captionScale,
     required Color captionForeground,
     required this.captionBackground,
-    required this.hapticEnabled,
+    required Map<HapticEvent, bool> hapticEnabled,
     required this.strobeEnabled,
     required this.language,
     required this.audibleNoticeEnabled,
   })  : captionScale = captionScale.clamp(kMinCaptionScale, kMaxCaptionScale),
         // The floor is enforced in code so no setting can breach NFR-2 (FR-10.2).
-        captionForeground = enforceContrastFloor(captionForeground, captionBackground);
+        captionForeground = enforceContrastFloor(captionForeground, captionBackground),
+        // Store an unmodifiable copy so the value type cannot be mutated in
+        // place after construction (LOW-06): the map was previously held by
+        // reference, letting a caller mutate "immutable" settings.
+        hapticEnabled =
+            Map<HapticEvent, bool>.unmodifiable(Map<HapticEvent, bool>.from(hapticEnabled));
 
   /// The mode the current/next session uses. The switch applies to the NEXT
   /// session (FR-10.1); [pendingMode] holds a queued change until then.
@@ -72,6 +78,37 @@ class ThresholdSettings {
 
   /// The retention period text (FR-8.5). Dash-free (NFR-10).
   String get retentionLabel => 'Transcripts are kept for $kRetentionDays days, then deleted.';
+
+  /// Value equality (LOW-06): two settings with the same fields are equal, so a
+  /// provider can skip a no-op rebuild and tests can assert settings round-trip
+  /// through persistence unchanged. The haptic map compares by content.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ThresholdSettings &&
+        other.activeMode == activeMode &&
+        other.pendingMode == pendingMode &&
+        other.captionScale == captionScale &&
+        other.captionForeground == captionForeground &&
+        other.captionBackground == captionBackground &&
+        const MapEquality<HapticEvent, bool>().equals(other.hapticEnabled, hapticEnabled) &&
+        other.strobeEnabled == strobeEnabled &&
+        other.language == language &&
+        other.audibleNoticeEnabled == audibleNoticeEnabled;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        activeMode,
+        pendingMode,
+        captionScale,
+        captionForeground,
+        captionBackground,
+        const MapEquality<HapticEvent, bool>().hash(hapticEnabled),
+        strobeEnabled,
+        language,
+        audibleNoticeEnabled,
+      );
 
   ThresholdSettings copyWith({
     CaptionMode? activeMode,
