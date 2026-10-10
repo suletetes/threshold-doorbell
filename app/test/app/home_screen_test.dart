@@ -15,6 +15,8 @@ import 'package:threshold/app/providers.dart';
 import 'package:threshold/captions/language_selection.dart';
 import 'package:threshold/captions/model_provisioning.dart';
 import 'package:threshold/captions/turn_segmentation.dart';
+import 'package:threshold/consent/recording_notice.dart';
+import 'package:threshold/consent/recording_notice_screen.dart';
 import 'package:threshold/design/components/components.dart';
 import 'package:threshold/design/theme.dart';
 import 'package:threshold/design/tokens.dart';
@@ -38,15 +40,31 @@ ModelProvisioningMachine _verifiedProvisioning() {
   return machine;
 }
 
+/// The base device/consent overrides. The consent store is pre-acknowledged by
+/// default (acknowledged: true) so answering the door reaches the session; the
+/// CRIT-06 gate test overrides it with an unacknowledged store to prove the gate
+/// blocks live use.
+List<Override> _overrides({
+  bool consentAcknowledged = true,
+  BedrockSuggestionPort? bedrock,
+  SessionPort? session,
+  ModelProvisioningMachine? provisioning,
+}) =>
+    <Override>[
+      sessionPortProvider.overrideWithValue(session ?? FakeSessionPort()),
+      replyPortProvider.overrideWithValue(FakeReplyPort()),
+      ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
+      bedrockSuggestionPortProvider
+          .overrideWithValue(bedrock ?? FakeBedrockSuggestionPort()),
+      dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+      consentStoreProvider
+          .overrideWithValue(FakeConsentStore(acknowledged: consentAcknowledged)),
+      if (provisioning != null)
+        modelProvisioningProvider.overrideWithValue(provisioning),
+    ];
+
 Widget _host({ModelProvisioningMachine? provisioning}) => ProviderScope(
-      overrides: <Override>[
-        sessionPortProvider.overrideWithValue(FakeSessionPort()),
-        replyPortProvider.overrideWithValue(FakeReplyPort()),
-        ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-        bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
-        dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-        if (provisioning != null) modelProvisioningProvider.overrideWithValue(provisioning),
-      ],
+      overrides: _overrides(provisioning: provisioning),
       child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
     );
 
@@ -165,14 +183,7 @@ void main() {
       final port = FakeSessionPort();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: <Override>[
-            sessionPortProvider.overrideWithValue(port),
-            replyPortProvider.overrideWithValue(FakeReplyPort()),
-            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
-            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-            modelProvisioningProvider.overrideWithValue(_verifiedProvisioning()),
-          ],
+          overrides: _overrides(session: port, provisioning: _verifiedProvisioning()),
           child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
@@ -199,14 +210,7 @@ void main() {
       final port = FakeSessionPort();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: <Override>[
-            sessionPortProvider.overrideWithValue(port),
-            replyPortProvider.overrideWithValue(FakeReplyPort()),
-            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
-            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-            modelProvisioningProvider.overrideWithValue(_verifiedProvisioning()),
-          ],
+          overrides: _overrides(session: port, provisioning: _verifiedProvisioning()),
           child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
@@ -234,13 +238,7 @@ void main() {
       late WidgetRef capturedRef;
       await tester.pumpWidget(
         ProviderScope(
-          overrides: <Override>[
-            sessionPortProvider.overrideWithValue(port),
-            replyPortProvider.overrideWithValue(FakeReplyPort()),
-            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-            bedrockSuggestionPortProvider.overrideWithValue(bedrock),
-            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-          ],
+          overrides: _overrides(session: port, bedrock: bedrock),
           child: MaterialApp(
             theme: ThresholdTheme.light(),
             home: Consumer(builder: (context, ref, _) {
@@ -285,15 +283,9 @@ void main() {
       late WidgetRef capturedRef;
       await tester.pumpWidget(
         ProviderScope(
-          overrides: <Override>[
-            sessionPortProvider.overrideWithValue(port),
-            replyPortProvider.overrideWithValue(FakeReplyPort()),
-            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
-            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-            // Default provisioning: the on device model is NOT verified, so
-            // Privacy Mode is refused.
-          ],
+          // Default provisioning: the on device model is NOT verified, so
+          // Privacy Mode is refused.
+          overrides: _overrides(session: port),
           child: MaterialApp(
             theme: ThresholdTheme.light(),
             home: Consumer(builder: (context, ref, _) {
@@ -318,6 +310,72 @@ void main() {
       expect(find.byType(ConversationScreen), findsOneWidget);
       expect(capturedRef.read(sessionControllerProvider.notifier).mode,
           SessionCaptionMode.clarity);
+    });
+  });
+
+  group('First-run recording-consent gate (CRIT-06, FR-14.1, AT-14)', () {
+    testWidgets('on first run answering shows the notice and blocks the session',
+        (tester) async {
+      final port = FakeSessionPort();
+      await tester.pumpWidget(
+        ProviderScope(
+          // Not acknowledged: the gate must block live use.
+          overrides: _overrides(session: port, consentAcknowledged: false),
+          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+
+      // The one-time notice is shown and the session was NOT started: the gate
+      // blocks live use until acknowledged (FR-14.1). No session connect ran.
+      expect(find.byType(RecordingNoticeScreen), findsOneWidget);
+      expect(find.byType(ConversationScreen), findsNothing);
+      expect(port.connectCalls, 0);
+    });
+
+    testWidgets('acknowledging the notice then unblocks the session',
+        (tester) async {
+      final port = FakeSessionPort();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _overrides(session: port, consentAcknowledged: false),
+          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+      expect(find.byType(RecordingNoticeScreen), findsOneWidget);
+      // The gate blocked the session: no connect yet.
+      expect(port.connectCalls, 0);
+
+      // Acknowledge the notice. The gate is now satisfied and the same answer
+      // flow proceeds straight into the live session.
+      await tester.tap(find.byKey(const ValueKey('recording-notice-ack')));
+      await tester.pumpAndSettle();
+      expect(find.byType(RecordingNoticeScreen), findsNothing);
+      expect(find.byType(ConversationScreen), findsOneWidget);
+      expect(port.connectCalls, 1);
+    });
+
+    testWidgets('a pre-acknowledged resident is never shown the notice',
+        (tester) async {
+      final port = FakeSessionPort();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _overrides(session: port, consentAcknowledged: true),
+          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+      expect(find.byType(RecordingNoticeScreen), findsNothing);
+      expect(find.byType(ConversationScreen), findsOneWidget);
     });
   });
 

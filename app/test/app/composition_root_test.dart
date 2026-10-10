@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/app/home_screen.dart';
 import 'package:threshold/app/providers.dart';
 import 'package:threshold/main.dart';
+import 'package:threshold/consent/recording_notice.dart';
 import 'package:threshold/reply/reply_port.dart';
 import 'package:threshold/reply/suggestion_provider.dart';
 import 'package:threshold/session/captions_only_screen.dart';
@@ -24,6 +25,10 @@ List<Override> _fakeDeviceOverrides({bool probeSucceeds = true}) {
     ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
     bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
     dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+    // Pre-acknowledged consent so these navigation tests exercise the session,
+    // not the first-run recording-notice gate (CRIT-06). The gate itself is
+    // covered in home_screen_test.
+    consentStoreProvider.overrideWithValue(FakeConsentStore(acknowledged: true)),
   ];
 }
 

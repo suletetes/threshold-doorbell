@@ -30,6 +30,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../captions/language_selection.dart';
 import '../captions/turn_segmentation.dart';
+import '../consent/recording_notice.dart';
+import '../consent/recording_notice_screen.dart';
 import '../design/components/components.dart';
 import '../design/tokens.dart';
 import '../reply/reply_bar.dart';
@@ -121,6 +123,28 @@ class HomeScreen extends ConsumerWidget {
   Future<void> _startSession(BuildContext context, WidgetRef ref) async {
     final settings = ref.read(settingsControllerProvider);
     final coordinator = ref.read(sessionStartCoordinatorProvider);
+    final notice = ref.read(recordingNoticeControllerProvider);
+
+    // CRIT-06: enforce the first-run recording-consent gate BEFORE any live use.
+    // Load the persisted acknowledgement, and if it has not been given, show the
+    // one-time notice and block starting a session until the resident
+    // acknowledges it (FR-14.1, AT-14). This was never called before: the gate
+    // and mustAcknowledgeBeforeUse existed but nothing consulted them.
+    await notice.load();
+    if (notice.mustAcknowledgeBeforeUse) {
+      if (!context.mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => RecordingNoticeScreen(
+            controller: notice,
+            onAcknowledged: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+      );
+      // If the resident backed out without acknowledging, do not start a
+      // session: the gate still blocks live use (FR-14.1).
+      if (notice.mustAcknowledgeBeforeUse) return;
+    }
 
     // Promote any pending mode change for the new session (FR-10.1).
     settings.applyPendingModeForNewSession();
@@ -128,12 +152,17 @@ class HomeScreen extends ConsumerWidget {
         ? SessionCaptionMode.privacy
         : SessionCaptionMode.clarity;
 
-    // Consult the model-provisioning gate + recording-notice fallback. The
-    // probe result is not known until connect; resolve conservatively assuming
-    // outbound may be unavailable so the fallback is honored.
-    final plan = coordinator.resolve(
+    // Resolve ONLY the mode gate here (Privacy availability, FR-5.2a). The
+    // recording-notice/compliance decision depends on the real outbound
+    // availability, which is not known until the capability probe runs inside
+    // the session; it is resolved in _SessionHost AFTER the probe (CRIT-06),
+    // not with a hard-coded outboundAvailable: true as before.
+    final modePlan = coordinator.resolve(
       requestedMode: requested,
-      outboundAvailable: true,
+      // Conservative: assume outbound may be unavailable for the mode gate. The
+      // notice action resolved here is discarded; the host re-resolves it with
+      // the probed value.
+      outboundAvailable: false,
     );
 
     if (!context.mounted) return;
@@ -141,14 +170,14 @@ class HomeScreen extends ConsumerWidget {
     // Surface a refused Privacy Mode request instead of silently falling back
     // to Clarity while the badge or expectation says Privacy (MED-14). The
     // session runs in plan.mode (Clarity), and the resident is told why.
-    if (plan.privacyRefused) {
+    if (modePlan.privacyRefused) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           key: const ValueKey('privacy-refused-notice'),
           content: Text(
-            plan.privacyUnavailableLabel.isEmpty
+            modePlan.privacyUnavailableLabel.isEmpty
                 ? 'Privacy Mode is not ready yet. Starting in Clarity Mode.'
-                : plan.privacyUnavailableLabel,
+                : modePlan.privacyUnavailableLabel,
           ),
         ),
       );
@@ -161,7 +190,7 @@ class HomeScreen extends ConsumerWidget {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _SessionHost(
-          mode: plan.mode,
+          mode: modePlan.mode,
           deviceId: kDefaultDeviceId,
         ),
       ),
@@ -212,6 +241,11 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
   /// re-request on every unrelated notification (FR-7.1a, MED-13).
   String? _suggestionsForText;
 
+  /// True once the recording-notice/compliance decision has been resolved for
+  /// this session using the real probe result (CRIT-06). Resolved exactly once,
+  /// after the probe, so the hard-coded outboundAvailable:true is gone.
+  bool _complianceResolved = false;
+
   @override
   void initState() {
     super.initState();
@@ -228,9 +262,63 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
       // A session is already active (concurrency rule, FR-4.6/4.7): the open was
       // refused. Do not re-show a stale session; leave the host (MED-14).
       if (mounted) _leave();
+      return;
     }
     // Any connect/probe failure is recorded as ERROR in the controller snapshot
     // and rendered by the screen; it is not swallowed here (HIGH-04).
+
+    // CRIT-06: the probe has now run, so the real outbound availability is
+    // known. Resolve the recording-notice / compliance-fallback decision with
+    // that real value (not the old hard-coded outboundAvailable: true) and
+    // honour it: prompt the compliance fallback when required, and disable
+    // transcription for the session when the resolved action says so.
+    if (mounted) await _resolveComplianceAfterProbe();
+  }
+
+  /// Resolve and honour the FR-14.3a recording-notice action for this session
+  /// using the probed outbound availability (CRIT-06). Runs once.
+  Future<void> _resolveComplianceAfterProbe() async {
+    if (_complianceResolved) return;
+    final controller = ref.read(sessionControllerProvider);
+    // Only resolve once the session actually reached a live state (the probe
+    // ran). A failed connect/probe that ended in error or captions-only still
+    // has a known outbound value; a connect failure (error) has no session to
+    // transcribe, so skip it.
+    if (controller.state == SessionState.error ||
+        controller.state == SessionState.idle) {
+      return;
+    }
+    _complianceResolved = true;
+
+    final coordinator = ref.read(sessionStartCoordinatorProvider);
+    final requested = widget.mode;
+    final plan = coordinator.resolve(
+      requestedMode: requested,
+      outboundAvailable: controller.outboundAvailable,
+    );
+
+    // The resolved default already disables transcription or continues; honour
+    // it directly (FR-14.3a).
+    if (plan.transcriptionDisabled) {
+      controller.transcriptionAllowed = false;
+      return;
+    }
+
+    // The resident must be prompted (audible notice enabled, outbound
+    // unavailable, no remembered default): show the compliance fallback dialog
+    // and honour the returned choice (MED-06 returns a result).
+    if (plan.mustPromptComplianceFallback) {
+      if (!mounted) return;
+      final notice = ref.read(recordingNoticeControllerProvider);
+      final choice = await showDialog<ComplianceChoice>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ComplianceFallbackDialog(controller: notice),
+      );
+      if (choice == ComplianceChoice.disableTranscription) {
+        controller.transcriptionAllowed = false;
+      }
+    }
   }
 
   /// End the session and leave the host route. Called from both the system back

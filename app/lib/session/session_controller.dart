@@ -98,12 +98,30 @@ class SessionController extends ChangeNotifier {
   /// When null, every caption is transcribed.
   bool Function()? shouldTranscribe;
 
+  /// Whether transcription is permitted for this session at all (FR-14.3a,
+  /// CRIT-06). Set false by the compliance fallback when the resident chose to
+  /// disable transcription for a session whose audible door notice could not be
+  /// played. While false, [ingestCaption] drops every result so no visitor
+  /// speech is transcribed, independent of the echo gate.
+  bool _transcriptionAllowed = true;
+  bool get transcriptionAllowed => _transcriptionAllowed;
+  set transcriptionAllowed(bool value) {
+    if (_transcriptionAllowed == value) return;
+    _transcriptionAllowed = value;
+    notifyListeners();
+  }
+
   /// Ingest a caption result from the ASR/on-device pipeline (Clarity via
   /// /asr/stream, Privacy via the on-device engine). Dropped while the echo gate
   /// is closed (FR-5.6). Otherwise extends or starts a turn per the tested
   /// segmentation rules and notifies listeners so the caption surface repaints
   /// (FR-5.5, FR-5.7; AT-4).
   void ingestCaption(CaptionResult result) {
+    if (!_transcriptionAllowed) {
+      // The compliance fallback disabled transcription for this session: do not
+      // transcribe any visitor speech (FR-14.3a, CRIT-06).
+      return;
+    }
     if (shouldTranscribe != null && !shouldTranscribe!()) {
       // The echo gate is closed: our reply is playing, so this inbound audio is
       // our own synthesized speech returning on the doorbell mic (FR-5.6).
@@ -163,6 +181,7 @@ class SessionController extends ChangeNotifier {
     _media = null;
     _outbound = OutboundModeMachine(); // fresh: re-probe from scratch (FR-6.4b)
     _captions = TurnAccumulator(); // fresh caption turns for the new session
+    _transcriptionAllowed = true; // re-evaluate the FR-14.3a fallback per session
     _queued.clear();
     _sameDeviceHapticReplays = 0;
 
