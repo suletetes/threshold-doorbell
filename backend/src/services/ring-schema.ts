@@ -99,6 +99,11 @@ export interface ParsedTokens {
   expiresAt: string;
 }
 
+// MED-31: an upper bound on a plausible token lifetime (10 years in seconds).
+// A larger expires_in is treated as contract drift rather than used to build an
+// out-of-range Date.
+const MAX_EXPIRES_IN_SECONDS = 10 * 365 * 24 * 60 * 60;
+
 /** Validate a Ring OAuth token response; throws code_exchange_failed on drift. */
 export function parseTokenResponse(doc: unknown): ParsedTokens {
   if (!isObject(doc)) throw errors.codeExchangeFailed();
@@ -109,7 +114,24 @@ export function parseTokenResponse(doc: unknown): ParsedTokens {
   if (typeof raw.refresh_token !== 'string' || raw.refresh_token === '') {
     throw errors.codeExchangeFailed();
   }
-  const expiresIn = typeof raw.expires_in === 'number' ? raw.expires_in : 3600;
+  // MED-31: validate expires_in. A missing value defaults to 1 hour. A present
+  // value must be a finite, positive, reasonable number of seconds; otherwise
+  // the response is treated as drift. This prevents expires_in: 1e300 from
+  // producing an out-of-range Date (RangeError Invalid time value) that would
+  // surface as an unlogged 500, and rejects a negative value instead of
+  // minting an already-expired token.
+  let expiresIn = 3600;
+  if (raw.expires_in !== undefined && raw.expires_in !== null) {
+    if (
+      typeof raw.expires_in !== 'number' ||
+      !Number.isFinite(raw.expires_in) ||
+      raw.expires_in <= 0 ||
+      raw.expires_in > MAX_EXPIRES_IN_SECONDS
+    ) {
+      throw errors.codeExchangeFailed();
+    }
+    expiresIn = raw.expires_in;
+  }
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
   return {
     accessToken: raw.access_token,

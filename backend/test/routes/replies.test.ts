@@ -79,6 +79,35 @@ describe('POST /replies (Task 10, AT-7)', () => {
     expect(res.json().suggestions.length).toBeGreaterThan(0);
   });
 
+  it('rejects a mode other than clarity or privacy with 400 (MED-24)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    for (const mode of ['Privacy', 'PRIVACY', 'private', 'Clarity', 'x']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/replies',
+        headers: auth(t.config.sessionSecret),
+        payload: { visitorText: 'hello', mode },
+      });
+      expect(res.statusCode, `mode=${mode}`).toBe(400);
+      expect(res.json().error.code).toBe('schema');
+    }
+  });
+
+  it('defaults a missing mode to privacy and never calls Bedrock (MED-24 fail-closed)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    t.bedrock.setError(); // would throw if Bedrock were called
+    const res = await app.inject({
+      method: 'POST',
+      url: '/replies',
+      headers: auth(t.config.sessionSecret),
+      payload: { visitorText: 'anything' }, // no mode
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestions).toEqual(FIXED_SAFE_REPLIES.map((x) => x));
+  });
+
   it('rejects non-string visitorText (FR-7.4 text-only)', async () => {
     const t = await buildTestApp();
     app = t.app;

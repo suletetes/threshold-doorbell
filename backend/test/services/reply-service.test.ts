@@ -34,6 +34,22 @@ describe('ReplyService (Task 10, FR-7)', () => {
     expect(Date.now() - start).toBeLessThan(1000);
   });
 
+  it('times out via Promise.race even when the adapter ignores abort (MED-37)', async () => {
+    // An adapter that never resolves and never honours the abort signal. The 2 s
+    // budget must still hold because the service races against a timer.
+    const ignoresAbort: BedrockPort = {
+      suggest(): Promise<string[]> {
+        return new Promise<string[]>(() => {}); // never resolves, ignores signal
+      },
+    };
+    const svc = new ReplyService(ignoresAbort, 30); // short timeout for the test
+    const start = Date.now();
+    const res = await svc.suggest({ visitorText: 'hi', language: 'en-US' });
+    expect(res.fallback).toBe(true);
+    expect(res.suggestions.length).toBe(3);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+
   it('caps at 3 and de-dupes suggestions (FR-7.1)', async () => {
     const many: BedrockPort = {
       async suggest(_req: SmartReplyRequest): Promise<string[]> {

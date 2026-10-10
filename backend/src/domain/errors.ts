@@ -14,6 +14,7 @@ export type ErrorCode =
   | 'schema'
   | 'resident_mismatch'
   | 'not_found'
+  | 'conflict'
   | 'internal';
 
 export interface ErrorEnvelope {
@@ -60,5 +61,6 @@ export const errors = {
   residentMismatch: () =>
     new AppError('resident_mismatch', 403, 'You can only access your own data.'),
   notFound: (message = 'Not found.') => new AppError('not_found', 404, message),
+  conflict: (message = 'That record already exists.') => new AppError('conflict', 409, message),
   internal: () => new AppError('internal', 500, 'Something went wrong. Please try again.'),
 };

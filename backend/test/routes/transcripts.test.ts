@@ -84,6 +84,72 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     expect(res.json().error.code).toBe('resident_mismatch');
   });
 
+  it('rejects a re-post of an existing conversationId with 409 (MED-28)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const first = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, conversationId: 'fixed-id', turns: body.turns },
+    });
+    expect(first.statusCode).toBe(201);
+    const second = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: {
+        ...body,
+        conversationId: 'fixed-id',
+        turns: [{ speaker: 'visitor', text: 'OVERWRITTEN', source: 'transcribe', confidence: 0.9 }],
+      },
+    });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error.code).toBe('conflict');
+    // The original turns are intact (not overwritten).
+    const stored = await t.conversationStore.get(SUB, 'fixed-id');
+    expect(stored!.turns[0]!.text).toBe('package delivery');
+  });
+
+  it('includes same-day results for a date-only "to" filter (MED-27)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // A transcript started today at a non-midnight time.
+    const today = new Date();
+    const yyyyMmDd = today.toISOString().slice(0, 10);
+    const startedAt = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 14, 30, 0),
+    ).toISOString();
+    const create = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, startedAt },
+    });
+    expect(create.statusCode).toBe(201);
+    // Lexical ISO comparison would drop this (startedAt > 'YYYY-MM-DD'); the
+    // instant-based filter with end-of-day widening must include it.
+    const res = await app.inject({
+      method: 'GET',
+      url: `/transcripts?from=${yyyyMmDd}&to=${yyyyMmDd}`,
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.length).toBe(1);
+  });
+
+  it('rejects an unparseable date filter with 400 (MED-27)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'GET',
+      url: '/transcripts?from=not-a-date',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
+  });
+
   it('rejects a schema-invalid body with 400', async () => {
     const t = await buildTestApp();
     app = t.app;

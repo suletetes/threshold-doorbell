@@ -25,12 +25,25 @@ export async function registerReplyRoutes(app: FastifyInstance): Promise<void> {
 
       const visitorText = typeof body.visitorText === 'string' ? body.visitorText : '';
       const language = typeof body.language === 'string' && body.language !== '' ? body.language : 'en-US';
-      const mode = body.mode === 'privacy' ? 'privacy' : 'clarity';
 
       // FR-7.4: reject anything that is not text (defensive; the schema only
       // accepts text fields, but a caller must never smuggle binary here).
       if (body.visitorText !== undefined && typeof body.visitorText !== 'string') {
         throw errors.schema('visitorText must be a string.');
+      }
+
+      // MED-24: Privacy Mode must FAIL CLOSED. Accept exactly 'clarity' or
+      // 'privacy'; a missing mode defaults to the safe choice (privacy); any
+      // other value (for example 'Privacy', 'PRIVACY', 'private') is a 400
+      // rather than silently falling through to Clarity Mode and sending
+      // visitor speech to Bedrock while the user believes Privacy Mode is on.
+      let mode: 'clarity' | 'privacy';
+      if (body.mode === undefined || body.mode === null) {
+        mode = 'privacy';
+      } else if (body.mode === 'clarity' || body.mode === 'privacy') {
+        mode = body.mode;
+      } else {
+        throw errors.schema("mode must be 'clarity' or 'privacy'.");
       }
 
       // FR-7.1a: Privacy Mode never calls Bedrock and never sends text off-device.

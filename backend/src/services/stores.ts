@@ -41,8 +41,11 @@ export interface EventStorePort {
 // --- Conversation store (Task 9, FR-8) ---
 export interface ConversationQuery {
   query?: string; // free-text search over turn text
-  from?: string; // ISO date lower bound (inclusive), matched on startedAt
-  to?: string; // ISO date upper bound (inclusive), matched on startedAt
+  // MED-27: inclusive bounds as epoch ms, parsed and validated by the service so
+  // the store compares instants (not ISO strings lexically). A date-only `to`
+  // is widened to end-of-day by the service before it reaches the store.
+  fromMs?: number; // lower bound (inclusive), matched on startedAt instant
+  toMs?: number; // upper bound (inclusive), matched on startedAt instant
 }
 
 export interface ConversationStorePort {

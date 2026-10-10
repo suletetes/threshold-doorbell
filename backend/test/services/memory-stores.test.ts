@@ -137,8 +137,8 @@ describe('MemoryConversationStore', () => {
     const byQuery = await store.listOrdered('resident-a', { query: 'package' });
     expect(byQuery.map((c) => c.conversationId)).toEqual(['c2']);
     const byDate = await store.listOrdered('resident-a', {
-      from: '2026-01-15T00:00:00.000Z',
-      to: '2026-03-01T00:00:00.000Z',
+      fromMs: Date.parse('2026-01-15T00:00:00.000Z'),
+      toMs: Date.parse('2026-03-01T00:00:00.000Z'),
     });
     expect(byDate.map((c) => c.conversationId)).toEqual(['c2']);
   });

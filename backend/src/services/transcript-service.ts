@@ -35,10 +35,38 @@ export interface ErasureDeps {
 
 export const RETENTION_DAYS = 90;
 const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+// Allowance for client/server clock skew when rejecting a future startedAt (MED-26).
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 const SPEAKERS: readonly Speaker[] = ['visitor', 'resident'];
 const SOURCES: readonly TurnSource[] = ['transcribe', 'ondevice', 'template', 'freetext'];
 const MODES: readonly CaptionMode[] = ['clarity', 'privacy'];
+
+/** Raw list filter from the query string (MED-27: parsed/validated here). */
+export interface TranscriptListFilter {
+  query?: string;
+  from?: string;
+  to?: string;
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Parse a date-filter bound to epoch ms (MED-27). A full ISO timestamp is used
+ * as-is. A date-only value (YYYY-MM-DD) is anchored to the start of that UTC day
+ * for a lower bound and widened to the END of that day for an upper bound, so a
+ * same-day transcript is inclusive. Returns null for an unparseable value.
+ */
+function parseDateBound(value: string, edge: 'start' | 'end'): number | null {
+  if (DATE_ONLY.test(value)) {
+    const startOfDay = Date.parse(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(startOfDay)) return null;
+    return edge === 'end' ? startOfDay + DAY_MS - 1 : startOfDay;
+  }
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
 
 // The shape a client may submit to POST /transcripts. residentSub is NOT part of
 // the accepted input; if present and conflicting, the request is rejected 403.
@@ -103,6 +131,9 @@ export class TranscriptService {
     private readonly store: ConversationStorePort,
     private readonly tokens: TokenStorePort,
     private readonly erasure: ErasureDeps = {},
+    // MED-26: injectable clock so the server receive time (not the client
+    // startedAt) anchors the retention TTL, and so tests can pin "now".
+    private readonly now: () => number = () => Date.now(),
   ) {}
 
   /**
@@ -139,12 +170,20 @@ export class TranscriptService {
     if (typeof input.language !== 'string' || input.language === '') {
       throw errors.schema('Missing language.');
     }
+    const receivedMs = this.now();
     const startedAt =
       typeof input.startedAt === 'string' && input.startedAt !== ''
         ? input.startedAt
-        : new Date().toISOString();
+        : new Date(receivedMs).toISOString();
     const startedMs = Date.parse(startedAt);
     if (!Number.isFinite(startedMs)) throw errors.schema('Invalid startedAt.');
+    // MED-26: reject a future startedAt (with a small clock-skew allowance) so a
+    // client cannot push the retention window out. The 90-day TTL is computed
+    // from the SERVER receive time, not from the client-supplied startedAt, so
+    // the retention floor (FR-8.5) cannot be bypassed with startedAt=9999-01-01.
+    if (startedMs > receivedMs + CLOCK_SKEW_MS) {
+      throw errors.schema('startedAt cannot be in the future.');
+    }
 
     const endedAt =
       typeof input.endedAt === 'string' && input.endedAt !== '' ? input.endedAt : null;
@@ -168,18 +207,50 @@ export class TranscriptService {
       outboundAvailable: input.outboundAvailable === true,
       language: input.language,
       turns,
-      expiresAt: new Date(startedMs + RETENTION_MS).toISOString(),
+      // MED-26: TTL anchored to the server receive time (FR-8.5), never to the
+      // client-controlled startedAt.
+      expiresAt: new Date(receivedMs + RETENTION_MS).toISOString(),
     };
   }
 
   async create(input: TranscriptCreateInput, residentSub: string): Promise<string> {
     const conversation = this.buildConversation(input, residentSub);
+    // MED-28: a POST must not silently overwrite existing data. When the client
+    // supplied a conversationId that already exists for this resident, reject
+    // with 409 instead of replacing the stored turns. A server-generated id (the
+    // default when none is supplied) never collides, so a well-behaved client is
+    // unaffected.
+    const clientSuppliedId =
+      typeof input.conversationId === 'string' && input.conversationId !== '';
+    if (clientSuppliedId) {
+      const existing = await this.store.get(residentSub, conversation.conversationId);
+      if (existing !== null) {
+        throw errors.conflict('A transcript with that id already exists.');
+      }
+    }
     await this.store.create(conversation);
     return conversation.conversationId;
   }
 
-  async list(residentSub: string, filter: ConversationQuery): Promise<Conversation[]> {
-    return this.store.listOrdered(residentSub, filter);
+  /**
+   * List transcripts for a resident. MED-27: `from`/`to` are parsed to epoch
+   * bounds here (not compared as ISO strings in the store); an unparseable
+   * value is a 400, and a date-only `to` is widened to the end of that day so a
+   * same-day transcript is inclusive.
+   */
+  async list(residentSub: string, filter: TranscriptListFilter): Promise<Conversation[]> {
+    const query: ConversationQuery = { query: filter.query };
+    if (filter.from !== undefined && filter.from !== '') {
+      const fromMs = parseDateBound(filter.from, 'start');
+      if (fromMs === null) throw errors.schema('Invalid "from" date.');
+      query.fromMs = fromMs;
+    }
+    if (filter.to !== undefined && filter.to !== '') {
+      const toMs = parseDateBound(filter.to, 'end');
+      if (toMs === null) throw errors.schema('Invalid "to" date.');
+      query.toMs = toMs;
+    }
+    return this.store.listOrdered(residentSub, query);
   }
 
   async get(residentSub: string, conversationId: string): Promise<Conversation | null> {

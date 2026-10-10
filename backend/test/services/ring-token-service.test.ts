@@ -97,6 +97,39 @@ describe('RingTokenService', () => {
     expect(await store.get('resident-a')).toBeNull();
   });
 
+  it('maps a decrypt failure on the access token to refresh_failed, not a 500 (MED-31)', async () => {
+    const { store, svc } = build();
+    // Store a record whose ciphertext cannot be decrypted (not near expiry so
+    // the non-refresh decrypt path runs).
+    await store.put({
+      residentSub: 'resident-a',
+      accessTokenEnc: 'not-valid-ciphertext',
+      refreshTokenEnc: 'not-valid-ciphertext',
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+    await expect(svc.getAccessToken('resident-a')).rejects.toMatchObject({
+      code: 'refresh_failed',
+    });
+  });
+
+  it('coalesces concurrent refreshes per resident into one (MED-31 single-flight)', async () => {
+    const { ring, svc } = build();
+    await svc.persist('resident-a', {
+      accessToken: 'plain-access',
+      refreshToken: 'plain-refresh',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(), // within skew -> refresh
+    });
+    // Fire several concurrent getAccessToken calls; only one upstream refresh
+    // should occur, so a token rotation cannot log the others out.
+    const results = await Promise.all([
+      svc.getAccessToken('resident-a'),
+      svc.getAccessToken('resident-a'),
+      svc.getAccessToken('resident-a'),
+    ]);
+    expect(new Set(results).size).toBe(1); // all callers get the same fresh token
+    expect(ring.refreshInvocations).toBe(1);
+  });
+
   it('does not refresh a second time when the retried call still fails non-401', async () => {
     const { ring, svc } = build();
     await svc.persist('resident-a', {

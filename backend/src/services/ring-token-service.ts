@@ -14,6 +14,12 @@ import type { TokenStorePort } from './stores.js';
 const REFRESH_SKEW_MS = 120 * 1000; // refresh within 120 s of expiry (FR-1.4)
 
 export class RingTokenService {
+  // MED-31: single-flight refresh per resident. Concurrent callers that both
+  // need a refresh share one in-flight refresh instead of each spending the
+  // refresh token; a refresh-token rotation then cannot log the other caller
+  // out by invalidating the token it was about to use.
+  private readonly refreshInFlight = new Map<string, Promise<string>>();
+
   constructor(
     private readonly ring: RingPort,
     private readonly store: TokenStorePort,
@@ -49,7 +55,13 @@ export class RingTokenService {
     const expiresMs = Date.parse(record.expiresAt);
     const nearExpiry = Number.isFinite(expiresMs) && expiresMs - now <= REFRESH_SKEW_MS;
     if (!nearExpiry) {
-      return this.crypto.decrypt(record.accessTokenEnc);
+      // MED-31: a decrypt failure here must surface as refresh_failed (the
+      // unified recovery signal), not as an unlogged 500.
+      try {
+        return await this.crypto.decrypt(record.accessTokenEnc);
+      } catch {
+        throw errors.refreshFailed();
+      }
     }
     // Proactive refresh.
     return this.refreshAndStore(residentSub, record);
@@ -81,6 +93,18 @@ export class RingTokenService {
     residentSub: string,
     record: RingTokenRecord,
   ): Promise<string> {
+    // MED-31: coalesce concurrent refreshes for the same resident so the
+    // refresh token is spent at most once per burst.
+    const existing = this.refreshInFlight.get(residentSub);
+    if (existing) return existing;
+    const run = this.doRefresh(residentSub, record).finally(() => {
+      this.refreshInFlight.delete(residentSub);
+    });
+    this.refreshInFlight.set(residentSub, run);
+    return run;
+  }
+
+  private async doRefresh(residentSub: string, record: RingTokenRecord): Promise<string> {
     let refreshToken: string;
     try {
       refreshToken = await this.crypto.decrypt(record.refreshTokenEnc);
