@@ -51,8 +51,9 @@ door. Not one of them tells her what they want."
 4. Three smart replies appear. Tap **"Please leave it at the door."**
 5. The reply bar shows "speaking at your door" and the doorbell speaks the reply
    aloud. The visitor answers, and captions continue.
-6. Flip the **Privacy Mode** toggle, cut the network, and show captions still
-   streaming on-device.
+6. End the session. In Settings, enable **Privacy Mode**; it applies to the next
+   session (FR-10.1). Start a fresh session, cut the network, and show captions
+   still streaming on-device, with the mode badge reading Privacy.
 
 **VO:**
 "A visitor arrives. Her phone does not chime, it buzzes with a pattern she knows
@@ -65,8 +66,9 @@ uncertain words marked uncertain so a guess is never dressed up as fact."
 doorbell, and he hears it out loud. He answers. She reads that too. That is a
 complete two-way conversation, and no one had to hear a thing."
 
-"And if she does not want a word of it leaving her phone, Privacy Mode runs the
-entire speech pipeline on the handset. Watch: network off, still captioning."
+"And if she does not want a word of it leaving her phone, she switches on Privacy
+Mode for her next visitor. It runs the entire speech pipeline on the handset.
+Watch: network off, still captioning."
 
 ---
 

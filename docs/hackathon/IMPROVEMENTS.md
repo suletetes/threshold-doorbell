@@ -1,5 +1,10 @@
 # Threshold — Prioritized Improvements
 
+> **Historical and superseded (as of 2026-10-10).** This is an early strategy document and no longer
+> reflects the current plan. The authoritative source of truth is `.kiro/specs/threshold-doorbell/`.
+> In particular, the Tier 1.2 "visitor-facing on-screen/tap flow" fallback below was ruled out by
+> `tasks.md` task 17 (N9, no visitor-facing prompt). Read this for context only.
+
 *What actually moves win probability, ranked by leverage — not by how impressive it sounds. Amazon
 Developer Hackathon 2026 · Ring track · Flutter.*
 

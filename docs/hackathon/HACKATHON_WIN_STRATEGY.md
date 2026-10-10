@@ -1,5 +1,13 @@
 # Hackathon Win Strategy — Threshold (threshold-doorbell)
 
+> **Historical and superseded (as of 2026-10-10).** This is an early strategy document and no longer
+> reflects the current state of the repo. The authoritative source of truth is
+> `.kiro/specs/threshold-doorbell/`. In particular, the section 2 "Current project autopsy" below is
+> stale: it describes `app/lib/main.dart` as a placeholder, references an `audio_spike.dart` file that no
+> longer exists, and claims "~0 lines" of functional code. The repo now contains tested product logic and
+> fixtures (though the device, cloud and Ring adapters are still not implemented). Read this for context
+> only.
+
 *Ruthless stick-or-change evaluation. Amazon Developer Hackathon 2026 · Ring track · Flutter.
 Prepared with caveman-density analysis; rendered as prose because it is a document for humans.*
 

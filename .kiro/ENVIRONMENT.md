@@ -6,18 +6,22 @@ Verified toolchain for building and testing Threshold in this workspace.
 
 | Tool | Version | Manager | Status |
 |---|---|---|---|
-| Flutter | 3.38.10 (stable) | mise (global) | `flutter test` runs green |
+| Flutter | 3.38.10 (stable) | git clone at `/opt/flutter` | `flutter test` runs green |
 | Dart | 3.10.9 | bundled with Flutter | working |
 | Node.js | 20.20.2 (also 22, 24) | nvm | use 20 for backend |
 | npm | 11.4.2 | nvm | working |
+| Android SDK | platform-36, build-tools 36.0.0 | `/opt/android-sdk` | `flutter build apk` succeeds; no emulator (no KVM) |
+| Java | 17 (OpenJDK) | mise `java@17.0.2` | used for the Android build |
 
 Flutter meets the spec floor (>= 3.24). Dart meets the floor (>= 3.4).
 
 ## Activation (run at the start of every shell)
 
 ```bash
-# Flutter + Dart (via mise, installed globally)
-export PATH="$(mise where flutter)/bin:$PATH"
+# Flutter + Dart (git clone at /opt/flutter) and the Android build toolchain
+export PATH="/opt/flutter/bin:$(mise where java@17.0.2)/bin:/opt/android-sdk/platform-tools:$PATH"
+export JAVA_HOME="$(mise where java@17.0.2)"
+export ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk
 export FLUTTER_GIT_URL="https://github.com/flutter/flutter.git"
 export FLUTTER_SUPPRESS_ANALYTICS=true
 
@@ -29,10 +33,12 @@ export NVM_DIR="/root/.nvm"; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm use 20 >/d
 
 - Flutter prints a non-fatal "running as root" warning. It does not block `flutter test`,
   `flutter analyze`, `flutter pub get`, or compilation. It is cosmetic here.
-- **No Android SDK / no emulator / no iOS toolchain.** Therefore:
+- **Android SDK present; no emulator (no KVM); no iOS toolchain (no macOS, no `app/ios/` project).**
+  Therefore:
   - `flutter test` (unit + widget tests): WORKS. This is the primary verification gate.
   - `flutter analyze`, `flutter pub get`, `dart format`: WORK.
-  - `flutter build apk` / `flutter run` on a device or emulator: NOT AVAILABLE here. Device/emulator
+  - `flutter build apk`: WORKS (the Android SDK at `/opt/android-sdk` is installed and licensed).
+  - `flutter run` on a device or emulator: NOT AVAILABLE here (no KVM, so no emulator). On-device
     verification happens on the developer's machine.
   - Anything requiring a live Ring WebRTC session or a physical/simulated Ring device (task 2, the
     outbound-audio spike, and any integration that opens a real session): NOT AVAILABLE here; requires a
