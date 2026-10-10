@@ -33,11 +33,32 @@ export class SessionAlreadyActiveError extends Error {
   }
 }
 
+/** Raised when a resident requests a session for a device they do not own (HIGH-20). */
+export class DeviceNotAuthorizedError extends Error {
+  constructor() {
+    super('That device is not registered to this resident.');
+    this.name = 'DeviceNotAuthorizedError';
+  }
+}
+
+/**
+ * Collaborators the broker needs to authorize a session: a per-resident access
+ * token source (so the Ring relay uses the resident's own grant) and an
+ * ownership check for the target device (HIGH-20).
+ */
+export interface SignalingAuthz {
+  /** Run a function with the resident's Ring access token (refresh-once applies). */
+  withAccessToken<T>(residentSub: string, call: (accessToken: string) => Promise<T>): Promise<T>;
+  /** True when `deviceId` belongs to `residentSub`. */
+  ownsDevice(residentSub: string, deviceId: string): Promise<boolean>;
+}
+
 export class SignalingService {
   private readonly active = new Map<string, ActiveSession>();
 
   constructor(
     private readonly signaling: RingSignalingPort,
+    private readonly authz: SignalingAuthz,
     private readonly maxSessionMs: number = MAX_SESSION_MS,
   ) {}
 
@@ -66,6 +87,12 @@ export class SignalingService {
     if (this.active.has(residentSub)) {
       throw new SessionAlreadyActiveError();
     }
+    // HIGH-20: a resident may only open a session for a device they own. The
+    // ownership check runs BEFORE the slot is reserved so an unauthorized
+    // request neither reserves nor touches the incumbent.
+    if (!(await this.authz.ownsDevice(residentSub, deviceId))) {
+      throw new DeviceNotAuthorizedError();
+    }
     // Reserve the slot before the async relay so two racing opens cannot both
     // pass the check. A relay failure below frees it again. A TTL timer force
     // releases the slot if the session outlives its maximum duration, so a
@@ -77,7 +104,11 @@ export class SignalingService {
     if (typeof ttl.unref === 'function') ttl.unref();
     this.active.set(residentSub, { residentSub, deviceId, sessionUrl: '', ttl });
     try {
-      const handle = await this.signaling.startSession({ sdpOffer, deviceId });
+      // HIGH-20: open through the resident's own Ring grant; the access token is
+      // threaded into the relay call rather than opening for an arbitrary device.
+      const handle = await this.authz.withAccessToken(residentSub, (accessToken) =>
+        this.signaling.startSession({ sdpOffer, deviceId, accessToken }),
+      );
       const current = this.active.get(residentSub);
       // If the slot was released while the relay was in flight (close during
       // handshake), release the freshly issued Ring URL and do not re-reserve.

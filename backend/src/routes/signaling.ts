@@ -18,7 +18,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
 import { SESSION_COOKIE, verifySession, type SessionClaims } from '../security/session.js';
-import { SessionAlreadyActiveError, SignalingService } from '../services/signaling-service.js';
+import {
+  DeviceNotAuthorizedError,
+  SessionAlreadyActiveError,
+  SignalingService,
+} from '../services/signaling-service.js';
 
 /** Close codes used by the signaling broker (design.md §4). */
 export const SIGNALING_CLOSE = {
@@ -37,7 +41,15 @@ interface OfferMessage {
 }
 
 export async function registerSignalingRoutes(app: FastifyInstance): Promise<void> {
-  const service = new SignalingService(app.container.ringSignaling);
+  const service = new SignalingService(app.container.ringSignaling, {
+    withAccessToken: (residentSub, call) =>
+      app.container.ringTokens.withAccessToken(residentSub, call),
+    // A device belongs to a resident when the server-side device->account
+    // mapping (populated from the resident's Ring device list) resolves to them
+    // (HIGH-20). An unmapped or foreign device is rejected.
+    ownsDevice: async (residentSub, deviceId) =>
+      (await app.container.deviceAccountStore.resolve(deviceId)) === residentSub,
+  });
   // Expose for tests and for other routes that must know the single-session state.
   app.decorate('signalingService', service);
 
@@ -153,6 +165,17 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
             message: 'A live session is already active.',
           });
           socket.close(SIGNALING_CLOSE.sessionAlreadyActive, 'session_already_active');
+          return;
+        }
+        if (err instanceof DeviceNotAuthorizedError) {
+          // HIGH-20: the resident does not own this device. Reject with the
+          // unauthorized close code; the incumbent (if any) is untouched.
+          safeSend(socket, {
+            type: 'error',
+            code: 'unauthorized',
+            message: "That doorbell isn't on your account.",
+          });
+          socket.close(SIGNALING_CLOSE.unauthorized, 'device_not_authorized');
           return;
         }
         // Ring relay failure: surface a connect error (FR-4.4) and close normally.
