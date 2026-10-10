@@ -66,6 +66,30 @@ void main() {
       await port.dispose();
     });
 
+    testWidgets('the auth-recovery modal blocks semantics behind it (MED-05)', (tester) async {
+      final port = FakeSessionPort();
+      final c = SessionController(port: port);
+      await c.open(deviceId: 'dev-1');
+      c.beginAuthRecovery();
+      await tester.pumpWidget(
+        MaterialApp(home: ConversationScreen(controller: c, authPort: FakeAuthPort())),
+      );
+      await tester.pump();
+      // A BlockSemantics wraps the modal so a screen reader cannot reach the
+      // End / Reply controls underneath it (MED-05). The auth-recovery prompt
+      // card is a descendant of a BlockSemantics.
+      expect(find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('auth-recovery-prompt')),
+          matching: find.byType(BlockSemantics),
+        ),
+        findsOneWidget,
+      );
+      c.dispose();
+      await port.dispose();
+    });
+
     testWidgets('sign in resumes only after a verified token (AT-12, HIGH-09)', (tester) async {
       final port = FakeSessionPort();
       final auth = FakeAuthPort(plan: <AuthResult>[AuthResult.verified]);

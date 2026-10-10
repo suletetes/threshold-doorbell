@@ -131,7 +131,8 @@ class ConversationScreen extends StatelessWidget {
       data: mediaSurfaceTheme(),
       child: AnimatedBuilder(
         animation: controller,
-        builder: (context, _) => _buildForSnapshot(context, controller.snapshot),
+        builder: (context, _) =>
+            _buildForSnapshot(context, controller.snapshot),
       ),
     );
   }
@@ -191,14 +192,16 @@ class ConversationScreen extends StatelessWidget {
       // StackFit.expand, unlike the default loose layout builder, keeps the
       // panels filling the overlay area exactly as they did before the switcher
       // was introduced.
-      layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) => Stack(
+      layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) =>
+          Stack(
         fit: StackFit.expand,
         children: <Widget>[
           ...previousChildren,
           if (currentChild != null) currentChild,
         ],
       ),
-      transitionBuilder: (Widget child, Animation<double> animation) => FadeTransition(
+      transitionBuilder: (Widget child, Animation<double> animation) =>
+          FadeTransition(
         opacity: animation,
         child: SlideTransition(
           position: Tween<Offset>(
@@ -234,7 +237,8 @@ class ConversationScreen extends StatelessWidget {
         return const _StatusPanel(
           key: ValueKey('status-reconnecting'),
           message: 'Reconnecting to your doorbell',
-          supportingText: 'Your captions continue as soon as the connection is back.',
+          supportingText:
+              'Your captions continue as soon as the connection is back.',
           showSpinner: true,
           showCaptionPreview: true,
         );
@@ -242,7 +246,8 @@ class ConversationScreen extends StatelessWidget {
         return const _StatusPanel(
           key: ValueKey('status-backgrounded'),
           message: 'Session paused. It stays ready for up to five minutes.',
-          supportingText: 'Come back to this screen to pick up where you left off.',
+          supportingText:
+              'Come back to this screen to pick up where you left off.',
           icon: Icons.pause_circle_outline,
           showSpinner: false,
         );
@@ -305,7 +310,8 @@ class _LiveOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return isLandscape ? _landscape(context) : _portrait(context);
   }
 
@@ -444,7 +450,8 @@ class _CaptionPanelState extends State<_CaptionPanel> {
     // marking the whole container as a live region which re-reads the entire
     // run on every partial update. Scheduled post frame so the announcement
     // does not happen during build.
-    final announcement = _announcer.announcementFor(widget.controller.captionTurns);
+    final announcement =
+        _announcer.announcementFor(widget.controller.captionTurns);
     if (announcement != null) {
       final view = View.of(context);
       final direction = Directionality.of(context);
@@ -472,7 +479,8 @@ class _CaptionPanelState extends State<_CaptionPanel> {
             : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
         padding: const EdgeInsets.all(Spacing.space4),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(widget.settings.captionBackground, semantic.captionSurface),
+          color: Color.alphaBlend(
+              widget.settings.captionBackground, semantic.captionSurface),
           borderRadius: Radii.roundedLarge,
           border: Border.all(
             color: semantic.captionOnSurface.withValues(alpha: 0.12),
@@ -565,12 +573,14 @@ class _StatusPanel extends StatelessWidget {
               if (showSpinner)
                 const _WorkingIndicator()
               else if (leadingIcon != null)
-                Icon(leadingIcon, size: Spacing.space8, color: scheme.onSurfaceVariant),
+                Icon(leadingIcon,
+                    size: Spacing.space8, color: scheme.onSurfaceVariant),
               const SizedBox(height: Spacing.space5),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(color: scheme.onSurface),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: scheme.onSurface),
               ),
               if (supporting != null) ...<Widget>[
                 const SizedBox(height: Spacing.space2),
@@ -670,7 +680,8 @@ class _ErrorPanel extends StatelessWidget {
 
   Future<void> _retry() async {
     try {
-      await controller.open(deviceId: controller.deviceId, mode: controller.mode);
+      await controller.open(
+          deviceId: controller.deviceId, mode: controller.mode);
     } catch (_) {
       // A repeated failure is recorded in the controller snapshot, which this
       // panel renders. Never throw out of a button callback.
@@ -715,7 +726,8 @@ class _ErrorPanel extends StatelessWidget {
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge?.copyWith(color: scheme.onSurface),
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(color: scheme.onSurface),
                   ),
                   const SizedBox(height: Spacing.space2),
                   Text(
@@ -749,7 +761,8 @@ class _ErrorPanel extends StatelessWidget {
               child: TextButton.icon(
                 key: const ValueKey('error-go-back'),
                 onPressed: () => _escape(context),
-                icon: const Icon(Icons.arrow_back_rounded, size: Spacing.space5),
+                icon:
+                    const Icon(Icons.arrow_back_rounded, size: Spacing.space5),
                 label: const Text('Go back'),
               ),
             ),
@@ -796,7 +809,8 @@ class _AuthRecoveryPromptState extends State<_AuthRecoveryPrompt> {
     }
     if (!mounted) return;
     setState(() => _signingIn = false);
-    widget.controller.completeAuthRecovery(success: result == AuthResult.verified);
+    widget.controller
+        .completeAuthRecovery(success: result == AuthResult.verified);
   }
 
   @override
@@ -805,65 +819,74 @@ class _AuthRecoveryPromptState extends State<_AuthRecoveryPrompt> {
     final scheme = theme.colorScheme;
     final controller = widget.controller;
     return Positioned.fill(
-      child: ColoredBox(
-        // The themed scrim, replacing the raw 0xB3000000 (audit C2).
-        color: scheme.scrim.withValues(alpha: kModalScrimOpacity),
-        child: Center(
-          child: Semantics(
-            container: true,
-            label: 'Sign in again to continue. Your conversation is saved.',
-            child: Card(
-              key: const ValueKey('auth-recovery-prompt'),
-              margin: const EdgeInsets.all(Spacing.space6),
-              child: Padding(
-                padding: const EdgeInsets.all(Spacing.space5),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      Icons.lock_person_outlined,
-                      size: Spacing.space8,
-                      color: scheme.primary,
-                    ),
-                    const SizedBox(height: Spacing.space4),
-                    Text(
-                      'Sign in again to continue',
-                      textAlign: TextAlign.center,
-                      style:
-                          theme.textTheme.headlineSmall?.copyWith(color: scheme.onSurface),
-                    ),
-                    const SizedBox(height: Spacing.space2),
-                    Text(
-                      'Your conversation is saved and will resume once you sign in.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: Spacing.space5),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: <Widget>[
-                        TextButton(
-                          key: const ValueKey('auth-recovery-cancel'),
-                          onPressed: _signingIn
-                              ? null
-                              : () => controller.completeAuthRecovery(success: false),
-                          child: const Text('Not now'),
-                        ),
-                        FilledButton(
-                          key: const ValueKey('auth-recovery-signin'),
-                          onPressed: _signingIn ? null : _signIn,
-                          child: _signingIn
-                              ? const SizedBox(
-                                  width: Spacing.space5,
-                                  height: Spacing.space5,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Sign in'),
-                        ),
-                      ],
-                    ),
-                  ],
+      // Block semantics and pointer traversal to everything beneath the modal
+      // (MED-05): a screen reader could otherwise still reach End and Reply
+      // behind the re-authentication prompt. BlockSemantics drops the subtree
+      // below it in paint order from the semantics tree, and the opaque scrim
+      // absorbs taps, so the prompt is genuinely modal.
+      child: BlockSemantics(
+        child: ColoredBox(
+          // The themed scrim, replacing the raw 0xB3000000 (audit C2).
+          color: scheme.scrim.withValues(alpha: kModalScrimOpacity),
+          child: Center(
+            child: Semantics(
+              container: true,
+              label: 'Sign in again to continue. Your conversation is saved.',
+              child: Card(
+                key: const ValueKey('auth-recovery-prompt'),
+                margin: const EdgeInsets.all(Spacing.space6),
+                child: Padding(
+                  padding: const EdgeInsets.all(Spacing.space5),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.lock_person_outlined,
+                        size: Spacing.space8,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(height: Spacing.space4),
+                      Text(
+                        'Sign in again to continue',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(color: scheme.onSurface),
+                      ),
+                      const SizedBox(height: Spacing.space2),
+                      Text(
+                        'Your conversation is saved and will resume once you sign in.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: Spacing.space5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: <Widget>[
+                          TextButton(
+                            key: const ValueKey('auth-recovery-cancel'),
+                            onPressed: _signingIn
+                                ? null
+                                : () => controller.completeAuthRecovery(
+                                    success: false),
+                            child: const Text('Not now'),
+                          ),
+                          FilledButton(
+                            key: const ValueKey('auth-recovery-signin'),
+                            onPressed: _signingIn ? null : _signIn,
+                            child: _signingIn
+                                ? const SizedBox(
+                                    width: Spacing.space5,
+                                    height: Spacing.space5,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Text('Sign in'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

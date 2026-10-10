@@ -141,11 +141,16 @@ void main() {
       // be asserting an implementation detail of the merge.
       final expected = <String, Finder>{
         'privacy explanation': find.bySemanticsLabel(RegExp('Privacy Mode explanation')),
-        'mode switch': find.bySemanticsLabel(RegExp('Privacy Mode. Applies to your next')),
-        'caption size': find.bySemanticsLabel(RegExp('Caption text size')),
+        // MED-04: the mode switch is now a single SwitchListTile node whose
+        // label is its title plus subtitle, with no duplicate outer Semantics.
+        'mode switch': find.bySemanticsLabel(RegExp('Privacy Mode')),
+        // MED-04: the slider is a single node; it is located by key here (its
+        // accessible value is asserted in settings_screen_test).
+        'caption size': find.byKey(const ValueKey('caption-scale')),
         'caption contrast': find.bySemanticsLabel(RegExp('Caption contrast ratio')),
+        // MED-04: one node per haptic toggle; the label is the tile title.
         for (final p in HapticVocabulary.all)
-          'haptic ${p.label}': find.bySemanticsLabel(RegExp('Haptic: ${p.label}')),
+          'haptic ${p.label}': find.bySemanticsLabel(RegExp('Haptic alert: ${p.label}')),
         'strobe': find.bySemanticsLabel(RegExp('Screen strobe and torch alert')),
         for (final p in HapticVocabulary.all)
           'haptic ref ${p.label}':

@@ -90,26 +90,27 @@ class SettingsScreen extends StatelessWidget {
             label: 'Privacy Mode explanation',
             child: Text(
               kPrivacyModeExplanation,
-              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),
           const SizedBox(height: Spacing.space2),
           _ModeSwitch(controller: controller, settings: s),
 
           const SectionHeader(title: 'Caption size', dense: true),
-          Semantics(
-            slider: true,
-            label: 'Caption text size',
-            value: '${(s.captionScale * 100).round()} percent',
-            child: Slider(
-              key: const ValueKey('caption-scale'),
-              min: kMinCaptionScale,
-              max: kMaxCaptionScale,
-              divisions: 10,
-              value: s.captionScale,
-              label: '${(s.captionScale * 100).round()}%',
-              onChanged: controller.setCaptionScale,
-            ),
+          // One slider node (MED-04): the Slider's own semantics carry the
+          // label and value via semanticFormatterCallback, instead of an outer
+          // Semantics(slider:) wrapper that produced a second, inert node.
+          Slider(
+            key: const ValueKey('caption-scale'),
+            min: kMinCaptionScale,
+            max: kMaxCaptionScale,
+            divisions: 10,
+            value: s.captionScale,
+            label: '${(s.captionScale * 100).round()}%',
+            semanticFormatterCallback: (value) =>
+                'Caption text size ${(value * 100).round()} percent',
+            onChanged: controller.setCaptionScale,
           ),
 
           const SectionHeader(title: 'Caption contrast', dense: true),
@@ -131,27 +132,26 @@ class SettingsScreen extends StatelessWidget {
             title: 'Alerts',
             supportingText: 'How your phone tells you someone is at the door.',
           ),
+          // One node per toggle (MED-04): SwitchListTile is already a single
+          // accessible node that announces its label and toggled state and
+          // carries the toggle action. The previous outer Semantics(toggled:)
+          // wrapper added a SECOND, inert node (screen readers announced the
+          // control twice, one of which did nothing). The descriptive label is
+          // the tile's own title.
           for (final pattern in HapticVocabulary.all)
-            Semantics(
-              toggled: s.hapticEnabled[pattern.event] ?? true,
-              label: 'Haptic: ${pattern.label}',
-              child: SwitchListTile(
-                key: ValueKey('haptic-${pattern.event.name}'),
-                title: Text(pattern.label),
-                value: s.hapticEnabled[pattern.event] ?? true,
-                onChanged: (v) => controller.setHapticEnabled(pattern.event, v),
-              ),
+            SwitchListTile(
+              key: ValueKey('haptic-${pattern.event.name}'),
+              title: Text('Haptic alert: ${pattern.label}'),
+              value: s.hapticEnabled[pattern.event] ?? true,
+              onChanged: (v) => controller.setHapticEnabled(pattern.event, v),
             ),
-          Semantics(
-            toggled: s.strobeEnabled,
-            label: 'Screen strobe and torch alert',
-            child: SwitchListTile(
-              key: const ValueKey('strobe-toggle'),
-              title: const Text('Screen strobe and torch'),
-              subtitle: const Text('Off by default. Capped at 3 flashes per second.'),
-              value: s.strobeEnabled,
-              onChanged: controller.setStrobeEnabled,
-            ),
+          SwitchListTile(
+            key: const ValueKey('strobe-toggle'),
+            title: const Text('Screen strobe and torch alert'),
+            subtitle:
+                const Text('Off by default. Capped at 2 flashes per second.'),
+            value: s.strobeEnabled,
+            onChanged: controller.setStrobeEnabled,
           ),
           const SectionHeader(title: 'Haptic reference', dense: true),
           for (final pattern in HapticVocabulary.all)
@@ -195,7 +195,9 @@ class SettingsScreen extends StatelessWidget {
           Semantics(
             button: true,
             label: 'Delete all my data',
-            onTap: controller.erasureInFlight ? null : () => _confirmDelete(context),
+            onTap: controller.erasureInFlight
+                ? null
+                : () => _confirmDelete(context),
             excludeSemantics: true,
             child: FilledButton.tonalIcon(
               key: const ValueKey('delete-all-data'),
@@ -215,7 +217,9 @@ class SettingsScreen extends StatelessWidget {
               ),
               // Disabled while an erasure is in flight so it cannot be
               // double-submitted (HIGH-08).
-              onPressed: controller.erasureInFlight ? null : () => _confirmDelete(context),
+              onPressed: controller.erasureInFlight
+                  ? null
+                  : () => _confirmDelete(context),
               icon: controller.erasureInFlight
                   ? const SizedBox(
                       key: ValueKey('delete-in-flight'),
@@ -224,7 +228,9 @@ class SettingsScreen extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.delete_outline, size: Spacing.space5),
-              label: Text(controller.erasureInFlight ? 'Deleting your data' : 'Delete all my data'),
+              label: Text(controller.erasureInFlight
+                  ? 'Deleting your data'
+                  : 'Delete all my data'),
             ),
           ),
           // The result of the last erasure: a success or failure banner, with a
@@ -236,14 +242,16 @@ class SettingsScreen extends StatelessWidget {
               key: const ValueKey('delete-success-banner'),
               variant: StatusVariant.success,
               icon: Icons.check_circle_outline,
-              message: 'Your data was deleted and your Ring connection was revoked.',
+              message:
+                  'Your data was deleted and your Ring connection was revoked.',
               action: StatusBannerAction(
                 label: 'Dismiss',
                 buttonKey: const ValueKey('delete-banner-dismiss'),
                 onPressed: controller.dismissErasureStatus,
               ),
             ),
-          ] else if (controller.erasureStatus == ErasureStatus.failure) ...<Widget>[
+          ] else if (controller.erasureStatus ==
+              ErasureStatus.failure) ...<Widget>[
             const SizedBox(height: Spacing.space3),
             StatusBanner(
               key: const ValueKey('delete-failure-banner'),
@@ -257,6 +265,24 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ],
+
+          // --- About -----------------------------------------------------
+          const SectionHeader(
+            title: 'About',
+            supportingText:
+                'App information and the open source licenses it uses.',
+          ),
+          // In-app open source licenses page (LOW-38): there was no way to see
+          // the licenses of the packages Threshold uses. AboutListTile opens the
+          // standard Flutter license page via showLicensePage.
+          const AboutListTile(
+            key: ValueKey('open-source-licenses'),
+            icon: Icon(Icons.description_outlined),
+            applicationName: 'Threshold',
+            applicationLegalese:
+                'A two way captioned doorbell for deaf and hard of hearing residents.',
+            child: Text('Open source licenses'),
+          ),
           const SizedBox(height: Spacing.space7),
         ],
       ),
@@ -270,7 +296,8 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('delete-confirm-dialog'),
-        icon: Icon(Icons.warning_amber_rounded, color: semantic.danger, size: Spacing.space8),
+        icon: Icon(Icons.warning_amber_rounded,
+            color: semantic.danger, size: Spacing.space8),
         title: const Text('Delete all your data'),
         content: const Text(
           'This erases all your transcripts and revokes your Ring connection. '
@@ -318,18 +345,17 @@ class _ModeSwitch extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Semantics(
-          toggled: settings.pendingMode == CaptionMode.privacy,
-          label: 'Privacy Mode. Applies to your next session.',
-          child: SwitchListTile(
-            key: const ValueKey('mode-switch'),
-            title: const Text('Privacy Mode'),
-            subtitle: const Text('Applies to your next session.'),
-            secondary: const Icon(Icons.lock_outline),
-            value: settings.pendingMode == CaptionMode.privacy,
-            onChanged: (v) => controller.requestModeChange(
-              v ? CaptionMode.privacy : CaptionMode.clarity,
-            ),
+        // Single node (MED-04): SwitchListTile already announces "Privacy Mode"
+        // and its toggled state; the subtitle supplies the "next session"
+        // context. No outer Semantics wrapper, which would double the node.
+        SwitchListTile(
+          key: const ValueKey('mode-switch'),
+          title: const Text('Privacy Mode'),
+          subtitle: const Text('Applies to your next session.'),
+          secondary: const Icon(Icons.lock_outline),
+          value: settings.pendingMode == CaptionMode.privacy,
+          onChanged: (v) => controller.requestModeChange(
+            v ? CaptionMode.privacy : CaptionMode.clarity,
           ),
         ),
         if (settings.pendingMode != settings.activeMode)

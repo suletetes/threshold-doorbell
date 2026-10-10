@@ -112,13 +112,44 @@ void main() {
       expect(find.byType(SettingsScreen), findsOneWidget);
     });
 
+    testWidgets('exposes an open source licenses page (LOW-38)', (tester) async {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('open-source-licenses')), 200);
+      expect(find.byKey(const ValueKey('open-source-licenses')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('open-source-licenses')));
+      await tester.pumpAndSettle();
+      // AboutListTile opens the standard About dialog, which carries the
+      // built-in action onto the Flutter LicensePage (LOW-38). Tap the licenses
+      // button regardless of its localized casing.
+      expect(find.byType(AboutDialog), findsOneWidget);
+      final licensesButton = find.descendant(
+        of: find.byType(AboutDialog),
+        matching: find.byWidgetPredicate((w) =>
+            w is TextButton &&
+            w.child is Text &&
+            (w.child! as Text).data!.toLowerCase().contains('licen')),
+      );
+      expect(licensesButton, findsOneWidget);
+      await tester.tap(licensesButton);
+      await tester.pumpAndSettle();
+      expect(find.byType(LicensePage), findsOneWidget);
+    });
+
     testWidgets('interactive elements carry Semantics labels (G4, AT-9)', (tester) async {
       final handle = tester.ensureSemantics();
       final c = SettingsController(erasure: FakeDataErasurePort());
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
       expect(find.bySemanticsLabel(RegExp('Privacy Mode')), findsWidgets);
-      expect(find.bySemanticsLabel(RegExp('Caption text size')), findsOneWidget);
+      // MED-04: the caption-size slider is a single node whose accessible value
+      // (from semanticFormatterCallback) names it, instead of a duplicate outer
+      // Semantics(slider:) node.
+      final sliderValue =
+          tester.getSemantics(find.byKey(const ValueKey('caption-scale'))).value;
+      expect(sliderValue, contains('Caption text size'));
       await tester.scrollUntilVisible(find.byKey(const ValueKey('strobe-toggle')), 200);
       expect(find.bySemanticsLabel(RegExp('Screen strobe and torch alert')), findsOneWidget);
       await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
