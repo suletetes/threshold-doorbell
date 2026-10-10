@@ -54,12 +54,19 @@ class CaptionTurn {
   final double? confidence;
   final bool provisional;
 
+  /// Returns a copy with the given overrides. Because [confidence] is nullable,
+  /// passing `confidence: null` cannot by itself distinguish "keep the current
+  /// value" from "clear it", so an explicit [clearConfidence] flag forces the
+  /// result to a null confidence. This matters for finalization, where a turn
+  /// that is downgraded to provisional must lose its stale confidence rather
+  /// than silently keep it and render uncertain text as certain (MED-21).
   CaptionTurn copyWith({
     String? text,
     bool? isFinal,
     int? lastUpdatedMs,
     double? confidence,
     bool? provisional,
+    bool clearConfidence = false,
   }) {
     return CaptionTurn(
       speaker: speaker,
@@ -67,7 +74,7 @@ class CaptionTurn {
       isFinal: isFinal ?? this.isFinal,
       startedAtMs: startedAtMs,
       lastUpdatedMs: lastUpdatedMs ?? this.lastUpdatedMs,
-      confidence: confidence ?? this.confidence,
+      confidence: clearConfidence ? null : (confidence ?? this.confidence),
       provisional: provisional ?? this.provisional,
     );
   }
@@ -111,7 +118,10 @@ class TurnAccumulator {
         text: result.text,
         isFinal: result.isFinal,
         lastUpdatedMs: result.timestampMs,
+        // A finalized result carries its confidence; a partial clears any stale
+        // one so provisional text never renders as certain (MED-21).
         confidence: result.isFinal ? result.confidence : null,
+        clearConfidence: !result.isFinal,
         provisional: !result.isFinal,
       ),
     );
@@ -122,7 +132,7 @@ class TurnAccumulator {
   List<CaptionTurn> finalizeForPersistence() {
     if (_turns.isNotEmpty && current!.provisional) {
       final CaptionTurn cur = _turns.removeLast();
-      _turns.add(cur.copyWith(confidence: null, provisional: true, isFinal: false));
+      _turns.add(cur.copyWith(clearConfidence: true, provisional: true, isFinal: false));
     }
     return turns;
   }

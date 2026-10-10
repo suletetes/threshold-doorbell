@@ -156,4 +156,37 @@ void main() {
       expect(acc.turns.single.provisional, isFalse);
     });
   });
+
+  group('CaptionTurn.copyWith (MED-21)', () {
+    CaptionTurn confident() => const CaptionTurn(
+          speaker: CaptionSpeaker.visitor,
+          text: 'hello',
+          isFinal: true,
+          startedAtMs: 0,
+          lastUpdatedMs: 0,
+          confidence: 0.9,
+          provisional: false,
+        );
+
+    test('clearConfidence resets a non-null confidence to null', () {
+      final cleared = confident().copyWith(clearConfidence: true, provisional: true);
+      expect(cleared.confidence, isNull);
+      expect(cleared.provisional, isTrue);
+    });
+
+    test('omitting confidence keeps the existing value', () {
+      expect(confident().copyWith(text: 'hi').confidence, 0.9);
+    });
+
+    test('passing a confidence overrides the existing value', () {
+      expect(confident().copyWith(confidence: 0.3).confidence, 0.3);
+    });
+
+    test('clearConfidence wins over a supplied confidence', () {
+      expect(
+        confident().copyWith(confidence: 0.3, clearConfidence: true).confidence,
+        isNull,
+      );
+    });
+  });
 }

@@ -74,6 +74,13 @@ class CaptionTurn {
   /// True while the turn is not yet finalized (FR-5.7).
   final bool provisional;
 
+  /// Returns a copy with the given overrides. Because [confidence] is nullable,
+  /// passing `confidence: null` cannot by itself distinguish "keep the current
+  /// value" from "clear it", so an explicit [clearConfidence] flag forces a null
+  /// confidence. This keeps the public contract identical to the extracted
+  /// flutter_ring_captions package (MED-21) and ensures a turn downgraded to
+  /// provisional loses its stale confidence instead of rendering uncertain text
+  /// as certain (FR-5.7).
   CaptionTurn copyWith({
     String? text,
     bool? isFinal,
@@ -81,6 +88,7 @@ class CaptionTurn {
     double? confidence,
     bool? provisional,
     List<double>? wordConfidences,
+    bool clearConfidence = false,
     bool clearWordConfidences = false,
   }) {
     return CaptionTurn(
@@ -89,7 +97,7 @@ class CaptionTurn {
       isFinal: isFinal ?? this.isFinal,
       startedAtMs: startedAtMs,
       lastUpdatedMs: lastUpdatedMs ?? this.lastUpdatedMs,
-      confidence: confidence ?? this.confidence,
+      confidence: clearConfidence ? null : (confidence ?? this.confidence),
       provisional: provisional ?? this.provisional,
       wordConfidences:
           clearWordConfidences ? null : (wordConfidences ?? this.wordConfidences),
@@ -151,6 +159,8 @@ class TurnAccumulator {
         isFinal: result.isFinal,
         lastUpdatedMs: result.timestampMs,
         confidence: result.isFinal ? result.confidence : null,
+        // A partial clears any stale confidence so it never renders as certain.
+        clearConfidence: !result.isFinal,
         // Per-word confidences only exist once finalized; a partial clears them.
         wordConfidences: result.isFinal ? result.wordConfidences : null,
         clearWordConfidences: !result.isFinal,
@@ -172,7 +182,9 @@ class TurnAccumulator {
       return;
     }
     final CaptionTurn open = _turns.removeLast();
-    _turns.add(open.copyWith(isFinal: true, provisional: false, confidence: null));
+    _turns.add(
+      open.copyWith(isFinal: true, provisional: false, clearConfidence: true),
+    );
   }
 
   /// Persist-time finalization (FR-5.7): any still-provisional trailing turn is
@@ -180,7 +192,9 @@ class TurnAccumulator {
   List<CaptionTurn> finalizeForPersistence() {
     if (_turns.isNotEmpty && current!.provisional) {
       final CaptionTurn cur = _turns.removeLast();
-      _turns.add(cur.copyWith(confidence: null, provisional: true, isFinal: false));
+      _turns.add(
+        cur.copyWith(clearConfidence: true, provisional: true, isFinal: false),
+      );
     }
     return turns;
   }

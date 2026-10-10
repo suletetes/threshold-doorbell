@@ -80,4 +80,52 @@ void main() {
       expect(a.turns.first.confidence, 0.9);
     });
   });
+
+  group('CaptionTurn.copyWith', () {
+    CaptionTurn confident() => const CaptionTurn(
+          speaker: CaptionSpeaker.visitor,
+          text: 'hello',
+          isFinal: true,
+          startedAtMs: 0,
+          lastUpdatedMs: 0,
+          confidence: 0.9,
+          provisional: false,
+        );
+
+    test('clearConfidence resets a non-null confidence to null (MED-21)', () {
+      final cleared = confident().copyWith(clearConfidence: true, provisional: true);
+      expect(cleared.confidence, isNull);
+      expect(cleared.provisional, isTrue);
+    });
+
+    test('omitting confidence keeps the existing value', () {
+      expect(confident().copyWith(text: 'hi').confidence, 0.9);
+    });
+
+    test('passing a confidence overrides the existing value', () {
+      expect(confident().copyWith(confidence: 0.3).confidence, 0.3);
+    });
+
+    test('clearConfidence wins over a supplied confidence', () {
+      expect(
+        confident().copyWith(confidence: 0.3, clearConfidence: true).confidence,
+        isNull,
+      );
+    });
+  });
+
+  group('finalizeForPersistence clears stale confidence', () {
+    test('a provisional turn built with a confidence loses it on finalize (MED-21)', () {
+      final a = TurnAccumulator()
+        ..apply(r(CaptionSpeaker.visitor, 'done', isFinal: true, t: 0, confidence: 0.9))
+        // Extend-less: force an open provisional turn with a stale confidence by
+        // starting a fresh accumulator state through the public API.
+        ..apply(r(CaptionSpeaker.visitor, 'typing', t: 2000));
+      // The trailing turn is provisional (not final) and must persist with null
+      // confidence. This fails if copyWith kept the old confidence.
+      final turns = a.finalizeForPersistence();
+      expect(turns.last.provisional, isTrue);
+      expect(turns.last.confidence, isNull);
+    });
+  });
 }
