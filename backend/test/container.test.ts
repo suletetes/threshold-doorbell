@@ -14,6 +14,7 @@ import {
 } from '../src/services/fixtures/memory-stores.js';
 import { MemoryDeviceAccountStore } from '../src/services/fixtures/memory-device-account-store.js';
 import { MemoryOAuthTxnStore } from '../src/services/fixtures/memory-oauth-txn-store.js';
+import { MemoryAppAuthCodeStore } from '../src/services/fixtures/memory-app-auth-code-store.js';
 
 // CRIT-02 regression: a real deployment must never silently boot on fixtures.
 describe('buildContainer fail-closed (CRIT-02)', () => {
@@ -30,6 +31,7 @@ describe('buildContainer fail-closed (CRIT-02)', () => {
       conversationStore: new MemoryConversationStore(),
       deviceAccountStore: new MemoryDeviceAccountStore(),
       oauthTxnStore: new MemoryOAuthTxnStore(),
+      appAuthCodeStore: new MemoryAppAuthCodeStore(),
     };
   }
 

@@ -31,6 +31,8 @@ import {
 import { MemoryDeviceAccountStore } from './services/fixtures/memory-device-account-store.js';
 import type { OAuthTxnStorePort } from './services/oauth-txn-store.js';
 import { MemoryOAuthTxnStore } from './services/fixtures/memory-oauth-txn-store.js';
+import type { AppAuthCodeStorePort } from './services/app-auth-code-store.js';
+import { MemoryAppAuthCodeStore } from './services/fixtures/memory-app-auth-code-store.js';
 import { RingTokenService } from './services/ring-token-service.js';
 import { RingGateway } from './services/ring-gateway.js';
 
@@ -47,6 +49,7 @@ export interface Container {
   conversationStore: ConversationStorePort;
   deviceAccountStore: DeviceAccountStorePort;
   oauthTxnStore: OAuthTxnStorePort;
+  appAuthCodeStore: AppAuthCodeStorePort;
   ringTokens: RingTokenService;
   ringGateway: RingGateway;
   metrics: MetricsPort;
@@ -64,6 +67,7 @@ export interface ContainerOverrides {
   conversationStore?: ConversationStorePort;
   deviceAccountStore?: DeviceAccountStorePort;
   oauthTxnStore?: OAuthTxnStorePort;
+  appAuthCodeStore?: AppAuthCodeStorePort;
   metrics?: MetricsPort;
 }
 
@@ -93,6 +97,7 @@ const REQUIRED_REAL_PORTS: readonly (keyof ContainerOverrides)[] = [
   'conversationStore',
   'deviceAccountStore',
   'oauthTxnStore',
+  'appAuthCodeStore',
 ];
 
 /**
@@ -126,6 +131,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const conversationStore = overrides.conversationStore ?? new MemoryConversationStore();
   const deviceAccountStore = overrides.deviceAccountStore ?? new MemoryDeviceAccountStore();
   const oauthTxnStore = overrides.oauthTxnStore ?? new MemoryOAuthTxnStore();
+  const appAuthCodeStore = overrides.appAuthCodeStore ?? new MemoryAppAuthCodeStore();
   const metrics = overrides.metrics ?? new InMemoryMetricsSink();
 
   return {
@@ -141,6 +147,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     conversationStore,
     deviceAccountStore,
     oauthTxnStore,
+    appAuthCodeStore,
     ringTokens: new RingTokenService(ring, tokenStore, crypto),
     ringGateway: new RingGateway(ring),
     metrics,

@@ -13,16 +13,34 @@ import {
   nonceCookieMatches,
   OAUTH_STATE_COOKIE,
 } from '../security/oauth-state.js';
+import { randomBytes } from 'node:crypto';
 import { issueSession, SESSION_COOKIE, SESSION_IDLE_MS } from '../security/session.js';
 
 interface CallbackQuery {
   code?: string;
   state?: string;
+  error?: string;
+}
+
+interface ExchangeBody {
+  code?: unknown;
 }
 
 // How long a started OAuth transaction stays redeemable (matches the signed
 // state TTL in oauth-state.ts): the nonce entry and cookie expire together.
 const OAUTH_TXN_TTL_MS = 10 * 60 * 1000;
+
+// How long the one-time app authorization code stays redeemable (HIGH-18). The
+// app exchanges it immediately after returning from the browser, so it is short.
+const APP_CODE_TTL_MS = 2 * 60 * 1000;
+
+/** The deep link the app registers; errors and the one-time code redirect here. */
+function deepLinkWith(base: string, params: Record<string, string>): string {
+  // appDeepLink may already be a URL-like scheme (threshold://auth/complete).
+  const query = new URLSearchParams(params).toString();
+  const sep = base.includes('?') ? '&' : '?';
+  return query === '' ? base : `${base}${sep}${query}`;
+}
 
 export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
   const { config } = app.container;
@@ -68,7 +86,19 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     '/oauth/callback',
     async (request: FastifyRequest<{ Querystring: CallbackQuery }>, reply: FastifyReply) => {
-      const { code, state } = request.query;
+      const { code, state, error } = request.query;
+
+      // HIGH-18: a provider error must not strand the user on a raw 400 JSON
+      // page. Redirect to the app deep link with ?error= so the native app runs
+      // its single recovery prompt. Clear any binding cookie on the way out.
+      if (typeof error === 'string' && error !== '') {
+        reply.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
+        reply
+          .code(302)
+          .header('location', deepLinkWith(config.appDeepLink, { error }))
+          .send();
+        return;
+      }
 
       // FR-1.3: reject on state mismatch before touching any token.
       const txn = decodeState(state, config.sessionSecret);
@@ -112,12 +142,18 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
       const residentSub = tokens.residentSub;
       await app.container.ringTokens.persist(residentSub, tokens);
 
-      // Issue the app-to-backend session credential (the ONLY credential on the
-      // device, FR-1.6). Set as an HttpOnly, Secure, SameSite=strict cookie.
+      // HIGH-18: the session must reach the NATIVE app, not just a browser
+      // cookie. Mint a one-time, short-lived app authorization code bound to the
+      // resident and redirect to the deep link carrying it; the app exchanges it
+      // over HTTPS at POST /oauth/exchange for its session credential. The
+      // browser session cookie is still set so a web continuation also works.
+      const appCode = randomBytes(32).toString('base64url');
+      await app.container.appAuthCodeStore.put(appCode, residentSub, APP_CODE_TTL_MS);
+
       const session = issueSession(residentSub, config.sessionSecret);
       reply
         .code(302)
-        .header('location', config.appDeepLink)
+        .header('location', deepLinkWith(config.appDeepLink, { code: appCode }))
         .setCookie(SESSION_COOKIE, session, {
           httpOnly: true,
           secure: config.env !== 'local',
@@ -126,6 +162,39 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
           maxAge: Math.floor(SESSION_IDLE_MS / 1000),
         })
         .send();
+    },
+  );
+
+  // POST /oauth/exchange -> the native app redeems its one-time code (received
+  // on the deep link) for the session credential over HTTPS (HIGH-18). The code
+  // is single-use and short-lived; an unknown, consumed or expired code yields
+  // the unified unauthorized recovery signal (FR-1.5).
+  app.post(
+    '/oauth/exchange',
+    async (request: FastifyRequest<{ Body: ExchangeBody }>, reply: FastifyReply) => {
+      const body = request.body ?? {};
+      const code = typeof body.code === 'string' ? body.code : '';
+      if (code === '') {
+        throw errors.unauthorized();
+      }
+      const residentSub = await app.container.appAuthCodeStore.take(code);
+      if (residentSub === null) {
+        throw errors.unauthorized();
+      }
+      const session = issueSession(residentSub, config.sessionSecret);
+      const expiresAt = new Date(Date.now() + SESSION_IDLE_MS).toISOString();
+      // Return the session token in the body so the native app can store it as
+      // its only credential (FR-1.6), and also set the cookie for web clients.
+      reply
+        .setCookie(SESSION_COOKIE, session, {
+          httpOnly: true,
+          secure: config.env !== 'local',
+          sameSite: 'strict',
+          path: '/',
+          maxAge: Math.floor(SESSION_IDLE_MS / 1000),
+        })
+        .code(200)
+        .send({ session, expiresAt });
     },
   );
 

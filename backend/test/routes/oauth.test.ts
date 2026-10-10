@@ -77,7 +77,10 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(302);
-    expect(res.headers.location).toBe(t.config.appDeepLink);
+    // HIGH-18: the redirect carries a one-time app code on the deep link.
+    const location = res.headers.location as string;
+    expect(location.startsWith(t.config.appDeepLink)).toBe(true);
+    expect(new URL(location).searchParams.get('code')).toBeTruthy();
 
     // A session cookie is set (the ONLY credential on device, FR-1.6).
     const sessionCookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
@@ -252,5 +255,87 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
     });
     expect(res.statusCode).toBe(401);
     expect(res.json().error.code).toBe('refresh_failed');
+  });
+
+  // HIGH-18: the session reaches the native app via a one-time code, and the
+  // provider error path redirects to the deep link instead of a raw 400.
+  it('GET /oauth/callback redirects to the deep link with a one-time code (HIGH-18)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const { state, cookie } = await startOAuth(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.location as string);
+    expect(res.headers.location).toContain(t.config.appDeepLink);
+    expect(location.searchParams.get('code')).toBeTruthy();
+  });
+
+  it('POST /oauth/exchange redeems the one-time code for a session (HIGH-18)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const { state, cookie } = await startOAuth(app);
+    const callback = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
+    const appCode = new URL(callback.headers.location as string).searchParams.get('code')!;
+    const expectedSub = verifySession(
+      callback.cookies.find((c) => c.name === SESSION_COOKIE)!.value,
+      t.config.sessionSecret,
+    )!.sub;
+
+    const exchange = await app.inject({
+      method: 'POST',
+      url: '/oauth/exchange',
+      payload: { code: appCode },
+    });
+    expect(exchange.statusCode).toBe(200);
+    const sessionToken = exchange.json().session as string;
+    expect(verifySession(sessionToken, t.config.sessionSecret)!.sub).toBe(expectedSub);
+
+    // The one-time code is single-use: a replay is rejected.
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/oauth/exchange',
+      payload: { code: appCode },
+    });
+    expect(replay.statusCode).toBe(401);
+    expect(replay.json().error.code).toBe('unauthorized');
+  });
+
+  it('POST /oauth/exchange rejects a missing or unknown code (HIGH-18)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const missing = await app.inject({ method: 'POST', url: '/oauth/exchange', payload: {} });
+    expect(missing.statusCode).toBe(401);
+    const unknown = await app.inject({
+      method: 'POST',
+      url: '/oauth/exchange',
+      payload: { code: 'never-issued' },
+    });
+    expect(unknown.statusCode).toBe(401);
+  });
+
+  it('GET /oauth/callback redirects to the deep link with ?error= on a provider error (HIGH-18)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const { state, cookie } = await startOAuth(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
+    // Not a raw 400 JSON: a 302 to the deep link carrying the error.
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.location as string);
+    expect(res.headers.location).toContain(t.config.appDeepLink);
+    expect(location.searchParams.get('error')).toBe('access_denied');
+    // No token was stored on the error path.
+    expect(t.tokenStore.size()).toBe(0);
   });
 });
