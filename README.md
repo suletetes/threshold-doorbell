@@ -6,7 +6,7 @@ Live captions of what your visitor is saying, and a tap-to-speak reply spoken al
 doorbell: the two-way conversation at the door, no hearing required. The product logic is built and
 tested; the device, cloud and Ring adapters are not yet implemented (see Status).
 
-Built for the **Amazon Developer Hackathon 2026** · **Ring** track · **Flutter** (iOS + Android)
+Built for the **Amazon Developer Hackathon 2026** · **Ring** track · **Android** (iOS planned)
 Mini-challenges: **AWS Builder** (Amazon Transcribe + Bedrock) · **Open Source** (`flutter_ring_captions`)
 
 > *threshold*: the audiology term for the quietest sound a person can detect, and the place where a
@@ -62,7 +62,7 @@ Diagram sources and an index are in
 
 | Concern | Technology |
 |---|---|
-| App (iOS + Android) | Flutter / Dart |
+| App (Android; iOS planned) | Flutter / Dart |
 | Live session (video in, two-way audio) | WebView browser WebRTC (decision ARCH-1). Only the browser runtime can inject synthesized audio into the outbound track. |
 | Captions, default (accuracy) | Amazon Transcribe streaming |
 | Captions, Privacy Mode (on-device) | on-device Whisper (`whisper_ggml` / FFI to whisper.cpp, or WASM in the WebView) |
@@ -91,24 +91,35 @@ one doorbell. So there is exactly one peer connection, audio `sendrecv`, video
 ├── .kiro/                          # source of truth: specs + steering
 │   ├── specs/threshold-doorbell/   # requirements.md, design.md, tasks.md
 │   └── steering/                   # product.md, tech.md, structure.md
-├── app/                            # Flutter application
+├── app/                            # Flutter application (Android; iOS planned)
 │   └── lib/
+│       ├── app/                    # composition root, providers, home screen
+│       ├── session/                # live session controller and screens
 │       ├── captions/               # confidence styling, turn segmentation,
 │       │                           #   language selection, model provisioning,
 │       │                           #   on-device ASR engine port
 │       ├── reply/                  # sticky outbound mode, on-device suggestions
 │       ├── alerts/                 # haptic vocabulary, strobe, push receiver
+│       ├── consent/                # recording notice and compliance fallback
+│       ├── permissions/            # notification and microphone prompts
 │       ├── connectivity/           # offline / backend-outage state machine
-│       ├── vision/                 # privacy-zone geometry, presence cues
+│       ├── vision/                 # privacy-zone geometry (on-device only)
+│       ├── ring/                   # Ring app launcher port
+│       ├── perf/                   # latency harness and degradation matrix
+│       ├── settings/               # settings controller and screens
+│       ├── design/                 # design tokens and themed components
+│       ├── ui/                     # shared UI widgets
 │       └── a11y/                   # UI-copy dash lint engine
 ├── backend/                        # Node 20 + Fastify (stateless)
 │   ├── src/routes/                 # oauth, webhook, devices, events, signaling,
 │   │                               #   asr, replies, transcripts
 │   ├── src/services/               # ring, transcribe, bedrock, store (+ fixtures)
+│   ├── src/security/               # oauth-state, session, hmac
+│   ├── src/domain/                 # domain errors
 │   ├── src/observability/          # redacting logger, metrics
 │   └── docs/                       # THREAT_MODEL, PRIVACY_POLICY, OPERATIONS
 ├── packages/
-│   └── flutter_ring_captions/      # extracted MIT package (Open Source challenge)
+│   └── flutter_ring_captions/      # caption and reply package (Open Source challenge)
 ├── docs/hackathon/                 # strategy, research, friction log
 └── LICENSE                         # MIT
 ```
@@ -180,6 +191,9 @@ npm ci
 npm run typecheck && npm run lint && npm test
 npm run dev           # local mode, fixtures only, no AWS or real Ring
 ```
+
+The backend listens on port 8080 by default (override with the `PORT` environment
+variable; see `backend/src/config.ts`).
 
 Full device testing needs a Ring developer account, an OAuth app, and a Ring
 Protection plan. See `docs/hackathon/threshold-spec.md` for the plan and
