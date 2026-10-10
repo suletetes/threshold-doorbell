@@ -47,6 +47,17 @@ export class MemoryEventStore implements EventStorePort {
     return { created: true, event: { ...event } };
   }
 
+  async deleteAllForResident(residentSub: string): Promise<number> {
+    let removed = 0;
+    for (const [requestId, event] of this.byRequestId) {
+      if (event.residentSub === residentSub) {
+        this.byRequestId.delete(requestId);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   async listOrdered(residentSub: string, since?: string): Promise<DoorEvent[]> {
     // Scope to the requesting resident: another resident's events are never
     // returned even though the idempotency map is global (FR-8.7, AT-19).

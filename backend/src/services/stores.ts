@@ -34,6 +34,8 @@ export interface EventStorePort {
    * session (FR-8.7); the store never returns another resident's events.
    */
   listOrdered(residentSub: string, since?: string): Promise<DoorEvent[]>;
+  /** Erase every event for a resident (erasure, FR-8.6). Returns count removed. */
+  deleteAllForResident(residentSub: string): Promise<number>;
 }
 
 // --- Conversation store (Task 9, FR-8) ---

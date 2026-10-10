@@ -168,6 +168,66 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     expect(await t.tokenStore.get(SUB)).toBeNull();
   });
 
+  it('DELETE /me/data erases events and leaves GET /events empty (HIGH-23, P6)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // Seed an event owned by the resident and a device mapping.
+    await t.eventStore.putIfAbsent({
+      eventId: 'e1',
+      requestId: 'r1',
+      residentSub: SUB,
+      type: 'motion_detected',
+      deviceId: 'd1',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      confidence: null,
+      boundingBox: null,
+      thumbnailUrl: null,
+      processedAt: null,
+    });
+    await t.deviceAccountStore.map('d1', SUB);
+
+    const before = await app.inject({
+      method: 'GET',
+      url: '/events',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(before.json().items).toHaveLength(1);
+
+    const del = await app.inject({
+      method: 'DELETE',
+      url: '/me/data',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(del.statusCode).toBe(204);
+
+    // Events are gone: a session issued AFTER erasure sees an empty feed.
+    await new Promise((r) => setTimeout(r, 5));
+    const after = await app.inject({
+      method: 'GET',
+      url: '/events',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(after.statusCode).toBe(200);
+    expect(after.json().items).toEqual([]);
+    // The device mapping was removed too.
+    expect(await t.deviceAccountStore.resolve('d1')).toBeNull();
+  });
+
+  it('DELETE /me/data invalidates existing sessions (HIGH-23 deny-list)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // A session issued before the erase must be denied afterwards.
+    const stale = auth(t.config.sessionSecret);
+    await new Promise((r) => setTimeout(r, 2));
+    const del = await app.inject({ method: 'DELETE', url: '/me/data', headers: stale });
+    expect(del.statusCode).toBe(204);
+    await new Promise((r) => setTimeout(r, 2));
+    // Reusing the same (now stale) session is rejected with the unified signal.
+    const reuse = await app.inject({ method: 'GET', url: '/events', headers: stale });
+    expect(reuse.statusCode).toBe(401);
+    expect(reuse.json().error.code).toBe('unauthorized');
+  });
+
   it('never surfaces an expired transcript (FR-8.5 defensive filter)', async () => {
     const t = await buildTestApp();
     app = t.app;

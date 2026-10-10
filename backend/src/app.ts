@@ -57,6 +57,11 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
         // A single unified failure signal; the app runs one recovery flow (FR-1.5).
         throw errors.unauthorized();
       }
+      // HIGH-23: a session issued before an erasure cutoff is denied, so DELETE
+      // /me/data takes effect immediately instead of leaving a valid bearer.
+      if (await container.sessionInvalidation.isRevoked(claims.sub, claims.iat)) {
+        throw errors.unauthorized();
+      }
       request.session = claims;
     },
   );

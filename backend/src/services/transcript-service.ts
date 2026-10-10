@@ -12,8 +12,26 @@ import type {
   Turn,
   TurnSource,
 } from '../domain/types.js';
-import type { ConversationQuery, ConversationStorePort } from './stores.js';
+import type {
+  ConversationQuery,
+  ConversationStorePort,
+  DeviceAccountStorePort,
+  EventStorePort,
+} from './stores.js';
 import type { TokenStorePort } from './stores.js';
+import type { SessionInvalidationPort } from './session-invalidation.js';
+
+/**
+ * The additional collaborators erasure needs beyond the conversation store:
+ * events, the device mapping, token revocation, and session invalidation
+ * (HIGH-23). Each is optional so narrow unit tests can still build the service
+ * with only a conversation store and token store.
+ */
+export interface ErasureDeps {
+  events?: EventStorePort;
+  deviceAccounts?: DeviceAccountStorePort;
+  sessionInvalidation?: SessionInvalidationPort;
+}
 
 export const RETENTION_DAYS = 90;
 const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
@@ -84,6 +102,7 @@ export class TranscriptService {
   constructor(
     private readonly store: ConversationStorePort,
     private readonly tokens: TokenStorePort,
+    private readonly erasure: ErasureDeps = {},
   ) {}
 
   /**
@@ -164,12 +183,24 @@ export class TranscriptService {
   }
 
   /**
-   * Erase all transcripts for a resident and revoke stored Ring tokens (FR-8.6).
-   * Modeled as one logical operation; the real store performs it in a single
-   * DynamoDB transaction.
+   * Erase ALL data for a resident and cut off their access (FR-8.6, HIGH-23):
+   * delete conversations AND events, remove the device->account mapping, revoke
+   * the stored Ring grant, and invalidate every existing session so the
+   * stateless bearer cannot keep reading for up to 30 minutes.
+   *
+   * Each step is idempotent (deleting what is already gone is a no-op), so the
+   * whole operation is safe to retry if any single step fails. The real
+   * deployment performs the datastore deletions in a single transaction; here
+   * the ordering (invalidate the session FIRST) ensures a concurrent request
+   * cannot observe a half-erased state as still authorized.
    */
-  async eraseAll(residentSub: string): Promise<void> {
+  async eraseAll(residentSub: string, now = Date.now()): Promise<void> {
+    // Invalidate sessions first so an in-flight request stops being authorized
+    // even if a later deletion step is retried.
+    await this.erasure.sessionInvalidation?.revokeSessionsIssuedBefore(residentSub, now);
     await this.store.deleteAllForResident(residentSub);
+    await this.erasure.events?.deleteAllForResident(residentSub);
+    await this.erasure.deviceAccounts?.deleteAllForResident(residentSub);
     await this.tokens.delete(residentSub);
   }
 

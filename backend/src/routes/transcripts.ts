@@ -20,6 +20,11 @@ export async function registerTranscriptRoutes(app: FastifyInstance): Promise<vo
   const service = new TranscriptService(
     app.container.conversationStore,
     app.container.tokenStore,
+    {
+      events: app.container.eventStore,
+      deviceAccounts: app.container.deviceAccountStore,
+      sessionInvalidation: app.container.sessionInvalidation,
+    },
   );
 
   // GET /transcripts -> paginated, searchable, date-filtered list.

@@ -33,6 +33,8 @@ import type { OAuthTxnStorePort } from './services/oauth-txn-store.js';
 import { MemoryOAuthTxnStore } from './services/fixtures/memory-oauth-txn-store.js';
 import type { AppAuthCodeStorePort } from './services/app-auth-code-store.js';
 import { MemoryAppAuthCodeStore } from './services/fixtures/memory-app-auth-code-store.js';
+import type { SessionInvalidationPort } from './services/session-invalidation.js';
+import { MemorySessionInvalidation } from './services/fixtures/memory-session-invalidation.js';
 import { RingTokenService } from './services/ring-token-service.js';
 import { RingGateway } from './services/ring-gateway.js';
 
@@ -50,6 +52,7 @@ export interface Container {
   deviceAccountStore: DeviceAccountStorePort;
   oauthTxnStore: OAuthTxnStorePort;
   appAuthCodeStore: AppAuthCodeStorePort;
+  sessionInvalidation: SessionInvalidationPort;
   ringTokens: RingTokenService;
   ringGateway: RingGateway;
   metrics: MetricsPort;
@@ -68,6 +71,7 @@ export interface ContainerOverrides {
   deviceAccountStore?: DeviceAccountStorePort;
   oauthTxnStore?: OAuthTxnStorePort;
   appAuthCodeStore?: AppAuthCodeStorePort;
+  sessionInvalidation?: SessionInvalidationPort;
   metrics?: MetricsPort;
 }
 
@@ -98,6 +102,7 @@ const REQUIRED_REAL_PORTS: readonly (keyof ContainerOverrides)[] = [
   'deviceAccountStore',
   'oauthTxnStore',
   'appAuthCodeStore',
+  'sessionInvalidation',
 ];
 
 /**
@@ -132,6 +137,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const deviceAccountStore = overrides.deviceAccountStore ?? new MemoryDeviceAccountStore();
   const oauthTxnStore = overrides.oauthTxnStore ?? new MemoryOAuthTxnStore();
   const appAuthCodeStore = overrides.appAuthCodeStore ?? new MemoryAppAuthCodeStore();
+  const sessionInvalidation = overrides.sessionInvalidation ?? new MemorySessionInvalidation();
   const metrics = overrides.metrics ?? new InMemoryMetricsSink();
 
   return {
@@ -148,6 +154,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     deviceAccountStore,
     oauthTxnStore,
     appAuthCodeStore,
+    sessionInvalidation,
     ringTokens: new RingTokenService(ring, tokenStore, crypto),
     ringGateway: new RingGateway(ring),
     metrics,
