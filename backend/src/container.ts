@@ -60,11 +60,51 @@ export interface ContainerOverrides {
 }
 
 /**
- * Build the container for a given config. In "local"/"demo" this is entirely
- * fixtures. Tests pass overrides to inject their own fixture instances so they
- * can drive failure modes. A "staging" build would swap in real adapters here.
+ * Environments that may boot on in-memory fixtures. Any other environment is a
+ * real deployment and MUST supply real adapters via overrides.
+ */
+const FIXTURE_ENVS = new Set(['local', 'demo', 'test']);
+
+/**
+ * The real-adapter ports that a non-fixture deployment MUST inject. Real
+ * KMS/DynamoDB/Transcribe/Bedrock/FCM/Ring adapters are DEFERRED (there is no
+ * AWS or Ring Partner access in this environment); they are not implemented
+ * here. The guard below only enforces that a staging/prod boot cannot silently
+ * fall back to fixtures and in-memory stores (CRIT-02): it fails closed with a
+ * clear error until those adapters are supplied.
+ */
+const REQUIRED_REAL_PORTS: readonly (keyof ContainerOverrides)[] = [
+  'crypto',
+  'ring',
+  'ringSignaling',
+  'transcribe',
+  'bedrock',
+  'push',
+  'tokenStore',
+  'eventStore',
+  'conversationStore',
+];
+
+/**
+ * Build the container for a given config. In "local"/"demo"/"test" this is
+ * entirely fixtures. Tests pass overrides to inject their own fixture instances
+ * so they can drive failure modes. For any other environment (for example
+ * "staging") the container FAILS CLOSED: it throws unless every real-adapter
+ * port is supplied via overrides, so a real deployment can never silently run
+ * on fixtures and per-process in-memory stores (CRIT-02).
  */
 export function buildContainer(config: Config, overrides: ContainerOverrides = {}): Container {
+  if (!FIXTURE_ENVS.has(config.env)) {
+    const missing = REQUIRED_REAL_PORTS.filter((port) => overrides[port] === undefined);
+    if (missing.length > 0) {
+      throw new Error(
+        `Refusing to boot env "${config.env}" on in-memory fixtures. ` +
+          `Supply real adapters for: ${missing.join(', ')}. ` +
+          'Fixtures are only permitted in local, demo and test.',
+      );
+    }
+  }
+
   const crypto = overrides.crypto ?? new LocalCrypto(config.sessionSecret);
   const ring = overrides.ring ?? new FixtureRing();
   const ringSignaling = overrides.ringSignaling ?? new FixtureRingSignaling();
