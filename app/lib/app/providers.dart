@@ -88,8 +88,18 @@ final sessionStartCoordinatorProvider = Provider<SessionStartCoordinator>((ref) 
 
 /// The reply controller for the active session. Bound to the session's sticky
 /// outbound-mode machine so the reply bar reflects the current capability.
+///
+/// This reads the session controller through `.notifier` rather than watching
+/// the ChangeNotifierProvider directly (HIGH-03). Watching the provider re-ran
+/// this builder on EVERY `notifyListeners()` (every caption, reconnect or
+/// haptic tick), disposing and recreating the reply controller mid-send and
+/// throwing "used after being disposed". `.notifier` gives a stable controller
+/// reference without subscribing to its change stream, so a reply in flight
+/// survives a caption or notification tick. The reply controller is rebuilt only
+/// when the session identity changes, which is what rebinds it to a new
+/// session's fresh outbound-mode machine (FR-6.4b).
 final replyControllerProvider = ChangeNotifierProvider<ReplyController>((ref) {
-  final session = ref.watch(sessionControllerProvider);
+  final session = ref.watch(sessionControllerProvider.notifier);
   return ReplyController(
     port: ref.watch(replyPortProvider),
     outbound: session.outbound,
