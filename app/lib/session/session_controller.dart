@@ -343,6 +343,11 @@ class SessionController extends ChangeNotifier {
   @override
   void dispose() {
     _sub.cancel();
+    // Close the device binding so a disposed controller never leaves the peer
+    // connection, inbound audio and cloud transcription running (CRIT-05). The
+    // close is fire and forget with its own error guard: dispose() must not
+    // throw, and a failing close must not surface an unhandled async error.
+    unawaited(_port.close().catchError((Object _) {}));
     super.dispose();
   }
 }

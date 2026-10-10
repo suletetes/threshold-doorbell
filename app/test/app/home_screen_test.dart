@@ -18,6 +18,7 @@ import 'package:threshold/design/theme.dart';
 import 'package:threshold/design/tokens.dart';
 import 'package:threshold/reply/reply_port.dart';
 import 'package:threshold/reply/suggestion_provider.dart';
+import 'package:threshold/session/conversation_screen.dart';
 import 'package:threshold/session/ring_app_launcher.dart';
 import 'package:threshold/session/session_port.dart';
 import 'package:threshold/settings/settings_controller.dart';
@@ -152,6 +153,71 @@ void main() {
       await tester.pump();
       expect(find.bySemanticsLabel(RegExp('Privacy Mode')), findsOneWidget);
       handle.dispose();
+    });
+  });
+
+  group('Session lifecycle from the host (CRIT-05, probe P8)', () {
+    testWidgets('system back ends the session and returns to home, not a blank screen',
+        (tester) async {
+      final port = FakeSessionPort();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            sessionPortProvider.overrideWithValue(port),
+            replyPortProvider.overrideWithValue(FakeReplyPort()),
+            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
+            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+            modelProvisioningProvider.overrideWithValue(_verifiedProvisioning()),
+          ],
+          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+        ),
+      );
+      await tester.pump();
+
+      // Answer the door: push the session host and let it reach live.
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationScreen), findsOneWidget);
+      expect(port.connectCalls, 1);
+
+      // System back must end the session (close the port) and pop back home,
+      // never strand the user on the blank idle media surface (probe P8).
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(port.closeCalls, greaterThanOrEqualTo(1));
+      expect(find.byType(ConversationScreen), findsNothing);
+      expect(find.byKey(const ValueKey('home-answer')), findsOneWidget);
+    });
+
+    testWidgets('tapping End returns to home instead of a blank screen (CRIT-05)',
+        (tester) async {
+      final port = FakeSessionPort();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            sessionPortProvider.overrideWithValue(port),
+            replyPortProvider.overrideWithValue(FakeReplyPort()),
+            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
+            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+            modelProvisioningProvider.overrideWithValue(_verifiedProvisioning()),
+          ],
+          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationScreen), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('end-session')));
+      await tester.pumpAndSettle();
+
+      expect(port.closeCalls, greaterThanOrEqualTo(1));
+      expect(find.byType(ConversationScreen), findsNothing);
+      expect(find.byKey(const ValueKey('home-answer')), findsOneWidget);
     });
   });
 
