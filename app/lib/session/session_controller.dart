@@ -42,6 +42,12 @@ class SessionController extends ChangeNotifier {
   final NowMs _nowMs;
   late final StreamSubscription<SessionPortEvent> _sub;
 
+  /// Monotonically increasing token for each open() call. end() bumps it so an
+  /// in-flight open() that is still awaiting connect/probe sees a stale token
+  /// and abandons its result instead of resurrecting a session the user ended
+  /// (HIGH-04).
+  int _openGeneration = 0;
+
   // --- Session state ---
   SessionState _state = SessionState.idle;
   SessionCaptionMode _mode = SessionCaptionMode.clarity;
@@ -147,15 +153,24 @@ class SessionController extends ChangeNotifier {
     _queued.clear();
     _sameDeviceHapticReplays = 0;
 
+    // Take a generation token for this open(). If end() is called while we are
+    // awaiting connect/probe, it bumps the token and we abandon our result
+    // instead of moving a session the user ended back to live (HIGH-04).
+    final int generation = ++_openGeneration;
+
     _set(SessionState.connecting);
     NegotiatedMedia? media;
     while (_connectAttempts < kMaxConnectAttempts && media == null) {
       _connectAttempts++;
       try {
         media = await _port.connect(deviceId);
-      } on SessionConnectException {
+      } on Object {
+        // Any failure (SessionConnectException or an unexpected throw from the
+        // binding) counts as a failed attempt against the retry budget rather
+        // than escaping and stranding the state at connecting (HIGH-04).
         media = null;
       }
+      if (generation != _openGeneration) return; // superseded by end()/open()
     }
     if (media == null) {
       _errorMessage = "Couldn't connect to your doorbell.";
@@ -164,9 +179,17 @@ class SessionController extends ChangeNotifier {
     }
     _media = media;
 
-    // Peer connection connected: run the capability probe (design §5.1).
+    // Peer connection connected: run the capability probe (design §5.1). A
+    // throw from the probe must not strand the state at probing: treat it as a
+    // failed probe, which degrades the session to Captions-Only (HIGH-04).
     _set(SessionState.probing);
-    final probeOk = await _port.runProbe();
+    bool probeOk;
+    try {
+      probeOk = await _port.runProbe();
+    } on Object {
+      probeOk = false;
+    }
+    if (generation != _openGeneration) return; // superseded by end()/open()
     _outbound.applyProbe(probeOk ? ProbeResult.success : ProbeResult.failure);
 
     _set(SessionState.live);
@@ -242,16 +265,29 @@ class SessionController extends ChangeNotifier {
   /// Explicitly end the session (FR-4.3): close the peer connection and release
   /// the session URL.
   Future<void> end() async {
+    // Invalidate any in-flight open() so it cannot move a session the user
+    // ended back to live after connect/probe resolves (HIGH-04).
+    _openGeneration++;
     if (_state == SessionState.idle) return;
-    await _port.close();
+    try {
+      await _port.close();
+    } catch (_) {
+      // A failing close must not throw out of end(): the user is leaving.
+    }
     _reset();
     _set(SessionState.idle);
   }
 
   void _closeInternal() {
+    _openGeneration++; // invalidate any in-flight open()
     _set(SessionState.closing);
     // Fire-and-forget close; state returns to idle when the port acknowledges.
+    // A failing close must not leave the state stuck at closing or raise an
+    // unhandled async error, so settle to idle on error too (HIGH-04).
     unawaited(_port.close().then((_) {
+      _reset();
+      _set(SessionState.idle);
+    }).catchError((Object _) {
       _reset();
       _set(SessionState.idle);
     }));
@@ -321,6 +357,16 @@ class SessionController extends ChangeNotifier {
   /// second prompt (there is exactly one recovery flow, AT-12).
   void beginAuthRecovery() {
     if (_state == SessionState.authRecovering) return; // one prompt only
+    // Only an established session can recover its auth. Entering recovery from
+    // idle, connecting, probing, closing or error made no sense and let open()
+    // overwrite authRecovering with probing (HIGH-04). Restrict to the states a
+    // mid-use expiry can actually occur in (FR-1.5).
+    const Set<SessionState> recoverable = <SessionState>{
+      SessionState.live,
+      SessionState.backgrounded,
+      SessionState.reconnecting,
+    };
+    if (!recoverable.contains(_state)) return;
     _stateBeforeAuthRecovery = _state;
     _set(SessionState.authRecovering);
   }

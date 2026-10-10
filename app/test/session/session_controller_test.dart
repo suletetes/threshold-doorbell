@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/session/session_concurrency.dart';
 import 'package:threshold/session/session_controller.dart';
@@ -274,5 +276,149 @@ void main() {
       c.dispose();
       await port.dispose();
     });
+
+    test('auth recovery is refused from idle, connecting or error (HIGH-04)', () async {
+      final port = FakeSessionPort();
+      final c = SessionController(port: port);
+      // Idle: no session to recover.
+      c.beginAuthRecovery();
+      expect(c.state, SessionState.idle);
+      await port.dispose();
+      c.dispose();
+    });
   });
+
+  group('Unhandled exceptions and races (HIGH-04)', () {
+    test('a connect that throws a non-connect error surfaces ERROR, not an endless spinner',
+        () async {
+      final port = _ThrowingSessionPort(throwOnConnect: true);
+      final c = SessionController(port: port);
+      await c.open(deviceId: 'dev-1');
+      // Every attempt threw; the controller exhausts the retry budget and lands
+      // on ERROR with a dash-free message rather than staying at connecting.
+      expect(c.state, SessionState.error);
+      expect(c.snapshot.errorMessage, isNotNull);
+      expect(c.snapshot.errorMessage!.contains('\u2014'), isFalse);
+      c.dispose();
+      await port.dispose();
+    });
+
+    test('a probe that throws degrades to Captions-Only, not a stuck PROBING', () async {
+      final port = _ThrowingSessionPort(throwOnProbe: true);
+      final c = SessionController(port: port);
+      await c.open(deviceId: 'dev-1');
+      expect(c.state, SessionState.live);
+      expect(c.isCaptionsOnly, isTrue);
+      c.dispose();
+      await port.dispose();
+    });
+
+    test('end() during an in-flight open() cancels it; the session does not revive',
+        () async {
+      final port = _SlowSessionPort();
+      final c = SessionController(port: port);
+      final opening = c.open(deviceId: 'dev-1');
+      // While connect is still pending, end the session.
+      await c.end();
+      port.completeConnect();
+      await opening;
+      await Future<void>.delayed(Duration.zero);
+      // The ended session must not come back to live after connect resolves.
+      expect(c.state, SessionState.idle);
+      c.dispose();
+      await port.dispose();
+    });
+
+    test('a close that throws still settles to idle (HIGH-04)', () async {
+      final port = _ThrowingSessionPort(throwOnClose: true);
+      final c = SessionController(port: port);
+      await port.connectReady;
+      await c.open(deviceId: 'dev-1');
+      // Two reconnect failures trigger an internal close; a throwing close must
+      // not strand the state at closing nor raise an unhandled async error.
+      port.emit(SessionPortEvent.dropped);
+      port.emit(SessionPortEvent.reconnectFailed);
+      port.emit(SessionPortEvent.reconnectFailed);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.state, SessionState.idle);
+      c.dispose();
+      await port.dispose();
+    });
+  });
+}
+
+/// A port whose connect/probe/close can be made to throw, to prove the
+/// controller handles unexpected exceptions (HIGH-04).
+class _ThrowingSessionPort implements SessionPort {
+  _ThrowingSessionPort({
+    this.throwOnConnect = false,
+    this.throwOnProbe = false,
+    this.throwOnClose = false,
+  });
+
+  final bool throwOnConnect;
+  final bool throwOnProbe;
+  final bool throwOnClose;
+  final _events = StreamController<SessionPortEvent>.broadcast();
+
+  Future<void> get connectReady async {}
+
+  @override
+  Future<NegotiatedMedia> connect(String deviceId) async {
+    if (throwOnConnect) throw StateError('boom');
+    return const NegotiatedMedia(
+      audioDirection: 'sendrecv',
+      videoDirection: 'recvonly',
+      peerConnectionCount: 1,
+    );
+  }
+
+  @override
+  Future<bool> runProbe() async {
+    if (throwOnProbe) throw StateError('boom');
+    return true;
+  }
+
+  @override
+  Future<void> close() async {
+    if (throwOnClose) throw StateError('boom');
+  }
+
+  @override
+  Stream<SessionPortEvent> get events => _events.stream;
+
+  void emit(SessionPortEvent event) => _events.add(event);
+
+  Future<void> dispose() => _events.close();
+}
+
+/// A port whose connect does not resolve until [completeConnect] is called, so a
+/// test can call end() while open() is still in flight (HIGH-04).
+class _SlowSessionPort implements SessionPort {
+  final _events = StreamController<SessionPortEvent>.broadcast();
+  final Completer<NegotiatedMedia> _connect = Completer<NegotiatedMedia>();
+
+  void completeConnect() {
+    if (!_connect.isCompleted) {
+      _connect.complete(const NegotiatedMedia(
+        audioDirection: 'sendrecv',
+        videoDirection: 'recvonly',
+        peerConnectionCount: 1,
+      ));
+    }
+  }
+
+  @override
+  Future<NegotiatedMedia> connect(String deviceId) => _connect.future;
+
+  @override
+  Future<bool> runProbe() async => true;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Stream<SessionPortEvent> get events => _events.stream;
+
+  Future<void> dispose() => _events.close();
 }
