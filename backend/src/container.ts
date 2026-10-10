@@ -13,6 +13,7 @@ import type { BedrockPort } from './services/bedrock.js';
 import type { PushPort } from './services/push.js';
 import type {
   ConversationStorePort,
+  DeviceAccountStorePort,
   EventStorePort,
   TokenStorePort,
 } from './services/stores.js';
@@ -27,6 +28,7 @@ import {
   MemoryEventStore,
   MemoryTokenStore,
 } from './services/fixtures/memory-stores.js';
+import { MemoryDeviceAccountStore } from './services/fixtures/memory-device-account-store.js';
 import { RingTokenService } from './services/ring-token-service.js';
 import { RingGateway } from './services/ring-gateway.js';
 
@@ -41,6 +43,7 @@ export interface Container {
   tokenStore: TokenStorePort;
   eventStore: EventStorePort;
   conversationStore: ConversationStorePort;
+  deviceAccountStore: DeviceAccountStorePort;
   ringTokens: RingTokenService;
   ringGateway: RingGateway;
   metrics: MetricsPort;
@@ -56,6 +59,7 @@ export interface ContainerOverrides {
   tokenStore?: TokenStorePort;
   eventStore?: EventStorePort;
   conversationStore?: ConversationStorePort;
+  deviceAccountStore?: DeviceAccountStorePort;
   metrics?: MetricsPort;
 }
 
@@ -83,6 +87,7 @@ const REQUIRED_REAL_PORTS: readonly (keyof ContainerOverrides)[] = [
   'tokenStore',
   'eventStore',
   'conversationStore',
+  'deviceAccountStore',
 ];
 
 /**
@@ -114,6 +119,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const tokenStore = overrides.tokenStore ?? new MemoryTokenStore();
   const eventStore = overrides.eventStore ?? new MemoryEventStore();
   const conversationStore = overrides.conversationStore ?? new MemoryConversationStore();
+  const deviceAccountStore = overrides.deviceAccountStore ?? new MemoryDeviceAccountStore();
   const metrics = overrides.metrics ?? new InMemoryMetricsSink();
 
   return {
@@ -127,6 +133,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     tokenStore,
     eventStore,
     conversationStore,
+    deviceAccountStore,
     ringTokens: new RingTokenService(ring, tokenStore, crypto),
     ringGateway: new RingGateway(ring),
     metrics,

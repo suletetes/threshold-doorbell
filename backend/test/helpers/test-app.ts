@@ -17,6 +17,7 @@ import {
   MemoryEventStore,
   MemoryTokenStore,
 } from '../../src/services/fixtures/memory-stores.js';
+import { MemoryDeviceAccountStore } from '../../src/services/fixtures/memory-device-account-store.js';
 
 export async function buildTestApp() {
   const config = loadConfig({ THRESHOLD_ENV: 'local', SESSION_SECRET: 'test-secret-for-sessions' });
@@ -29,6 +30,7 @@ export async function buildTestApp() {
   const tokenStore = new MemoryTokenStore();
   const eventStore = new MemoryEventStore();
   const conversationStore = new MemoryConversationStore();
+  const deviceAccountStore = new MemoryDeviceAccountStore();
   const metrics = new InMemoryMetricsSink();
 
   const overrides: ContainerOverrides = {
@@ -41,6 +43,7 @@ export async function buildTestApp() {
     tokenStore,
     eventStore,
     conversationStore,
+    deviceAccountStore,
     metrics,
   };
   const container = buildContainer(config, overrides);
@@ -62,6 +65,7 @@ export async function buildTestApp() {
     tokenStore,
     eventStore,
     conversationStore,
+    deviceAccountStore,
   };
 }
 

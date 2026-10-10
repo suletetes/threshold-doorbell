@@ -31,10 +31,11 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
   const service = new WebhookService(
     app.container.eventStore,
     app.container.push,
-    // Resolve the resident for a device server-side. In the fixture flow every
-    // known device maps to a single demo resident; the real impl queries the
-    // device->account mapping. Never taken from the webhook body (FR-8.7).
-    async (deviceId: string) => (deviceId ? 'resident-account-1' : null),
+    // Resolve the resident for a device from the server-side device->account
+    // mapping, never from a hard-coded account and never from the webhook body
+    // (CRIT-04, FR-8.7). An unmapped device resolves to null so its event is
+    // quarantined rather than attributed to any real resident.
+    (deviceId: string) => app.container.deviceAccountStore.resolve(deviceId),
   );
 
   app.post('/webhook', async (request: FastifyRequest, reply: FastifyReply) => {

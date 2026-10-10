@@ -35,6 +35,13 @@ export async function registerDeviceRoutes(app: FastifyInstance): Promise<void> 
         app.container.ringGateway.listDevices(token),
       );
 
+      // Record the device->account mapping so inbound webhooks can be attributed
+      // to the owning resident instead of a hard-coded account (CRIT-04).
+      await app.container.deviceAccountStore.mapAll(
+        devices.map((d) => d.id),
+        residentSub,
+      );
+
       const page = paginate(devices, limit, offset);
       reply.code(200).send(page);
       return page;

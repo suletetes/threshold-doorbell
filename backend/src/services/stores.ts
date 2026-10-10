@@ -52,3 +52,22 @@ export interface ConversationStorePort {
   /** Erase every conversation for a resident. Returns count removed (FR-8.6). */
   deleteAllForResident(residentSub: string): Promise<number>;
 }
+
+// --- Device -> account mapping (Task 5/6, CRIT-04) ---
+/**
+ * Maps a Ring deviceId to the residentSub that owns it. Populated server-side
+ * when OAuth completes or the device list is fetched; the webhook route uses it
+ * to attribute an inbound event to the correct resident instead of a hard-coded
+ * account (CRIT-04). A device that is not present is unmapped: its events are
+ * quarantined rather than attributed to any real resident (FR-8.7).
+ */
+export interface DeviceAccountStorePort {
+  /** Record that `deviceId` belongs to `residentSub`. Idempotent (last write wins). */
+  map(deviceId: string, residentSub: string): Promise<void>;
+  /** Record every device for a resident in one call (used after a device-list fetch). */
+  mapAll(deviceIds: string[], residentSub: string): Promise<void>;
+  /** The owning resident for a device, or null when the device is unmapped. */
+  resolve(deviceId: string): Promise<string | null>;
+  /** Remove every mapping for a resident (erasure, FR-8.6). Returns count removed. */
+  deleteAllForResident(residentSub: string): Promise<number>;
+}
