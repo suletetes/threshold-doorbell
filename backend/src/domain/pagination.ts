@@ -16,7 +16,8 @@ export interface ParsedPageQuery {
 export function normalizeLimit(raw: unknown): number {
   if (raw === undefined || raw === null || raw === '') return PAGINATION_DEFAULT_LIMIT;
   const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10);
-  if (!Number.isFinite(n) || Number.isNaN(n) || n <= 0) return PAGINATION_DEFAULT_LIMIT;
+  // Number.isFinite already excludes NaN, so no separate isNaN check (NIT-06).
+  if (!Number.isFinite(n) || n <= 0) return PAGINATION_DEFAULT_LIMIT;
   return Math.min(Math.trunc(n), PAGINATION_MAX_LIMIT);
 }
 

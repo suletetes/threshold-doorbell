@@ -11,12 +11,27 @@ describe('parseWebhook', () => {
       timestamp: '2026-01-01T00:00:00.000Z',
       confidence: 0.9,
       bounding_box: { x: 0, y: 0, width: 1, height: 1 },
-      thumbnail_url: 'https://example/t.jpg',
+      thumbnail_url: 'https://media.ring.com/t.jpg',
     });
     expect(event.requestId).toBe('r1');
     expect(event.type).toBe('person_detected');
     expect(event.boundingBox).toEqual({ x: 0, y: 0, width: 1, height: 1 });
     expect(event.eventId).toBeTruthy();
+    // LOW-29: a thumbnail on an allowlisted Ring host is kept.
+    expect(event.thumbnailUrl).toBe('https://media.ring.com/t.jpg');
+  });
+
+  it('drops a thumbnail_url on a non-Ring host or non-https (LOW-29)', () => {
+    const base = { request_id: 'r1', event_type: 'motion_detected', device_id: 'd1' };
+    expect(parseWebhook({ ...base, thumbnail_url: 'https://evil.example/x.jpg' }).thumbnailUrl).toBeNull();
+    expect(parseWebhook({ ...base, thumbnail_url: 'http://media.ring.com/x.jpg' }).thumbnailUrl).toBeNull();
+    expect(
+      parseWebhook({ ...base, thumbnail_url: 'javascript:alert(1)' }).thumbnailUrl,
+    ).toBeNull();
+    // A legitimate Ring host is kept.
+    expect(
+      parseWebhook({ ...base, thumbnail_url: 'https://cdn.ring.com/x.jpg' }).thumbnailUrl,
+    ).toBe('https://cdn.ring.com/x.jpg');
   });
 
   it('defaults optional fields to null and generates a timestamp', () => {

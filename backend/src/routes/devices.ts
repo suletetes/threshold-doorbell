@@ -5,7 +5,7 @@
 // ring_unavailable, 502 ring_contract_invalid. An account with zero devices
 // returns an empty page (the app renders the FR-2.2 empty state).
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { errors } from '../domain/errors.js';
 import type { Device, Page } from '../domain/types.js';
 import { decodeCursor, normalizeLimit, paginate } from '../domain/pagination.js';
@@ -19,10 +19,7 @@ export async function registerDeviceRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Querystring: ListQuery }>(
     '/devices',
     { preHandler: app.requireSession },
-    async (
-      request: FastifyRequest<{ Querystring: ListQuery }>,
-      reply: FastifyReply,
-    ): Promise<Page<Device>> => {
+    async (request: FastifyRequest<{ Querystring: ListQuery }>): Promise<Page<Device>> => {
       const residentSub = request.session!.sub;
       const limit = normalizeLimit(request.query.limit);
       const offset = decodeCursor(request.query.cursor);
@@ -42,9 +39,13 @@ export async function registerDeviceRoutes(app: FastifyInstance): Promise<void> 
         residentSub,
       );
 
-      const page = paginate(devices, limit, offset);
-      reply.code(200).send(page);
-      return page;
+      // LOW-28: give the list a stable total order (by device id) before
+      // slicing by the offset cursor. Ring returns the devices in an unspecified
+      // order, so without this an offset cursor could point at a different
+      // device between pages and silently skip or duplicate rows.
+      // NIT-05: return the page (default 200) rather than send() and return.
+      const ordered = [...devices].sort((a, b) => a.id.localeCompare(b.id));
+      return paginate(ordered, limit, offset);
     },
   );
 }

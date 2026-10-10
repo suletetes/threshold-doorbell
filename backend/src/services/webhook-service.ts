@@ -24,6 +24,30 @@ interface RawWebhook {
 
 const EVENT_TYPES: readonly EventType[] = ['motion_detected', 'person_detected'];
 
+/**
+ * LOW-29: a webhook thumbnail_url is only trusted when it is an HTTPS URL on a
+ * Ring-owned host. Anything else (a foreign host, http, a javascript: or data:
+ * URL) is dropped to null rather than stored and later handed to a client,
+ * which prevents the webhook from steering the app at an attacker URL.
+ */
+const ALLOWED_THUMBNAIL_HOST_SUFFIXES = ['.ring.com', '.amazonaws.com'];
+
+function sanitizeThumbnailUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value === '') return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:') return null;
+  const host = url.hostname.toLowerCase();
+  const allowed = ALLOWED_THUMBNAIL_HOST_SUFFIXES.some(
+    (suffix) => host === suffix.slice(1) || host.endsWith(suffix),
+  );
+  return allowed ? url.toString() : null;
+}
+
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
@@ -85,7 +109,8 @@ export function parseWebhook(raw: unknown): DoorEvent {
     timestamp,
     confidence,
     boundingBox: parseBoundingBox(w.bounding_box),
-    thumbnailUrl: typeof w.thumbnail_url === 'string' ? w.thumbnail_url : null,
+    // LOW-29: only keep a thumbnail URL on an allowlisted Ring host over HTTPS.
+    thumbnailUrl: sanitizeThumbnailUrl(w.thumbnail_url),
     processedAt: null,
   };
 }

@@ -5,9 +5,8 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { pino } from 'pino';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
-import { createLogger, REDACT_PATHS } from '../../src/observability/logger.js';
+import { createLogger } from '../../src/observability/logger.js';
 
 let app: FastifyInstance | undefined;
 afterEach(async () => {
@@ -100,8 +99,9 @@ describe('Log redaction (FR-1.7, NFR-3)', () => {
   it('redacts tokens, credentials, transcript text, and bodies', () => {
     const chunks: string[] = [];
     const stream = { write: (s: string) => chunks.push(s) };
-    // Rebuild the logger with our redact paths writing to a capture stream.
-    const log = pino({ redact: { paths: REDACT_PATHS, censor: '[redacted]' } }, stream as never);
+    // Use the real factory (recursive redaction, MED-35) writing to a capture
+    // stream so the test exercises the production redaction path.
+    const log = createLogger('info', stream as never);
 
     log.info(
       {

@@ -86,13 +86,9 @@ export function verifySignature(
 
   const a = Buffer.from(provided, 'utf8');
   const b = Buffer.from(expected, 'utf8');
-  // Length must match for timingSafeEqual; a length difference is a mismatch,
-  // but we still run a constant-time compare against a fixed-length buffer to
-  // avoid leaking length via early return timing.
-  if (a.length !== b.length) {
-    // Compare expected against itself to keep timing uniform, then return false.
-    timingSafeEqual(b, b);
-    return false;
-  }
+  // The expected signature is a fixed-length hex SHA-256, so its length is
+  // public: a length mismatch is simply a non-match. No dummy compare is needed
+  // (NIT-02), it added no real timing protection.
+  if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }

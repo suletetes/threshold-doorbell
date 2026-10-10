@@ -9,7 +9,8 @@ const FIGURE_DASH = '\u2012';
 const HORIZONTAL_BAR = '\u2015';
 
 const DASH_CHARS = `${EM_DASH}${EN_DASH}${FIGURE_DASH}${HORIZONTAL_BAR}`;
-// Fresh regex per call site avoids shared lastIndex state from the /g flag.
+// Module-level regexes. stripDashes uses String.replace with the /g form, which
+// does not read or advance lastIndex, so sharing one instance is safe (NIT-01).
 const DASH_REPLACE = new RegExp(`[${DASH_CHARS}]`, 'g');
 const DASH_TEST = new RegExp(`[${DASH_CHARS}]`);
 

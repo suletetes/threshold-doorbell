@@ -277,10 +277,8 @@ export class AsrRelay {
    */
   private pumpResults(stream: TranscribeStream): void {
     void (async () => {
-      let sawResult = false;
       try {
         for await (const result of stream.results()) {
-          sawResult = true;
           this.relayResult(result);
         }
       } catch {
@@ -288,7 +286,7 @@ export class AsrRelay {
       }
       if (this.disposed || this.stream !== stream) return;
       // The stream ended on its own: reconnect and replay (design.md §6).
-      await this.reconnect(sawResult);
+      await this.reconnect();
     })();
   }
 
@@ -300,7 +298,7 @@ export class AsrRelay {
     });
   }
 
-  private async reconnect(_sawResult: boolean): Promise<void> {
+  private async reconnect(): Promise<void> {
     if (this.disposed || this.language === null) return;
     if (this.reconnects >= this.maxReconnects) {
       this.failTranscribe();
