@@ -67,7 +67,7 @@ function bridge(msg) {
   } catch (_) { /* bridge optional in a plain browser */ }
 }
 function log(line) {
-  const ts = new Date().toISOString().substr(11, 12);
+  const ts = new Date().toISOString().slice(11, 23);
   logEl.textContent += `[${ts}] ${line}\n`;
   logEl.scrollTop = logEl.scrollHeight;
   bridge({ type: "log", line });
@@ -148,7 +148,10 @@ async function connect() {
       }
     };
 
-    const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
+    // The transceivers above already declare the audio sendrecv / video
+    // recvonly directions, so the legacy offerToReceive* options are redundant
+    // (and deprecated). Create the offer with no options (NIT-22).
+    const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     await waitIceComplete(pc, 3000);
 
