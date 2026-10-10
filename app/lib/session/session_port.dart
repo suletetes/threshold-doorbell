@@ -91,6 +91,7 @@ class FakeSessionPort implements SessionPort {
     this.probeSucceeds = true,
     List<ConnectPlan>? connectPlan,
     NegotiatedMedia? media,
+    this.connectGate,
   })  : _connectPlan = List<ConnectPlan>.from(
           connectPlan ?? const <ConnectPlan>[ConnectPlan.succeed],
         ),
@@ -104,6 +105,13 @@ class FakeSessionPort implements SessionPort {
   /// Whether the probe reports outbound available (FR-6.4a).
   bool probeSucceeds;
 
+  /// Optional gate a test can complete to control exactly when [connect]
+  /// resolves. While it is uncompleted, [connect] stays pending so a test can
+  /// pump a frame and observe the controller sitting in the connecting state.
+  /// When null (the default), [connect] resolves on the next microtask as
+  /// before.
+  final Future<void>? connectGate;
+
   final List<ConnectPlan> _connectPlan;
   final NegotiatedMedia _media;
   final _events = StreamController<SessionPortEvent>.broadcast();
@@ -116,6 +124,9 @@ class FakeSessionPort implements SessionPort {
   @override
   Future<NegotiatedMedia> connect(String deviceId) async {
     connectCalls++;
+    if (connectGate != null) {
+      await connectGate;
+    }
     final plan =
         _connectPlan.isEmpty ? ConnectPlan.succeed : _connectPlan.removeAt(0);
     if (plan == ConnectPlan.fail) {

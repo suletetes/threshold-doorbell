@@ -57,16 +57,21 @@ describe('Metrics wiring (Task 28, design.md §10)', () => {
   it('increments refresh on a successful token refresh', async () => {
     const t = await buildTestApp();
     app = t.app;
+    // Seed a valid, not-near-expiry Ring token for this resident so the refresh
+    // path actually succeeds. The old test skipped the success branch entirely
+    // (the resident had no token, so it always 401'd and asserted 0), so the
+    // metric increment was never exercised.
+    await t.container.ringTokens.persist(SUB, {
+      accessToken: 'seeded-access-token',
+      refreshToken: 'seeded-refresh-token',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/oauth/refresh',
       headers: auth(t.config.sessionSecret),
     });
-    // A resident with no stored Ring token cannot refresh; only count on success.
-    if (res.statusCode === 200) {
-      expect(t.metrics.counter('refresh')).toBe(1);
-    } else {
-      expect(t.metrics.counter('refresh')).toBe(0);
-    }
+    expect(res.statusCode).toBe(200);
+    expect(t.metrics.counter('refresh')).toBe(1);
   });
 });

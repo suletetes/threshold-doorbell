@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/session/auth_port.dart';
@@ -26,18 +28,33 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('shows the connecting status while connecting', (tester) async {
-      final port = FakeSessionPort(
-        connectPlan: <ConnectPlan>[ConnectPlan.succeed],
-      );
+    testWidgets('shows the connecting panel while the connect is pending',
+        (tester) async {
+      // Hold connect open with a gate so the controller stays in the
+      // connecting state while we pump and inspect the UI. Reverting the
+      // ConversationScreen so it no longer renders the connecting panel (or the
+      // controller so open() skips the connecting state) fails this test.
+      final gate = Completer<void>();
+      final port = FakeSessionPort(connectGate: gate.future);
       final c = SessionController(port: port);
       final future = c.open(deviceId: 'dev-1');
       await tester.pumpWidget(_wrap(c));
-      // Before the async open resolves we should be connecting or probing.
       await tester.pump();
+
+      // The connecting panel is on screen with its user-facing copy, and the
+      // live caption region is not yet present.
+      expect(c.state, SessionState.connecting);
+      expect(find.byKey(const ValueKey('status-connecting')), findsOneWidget);
+      expect(find.text('Connecting to your doorbell'), findsOneWidget);
+      expect(find.byKey(const ValueKey('caption-region')), findsNothing);
+
+      // Releasing the gate lets the session reach live.
+      gate.complete();
       await future;
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(c.state, SessionState.live);
+      expect(find.byKey(const ValueKey('status-connecting')), findsNothing);
+      expect(find.byKey(const ValueKey('caption-region')), findsOneWidget);
       c.dispose();
       await port.dispose();
     });

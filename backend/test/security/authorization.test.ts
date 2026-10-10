@@ -130,9 +130,20 @@ describe('Log redaction (FR-1.7, NFR-3)', () => {
     expect(out).toContain('this-is-fine');
   });
 
-  it('createLogger builds a logger with the redaction config', () => {
-    // Smoke test that the factory does not throw and returns a usable logger.
-    const log = createLogger('silent');
-    expect(typeof log.info).toBe('function');
+  it('honors the configured level: silent emits nothing, info emits', () => {
+    // The old version only checked typeof log.info === 'function', which a
+    // broken factory would also satisfy. Assert the level config actually takes
+    // effect on the output.
+    const silentChunks: string[] = [];
+    const silent = createLogger('silent', { write: (s: string) => silentChunks.push(s) } as never);
+    silent.info({ safe: 'value' }, 'should not appear');
+    expect(silentChunks.join('')).toBe('');
+
+    const infoChunks: string[] = [];
+    const info = createLogger('info', { write: (s: string) => infoChunks.push(s) } as never);
+    info.info({ safe: 'value' }, 'should appear');
+    const out = infoChunks.join('');
+    expect(out).toContain('should appear');
+    expect(out).toContain('value');
   });
 });

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/reply/outbound_mode.dart';
@@ -33,12 +35,25 @@ void main() {
     testWidgets(
         'tapping a suggestion speaks it and shows the speaking banner (FR-6.3)',
         (tester) async {
-      final port = FakeReplyPort();
+      // Gate playback so the controller stays in SPEAKING_AT_DOOR while we
+      // assert the banner is actually on screen. The old version only checked
+      // that speak() was called and never that the banner rendered.
+      final gate = Completer<void>();
+      final port = FakeReplyPort(playbackGate: gate.future);
       final c = ReplyController(port: port, outbound: _twoWay());
       await tester.pumpWidget(_wrap(c, const <String>[]));
       await tester.pump();
       await tester.tap(find.text('Please come back later'));
-      await tester.pump(); // synthesizing/speaking transitions
+      await tester.pump(); // enter synthesizing then speakingAtDoor
+
+      // The speaking banner is visible with its dash-free in-flight label while
+      // the reply plays, and the suggestion buttons are gone (the whole bar is
+      // the speaking banner in this state).
+      expect(c.state, ReplyState.speakingAtDoor);
+      expect(find.text(kSpeakingAtDoorLabel), findsOneWidget);
+      expect(find.text('Please leave it at the door'), findsNothing);
+
+      gate.complete();
       await tester.pumpAndSettle();
       expect(port.spokenTexts.contains('Please come back later'), isTrue);
       c.dispose();

@@ -63,8 +63,20 @@ void main() {
       final c = SettingsController(erasure: FakeDataErasurePort());
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      expect(find.byKey(const ValueKey('contrast-readout')), findsOneWidget);
-      expect(c.settings.captionContrastRatio >= 4.5, isTrue);
+      // Read the number the readout actually displays, not just the controller
+      // field, so a readout that stopped reflecting the ratio would fail.
+      final readout = tester
+          .widget<Text>(find.byKey(const ValueKey('contrast-readout')))
+          .data!;
+      expect(readout, startsWith('Contrast '));
+      final match =
+          RegExp(r'Contrast (\d+(?:\.\d+)?) to 1').firstMatch(readout);
+      expect(match, isNotNull, reason: 'readout names the ratio');
+      final shownRatio = double.parse(match!.group(1)!);
+      expect(shownRatio, greaterThanOrEqualTo(4.5));
+      // And the shown number matches the controller to one decimal place.
+      expect(
+          shownRatio, closeTo(c.settings.captionContrastRatio, 0.05 + 0.0001));
     });
 
     testWidgets('delete all data requires confirmation then erases (FR-8.6)',

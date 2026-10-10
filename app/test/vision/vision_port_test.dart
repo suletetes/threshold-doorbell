@@ -54,12 +54,30 @@ void main() {
   });
 
   group('FixtureVision zero-egress (Task 19, FR-11.2)', () {
-    test('never transmits frames off the handset', () {
+    test('delivers frames to a local subscriber while transmitting none',
+        () async {
       final v = FixtureVision();
+      final received = <VisionFrame>[];
+      final sub = v.frames.listen(received.add);
       v.emit(VisionFrame(<VisionCue>[person(0.7)]));
       v.emit(VisionFrame(<VisionCue>[pkg(0.6)]));
-      expect(v.framesTransmitted, 0);
+      // Let the broadcast stream deliver.
+      await Future<void>.delayed(Duration.zero);
+
+      // The frames really flowed to an on-device subscriber (locks the LOW-02
+      // broadcast behavior) and were recorded locally...
+      expect(received.length, 2);
       expect(v.pushed.length, 2);
+      // ...but nothing was transmitted. If emit() started counting delivered
+      // frames as transmitted (an egress regression), this would fail.
+      expect(v.framesTransmitted, 0);
+      expect(
+        v.framesTransmitted,
+        lessThan(v.pushed.length),
+        reason: 'frames are processed on-device but never transmitted',
+      );
+      await sub.cancel();
+      await v.dispose();
     });
 
     test('reports availability so presence can fall back to events (FR-5.4)',

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
-import { collectUntilClose, nextJson } from '../helpers/ws.js';
+import { collectUntilClose, nextJson, waitFor } from '../helpers/ws.js';
 import { ASR_CLOSE, ASR_GUARD_CLOSE, AsrRelay } from '../../src/routes/asr.js';
 import type { TranscribePort, TranscribeStream } from '../../src/services/transcribe.js';
 import type { WebSocket } from '@fastify/websocket';
@@ -85,7 +85,9 @@ describe('WS /asr/stream (Task 8, FR-5.1, G2; AT-4)', () => {
     ws.send(audioFrame(1));
     await nextJson(ws);
     ws.close();
-    await new Promise((r) => setTimeout(r, 20));
+    // Only one language was ever opened: the second start frame was ignored.
+    // Assert directly rather than sleeping; the condition is already true by
+    // the time both results have been received.
     expect(t.transcribe.openedLanguages).toEqual(['es-US']);
   });
 
@@ -114,11 +116,18 @@ describe('WS /asr/stream (Task 8, FR-5.1, G2; AT-4)', () => {
     ws.on('message', (d: unknown) => frames.push(JSON.parse(String(d))));
     ws.send(startFrame('en-US'));
     ws.send(audioFrame(0)); // partial, then the first stream drops -> reconnect + replay
-    await new Promise((r) => setTimeout(r, 40));
+    // Wait for the reconnect to actually open a second upstream stream rather
+    // than sleeping a fixed 40ms. If the reconnect never happens this throws.
+    await waitFor(() => t.transcribe.streams.length >= 2, {
+      message: 'the relay never reconnected after the upstream drop',
+    });
     ws.send(audioFrame(1)); // fed to the reconnected stream -> final
-    await new Promise((r) => setTimeout(r, 40));
+    // Wait for the final frame to be delivered before closing, so the close
+    // cannot race ahead of the final result.
+    await waitFor(() => frames.some((f) => f.type === 'final'), {
+      message: 'no final caption arrived after the reconnect',
+    });
     ws.close();
-    await new Promise((r) => setTimeout(r, 20));
     // The language never changed across the reconnect (FR-10.1): same language,
     // and the stream was reopened (reconnect happened).
     expect(t.transcribe.openedLanguages).toEqual(['en-US', 'en-US']);
@@ -159,10 +168,14 @@ describe('WS /asr/stream (Task 8, FR-5.1, G2; AT-4)', () => {
     const token = sessionFor('resident-cap', t.config.sessionSecret);
     const ws1 = await connect(app, token);
     const ws2 = await connect(app, token);
-    // Hold both open (they occupy the two slots).
+    // Hold both open (they occupy the two slots). Wait until both upstream
+    // streams have actually opened rather than sleeping a fixed interval, so
+    // the overflow attempt below genuinely races a full slot set.
     ws1.send(startFrame());
     ws2.send(startFrame());
-    await new Promise((r) => setTimeout(r, 20));
+    await waitFor(() => t.transcribe.streams.length >= 2, {
+      message: 'both held sessions never opened their upstream streams',
+    });
     // The third concurrent attempt is rejected with the too-many-sessions code.
     const ws3 = await connect(app, token);
     const { frames, code } = await collectUntilClose(ws3);

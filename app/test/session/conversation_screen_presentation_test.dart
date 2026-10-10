@@ -4,6 +4,8 @@
 // replaced the audit's findings, and the recovery path that C4 called "the single
 // worst UX defect found".
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/captions/caption_surface.dart';
@@ -237,15 +239,22 @@ void main() {
   group('Nothing moves at all under reduced motion (audit principle 3)', () {
     testWidgets('the connecting spinner becomes a static marker',
         (tester) async {
-      final port = FakeSessionPort();
+      // Gate connect so we are deterministically in the connecting state while
+      // we assert, instead of racing the fake to live.
+      final gate = Completer<void>();
+      final port = FakeSessionPort(connectGate: gate.future);
       final c = SessionController(port: port);
       final opening = c.open(deviceId: 'dev-1');
       await tester.pumpWidget(_wrap(c, disableAnimations: true));
       await tester.pump();
-      // A spinning CircularProgressIndicator is the one animation Flutter does
-      // not stop on its own, so the panel substitutes a static marker. The live
-      // region still announces the state in words, so nothing is lost.
+      // The connecting panel is actually on screen...
+      expect(c.state, SessionState.connecting);
+      expect(find.byKey(const ValueKey('status-connecting')), findsOneWidget);
+      // ...and a spinning CircularProgressIndicator is the one animation Flutter
+      // does not stop on its own, so under reduced motion the panel substitutes
+      // a static marker. Reverting that substitution fails this assertion.
       expect(find.byType(CircularProgressIndicator), findsNothing);
+      gate.complete();
       await opening;
       await tester.pumpAndSettle();
       c.dispose();
@@ -287,19 +296,22 @@ void main() {
   group('Connecting states preview the caption region (perceived performance)',
       () {
     testWidgets('the connecting panel shows skeleton lines', (tester) async {
-      final port = FakeSessionPort();
+      // Gate connect so the connecting panel is deterministically present; the
+      // old version guarded the assertion behind an if, so it passed even when
+      // no skeleton ever rendered.
+      final gate = Completer<void>();
+      final port = FakeSessionPort(connectGate: gate.future);
       final c = SessionController(port: port);
       final opening = c.open(deviceId: 'dev-1');
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      // Either connecting or probing depending on scheduling; both preview.
-      if (find.byType(SkeletonBlock).evaluate().isNotEmpty) {
-        expect(
-          find.byType(SkeletonBlock),
-          findsNWidgets(3),
-          reason: 'three uneven caption lines, not a progress meter',
-        );
-      }
+      expect(c.state, SessionState.connecting);
+      expect(
+        find.byType(SkeletonBlock),
+        findsNWidgets(3),
+        reason: 'three uneven caption lines, not a progress meter',
+      );
+      gate.complete();
       await opening;
       await tester.pumpAndSettle();
       // Gone once captions can actually arrive.

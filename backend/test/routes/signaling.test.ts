@@ -149,7 +149,16 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
     const url = answer.sessionUrl;
     ws.send(JSON.stringify({ type: 'end' }));
     await new Promise<void>((resolve) => ws.on('close', () => resolve()));
-    await new Promise((r) => setTimeout(r, 20));
+    // Poll for the server-side release instead of sleeping a fixed 20ms and
+    // hoping. waitFor now throws on timeout, so if the end frame stopped
+    // releasing the Ring session this test fails rather than passing on the
+    // stale fixed sleep.
+    await waitFor(() => t.ringSignaling.wasReleased(url), {
+      message: 'the Ring session was never released after the end frame',
+    });
+    await waitFor(() => !t.signalingService.hasActiveSession(SUB), {
+      message: 'the signaling slot was never freed after the end frame',
+    });
     expect(t.ringSignaling.wasReleased(url)).toBe(true);
     expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
   });

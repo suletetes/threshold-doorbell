@@ -93,4 +93,44 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  // MED-11: the group above overrides every device port with a fake, so it
+  // never exercises the real composition. This group pumps ThresholdApp with
+  // the PRODUCTION adapters (only consent is pre-acknowledged, so the first-run
+  // gate does not swallow the Answer tap). The production SessionPort throws
+  // DeviceBindingUnavailable on connect, so answering the door must fail CLOSED
+  // to a visible, dash-free error state rather than crashing or hanging on a
+  // blank surface. If the production SessionPort were changed to fabricate a
+  // successful connect, this test would fail because the error panel would be
+  // gone.
+  group('Composition root with production adapters fails closed (MED-11)', () {
+    testWidgets('answering the door surfaces a visible connect error',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          // Only consent is faked; every device/Ring/network port is the real
+          // production adapter.
+          overrides: <Override>[
+            consentStoreProvider
+                .overrideWithValue(FakeConsentStore(acknowledged: true)),
+          ],
+          child: const ThresholdApp(),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(HomeScreen), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+
+      // The session routed to the Conversation screen and, after the connect
+      // retries all threw, landed on the error panel with its exact dash-free
+      // copy. The connect binding was really invoked and really failed.
+      expect(find.byType(ConversationScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('status-error')), findsOneWidget);
+      expect(find.text("Couldn't connect to your doorbell."), findsOneWidget);
+      // The failure is surfaced, not thrown out of the widget tree.
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -33,13 +33,22 @@ export function nextJson<T = Record<string, unknown>>(ws: WebSocket): Promise<T>
  */
 export async function waitFor(
   predicate: () => boolean,
-  { timeoutMs = 2_000, intervalMs = 10 }: { timeoutMs?: number; intervalMs?: number } = {},
+  {
+    timeoutMs = 2_000,
+    intervalMs = 10,
+    message = 'condition not met before timeout',
+  }: { timeoutMs?: number; intervalMs?: number; message?: string } = {},
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (predicate()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+  // A silent return on timeout made every waitFor-based assertion pass even
+  // when the awaited server effect never happened (MED-39). Fail loudly
+  // instead so a regression that stops releasing the session is caught.
+  if (predicate()) return;
+  throw new Error(`waitFor: ${message} (waited ${timeoutMs}ms)`);
 }
 
 /** Resolve with the close code once the socket closes. */

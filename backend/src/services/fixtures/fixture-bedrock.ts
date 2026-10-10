@@ -5,6 +5,14 @@ import type { BedrockPort, SmartReplyRequest } from '../bedrock.js';
 
 export class FixtureBedrock implements BedrockPort {
   private mode: 'ok' | 'error' | 'hang' = 'ok';
+  private calls = 0;
+
+  /** Number of times suggest() was invoked. Lets a test assert that Privacy
+   * Mode never reaches Bedrock at all (FR-7.1a), rather than only checking the
+   * response shape, which a Clarity fallback would also satisfy. */
+  get suggestInvocations(): number {
+    return this.calls;
+  }
 
   /** Simulate a Bedrock error (rejects). */
   setError(): void {
@@ -22,6 +30,7 @@ export class FixtureBedrock implements BedrockPort {
   }
 
   async suggest(request: SmartReplyRequest, signal: AbortSignal): Promise<string[]> {
+    this.calls += 1;
     if (this.mode === 'error') {
       throw new Error('bedrock unavailable');
     }
