@@ -2,7 +2,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
 import { collectUntilClose, nextJson } from '../helpers/ws.js';
-import { ASR_CLOSE } from '../../src/routes/asr.js';
+import { ASR_CLOSE, ASR_GUARD_CLOSE, AsrRelay } from '../../src/routes/asr.js';
+import type { TranscribePort, TranscribeStream } from '../../src/services/transcribe.js';
+import type { WebSocket } from '@fastify/websocket';
 import { WS_SESSION_PROTOCOL_PREFIX } from '../../src/security/ws-auth.js';
 
 /** Open an /asr/stream WS carrying the session via Sec-WebSocket-Protocol (MED-34). */
@@ -147,5 +149,129 @@ describe('WS /asr/stream (Task 8, FR-5.1, G2; AT-4)', () => {
     ws.send(JSON.stringify({ type: 'stop' }));
     const code = await new Promise<number>((resolve) => ws.on('close', (c: number) => resolve(c)));
     expect(code).toBe(1000);
+  });
+
+  it('caps concurrent sessions per resident and rejects the overflow (HIGH-22)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // The default limit is 2 concurrent sessions per resident.
+    expect(t.config.limits.asrMaxSessionsPerResident).toBe(2);
+    const token = sessionFor('resident-cap', t.config.sessionSecret);
+    const ws1 = await connect(app, token);
+    const ws2 = await connect(app, token);
+    // Hold both open (they occupy the two slots).
+    ws1.send(startFrame());
+    ws2.send(startFrame());
+    await new Promise((r) => setTimeout(r, 20));
+    // The third concurrent attempt is rejected with the too-many-sessions code.
+    const ws3 = await connect(app, token);
+    const { frames, code } = await collectUntilClose(ws3);
+    expect(code).toBe(ASR_GUARD_CLOSE.tooManySessions);
+    expect(frames.some((f) => (f as { code?: string }).code === 'rate_limited')).toBe(true);
+    // A different resident is unaffected by this resident's cap.
+    const otherToken = sessionFor('resident-cap-other', t.config.sessionSecret);
+    const wsOther = await connect(app, otherToken);
+    wsOther.send(startFrame());
+    wsOther.send(audioFrame(0));
+    const partial = await nextJson(wsOther);
+    expect(partial).toMatchObject({ type: 'partial' });
+    ws1.close();
+    ws2.close();
+    wsOther.close();
+  });
+
+  it('fails the session when the upstream stream does not open within the timeout (HIGH-22)', async () => {
+    // Drive AsrRelay directly against a port whose open never resolves. With an
+    // open timeout the relay must fail the session (close 4500) instead of
+    // holding it open and buffering audio without bound.
+    const sent: unknown[] = [];
+    let closeCodeSeen: number | null = null;
+    const fakeSocket = {
+      send: (data: string) => sent.push(JSON.parse(data)),
+      close: (code: number) => {
+        closeCodeSeen = code;
+      },
+    } as unknown as WebSocket;
+    const neverOpens: TranscribePort = {
+      open: () => new Promise<TranscribeStream>(() => {}),
+    };
+    const relay = new AsrRelay(fakeSocket, neverOpens, () => 0, 1, {
+      openTimeoutMs: 20,
+      maxPendingFrames: 4,
+    });
+    await relay.onMessage(
+      Buffer.from(JSON.stringify({ type: 'start', language: 'en-US' })),
+      false,
+    );
+    expect(closeCodeSeen).toBe(ASR_CLOSE.transcribeError);
+    expect(sent.some((f) => (f as { code?: string }).code === 'transcribe_error')).toBe(true);
+    await relay.dispose();
+  });
+
+  it('bounds audio buffered before the stream opens and fails past the cap (HIGH-22)', async () => {
+    // A controllable open: it resolves only when we allow it, so audio sent
+    // during the opening window accumulates in the pending buffer. Past the cap
+    // the relay fails the session rather than buffering without bound.
+    const sent: unknown[] = [];
+    let closeCodeSeen: number | null = null;
+    const fakeSocket = {
+      send: (data: string) => sent.push(JSON.parse(data)),
+      close: (code: number) => {
+        closeCodeSeen = code;
+      },
+    } as unknown as WebSocket;
+    const openControl: { resolve: ((s: TranscribeStream) => void) | null } = { resolve: null };
+    const slowPort: TranscribePort = {
+      open: () =>
+        new Promise<TranscribeStream>((resolve) => {
+          openControl.resolve = resolve;
+        }),
+    };
+    const cap = 4;
+    const relay = new AsrRelay(fakeSocket, slowPort, () => 0, 1, { maxPendingFrames: cap });
+    // Begin the start without awaiting (open is pending, so the queue is held).
+    const startPromise = relay.onMessage(
+      Buffer.from(JSON.stringify({ type: 'start', language: 'en-US' })),
+      false,
+    );
+    // Let onStart run up to its pending open (started=true, opening=true).
+    await new Promise((r) => setTimeout(r, 5));
+    // Feed cap+1 audio frames directly through onAudioForTest so they land in
+    // the pending buffer while opening (bypassing the serial queue that is held
+    // behind the pending open).
+    for (let i = 0; i <= cap; i += 1) {
+      relay.onAudioForTest(new Uint8Array([i]));
+    }
+    expect(closeCodeSeen).toBe(ASR_CLOSE.transcribeError);
+    expect(sent.some((f) => (f as { code?: string }).code === 'transcribe_error')).toBe(true);
+    // Let the pending open resolve so the start promise settles and nothing leaks.
+    openControl.resolve?.({
+      pushAudio: () => {},
+      results: async function* () {},
+      close: async () => {},
+    });
+    await startPromise;
+    await relay.dispose();
+  });
+
+  it('rejects an oversized frame via the WebSocket payload cap (HIGH-22)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // The ws maxPayload is 64 KiB; a frame beyond it is dropped and the socket
+    // closes rather than buffering the whole payload.
+    expect(t.config.limits.wsMaxPayloadBytes).toBe(64 * 1024);
+    const token = sessionFor('resident-payload', t.config.sessionSecret);
+    const ws = await connect(app, token);
+    ws.send(startFrame());
+    const huge = JSON.stringify({
+      type: 'audio',
+      seq: 0,
+      pcm: Buffer.alloc(80 * 1024).toString('base64'),
+    });
+    const closed = new Promise<number>((resolve) => ws.on('close', (c: number) => resolve(c)));
+    ws.send(huge);
+    const code = await closed;
+    // ws closes with 1009 (message too big) or a 1006 abnormal close.
+    expect([1006, 1009]).toContain(code);
   });
 });

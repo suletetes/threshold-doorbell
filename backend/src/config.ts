@@ -35,12 +35,41 @@ export interface Config {
   webhookHmacKeys: string[]; // accepted keys, newest first, for rotation (MED-38)
   wsAllowedOrigins: string[]; // browser Origins allowed to open a WebSocket (MED-34)
   kmsKeyId: string;
+  limits: {
+    // MED-29: max JSON request body in bytes. Lowered from Fastify's 1 MiB
+    // default; no legitimate request is this large.
+    bodyLimitBytes: number;
+    // MED-29: HTTP rate limit (requests per window) and the window in ms.
+    rateLimitMax: number;
+    rateLimitWindowMs: number;
+    // HIGH-22: max audio frame bytes accepted on a WebSocket (ws maxPayload).
+    wsMaxPayloadBytes: number;
+    // HIGH-22: max concurrent /asr/stream sessions per resident.
+    asrMaxSessionsPerResident: number;
+    // HIGH-22: hard cap on a single /asr/stream session duration (ms).
+    asrMaxSessionMs: number;
+    // HIGH-22: how long to wait for the upstream Transcribe stream to open (ms).
+    asrOpenTimeoutMs: number;
+    // HIGH-22: max audio frames buffered while the stream is opening.
+    asrMaxPendingFrames: number;
+  };
 }
 
 /** Read a key from the SUPPLIED env map (MED-32: honour the argument). */
 function readEnv(env: NodeJS.ProcessEnv, key: string, fallback: string): string {
   const v = env[key];
   return v === undefined || v === '' ? fallback : v;
+}
+
+/** Read a positive-integer limit from the env, rejecting a non-numeric value. */
+function readPositiveInt(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
+  const raw = env[key];
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new ConfigError(`Invalid ${key} "${raw}". Expected a positive integer.`);
+  }
+  return n;
 }
 
 export class ConfigError extends Error {
@@ -96,6 +125,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .map((o) => o.trim())
       .filter((o) => o !== ''),
     kmsKeyId: readEnv(env, 'KMS_KEY_ID', 'alias/threshold-ring-tokens'),
+    limits: {
+      bodyLimitBytes: readPositiveInt(env, 'BODY_LIMIT_BYTES', 64 * 1024),
+      rateLimitMax: readPositiveInt(env, 'RATE_LIMIT_MAX', 300),
+      rateLimitWindowMs: readPositiveInt(env, 'RATE_LIMIT_WINDOW_MS', 60 * 1000),
+      wsMaxPayloadBytes: readPositiveInt(env, 'WS_MAX_PAYLOAD_BYTES', 64 * 1024),
+      asrMaxSessionsPerResident: readPositiveInt(env, 'ASR_MAX_SESSIONS_PER_RESIDENT', 2),
+      asrMaxSessionMs: readPositiveInt(env, 'ASR_MAX_SESSION_MS', 10 * 60 * 1000),
+      asrOpenTimeoutMs: readPositiveInt(env, 'ASR_OPEN_TIMEOUT_MS', 5 * 1000),
+      asrMaxPendingFrames: readPositiveInt(env, 'ASR_MAX_PENDING_FRAMES', 256),
+    },
   };
 
   // MED-32: outside "local" a public default or short secret is a hard error so
