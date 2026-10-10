@@ -4,7 +4,7 @@
 // auto-recover. The next session re-probes from scratch. Extracted from the
 // Threshold project; the actual WebRTC probe and injection are host-app bound.
 
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// The lifecycle states of outbound capability within a single session.
 enum OutboundState {
@@ -26,6 +26,17 @@ class OutboundModeSnapshot {
   bool get isCaptionsOnly =>
       state == OutboundState.captionsOnlyFromProbe ||
       state == OutboundState.captionsOnlyDegraded;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OutboundModeSnapshot && other.state == state;
+
+  @override
+  int get hashCode => state.hashCode;
+
+  @override
+  String toString() => 'OutboundModeSnapshot(state: $state)';
 }
 
 /// A single session's outbound-mode state machine. One instance per session so a

@@ -8,7 +8,7 @@
 // outbound mode, reply-bar assembly and dash-safe sanitization) that a host app
 // wires to its own WebRTC session, ASR engine, and TTS.
 
-library flutter_ring_captions;
+library;
 
 export 'src/caption_styling.dart';
 export 'src/turn_segmentation.dart';

@@ -4,7 +4,7 @@
 // produces separate labeled turns rather than one run-on block. Extracted from
 // the Threshold project.
 
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// Who is speaking in a turn.
 enum CaptionSpeaker { visitor, resident }
@@ -43,6 +43,32 @@ class CaptionResult {
   final int timestampMs;
   final bool segmentBoundary;
   final double? confidence;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CaptionResult &&
+          other.speaker == speaker &&
+          other.text == text &&
+          other.isFinal == isFinal &&
+          other.timestampMs == timestampMs &&
+          other.segmentBoundary == segmentBoundary &&
+          other.confidence == confidence;
+
+  @override
+  int get hashCode => Object.hash(
+        speaker,
+        text,
+        isFinal,
+        timestampMs,
+        segmentBoundary,
+        confidence,
+      );
+
+  @override
+  String toString() => 'CaptionResult(speaker: $speaker, text: $text, '
+      'isFinal: $isFinal, timestampMs: $timestampMs, '
+      'segmentBoundary: $segmentBoundary, confidence: $confidence)';
 }
 
 /// A labeled turn accumulated from one or more results.
@@ -90,6 +116,35 @@ class CaptionTurn {
       provisional: provisional ?? this.provisional,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CaptionTurn &&
+          other.speaker == speaker &&
+          other.text == text &&
+          other.isFinal == isFinal &&
+          other.startedAtMs == startedAtMs &&
+          other.lastUpdatedMs == lastUpdatedMs &&
+          other.confidence == confidence &&
+          other.provisional == provisional;
+
+  @override
+  int get hashCode => Object.hash(
+        speaker,
+        text,
+        isFinal,
+        startedAtMs,
+        lastUpdatedMs,
+        confidence,
+        provisional,
+      );
+
+  @override
+  String toString() => 'CaptionTurn(speaker: $speaker, text: $text, '
+      'isFinal: $isFinal, startedAtMs: $startedAtMs, '
+      'lastUpdatedMs: $lastUpdatedMs, confidence: $confidence, '
+      'provisional: $provisional)';
 }
 
 /// Decide whether [result] should start a new turn given the [current] turn.

@@ -5,4 +5,7 @@ build/
 .flutter-plugins-dependencies
 *.log
 
+# Test coverage output (flutter test --coverage), not source (NIT-16).
+coverage/
+
 # Do NOT ignore pubspec.lock: the package pins its dependency graph (structure.md).

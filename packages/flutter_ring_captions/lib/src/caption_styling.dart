@@ -2,7 +2,7 @@
 // rendering emphasis so styling rules are unit-testable without a widget tree.
 // Extracted from the Threshold project for reuse in any live-caption UI.
 
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// Confidence threshold below which a finalized token is de-emphasized. At or
 /// above this value a token renders in normal style.
@@ -27,6 +27,19 @@ class CaptionToken {
   const CaptionToken({required this.text, this.confidence});
   final String text;
   final double? confidence;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CaptionToken &&
+          other.text == text &&
+          other.confidence == confidence;
+
+  @override
+  int get hashCode => Object.hash(text, confidence);
+
+  @override
+  String toString() => 'CaptionToken(text: $text, confidence: $confidence)';
 }
 
 /// Emphasis for a whole PARTIAL result: always provisional.
