@@ -3,7 +3,8 @@
 **The first video doorbell experience built for the people who can't hear it.**
 
 Live captions of what your visitor is saying, and a tap-to-speak reply spoken aloud out of the
-doorbell: a complete two-way conversation, no hearing required.
+doorbell: the two-way conversation at the door, no hearing required. The product logic is built and
+tested; the device, cloud and Ring adapters are not yet implemented (see Status).
 
 Built for the **Amazon Developer Hackathon 2026** · **Ring** track · **Flutter** (iOS + Android)
 Mini-challenges: **AWS Builder** (Amazon Transcribe + Bedrock) · **Open Source** (`flutter_ring_captions`)
@@ -135,10 +136,12 @@ order everything else.
   gate and a reply-rendering sanitizer. Caption confidence is a semantic signal
   the UI maps to weight and label, never color or audio alone.
 
-- **Privacy by construction.** No raw audio or video is ever persisted. Privacy
-  Mode transcribes entirely on-device with zero egress, proven by fixtures that
-  count transmitted bytes and keep them at zero. Ring tokens are KMS-encrypted on
-  the backend and never touch the device.
+- **Privacy by construction (design intent).** The design keeps raw audio and
+  video off persistent storage, and Privacy Mode is meant to transcribe entirely
+  on-device with zero egress. The current backend encrypts Ring tokens with a
+  local symmetric crypto helper and keeps them in an in-memory store; the
+  KMS-backed token store is planned, not built, and the design keeps Ring tokens
+  on the backend rather than the device.
 
 The extracted, reusable heart of the caption and reply logic ships as a
 standalone MIT package, [`flutter_ring_captions`](packages/flutter_ring_captions/README.md).
@@ -146,13 +149,17 @@ standalone MIT package, [`flutter_ring_captions`](packages/flutter_ring_captions
 ## Status
 
 Under active implementation against `.kiro/specs/threshold-doorbell/tasks.md`.
-The backend (OAuth with PKCE, KMS token store, webhook, devices and events,
-signaling broker, ASR relay, transcripts, replies, observability) and the
-device-independent app logic (captions, alerts, sticky outbound mode,
-connectivity, language, model provisioning, vision) are implemented and covered
-by fixture-based tests. Device-bound work (the live WebView session, real
-permissions, the on-device latency and a11y device passes) is verified on a
-developer machine with Ring credentials, not in CI.
+The device-independent product logic (captions, alerts, sticky outbound mode,
+connectivity, language, model provisioning, vision) and the backend request
+handling (OAuth with PKCE, webhook, devices and events, signaling broker, ASR
+relay, transcripts, replies, observability) are covered by fixture-based tests.
+The production adapters are not built: in a release build the live session,
+speak, Ring launch, smart replies and data erase paths throw, the backend wires
+in-memory fixtures in every environment, and the KMS token store is planned
+rather than implemented. The live WebView session, real permissions and the
+on-device latency and a11y device passes remain to be done on a developer
+machine with Ring credentials, not in CI. The authoritative state is tracked in
+`.kiro/specs/threshold-doorbell/`.
 
 ## Getting started
 

@@ -11,8 +11,8 @@ Last updated after PR #7 merged to `main`.
 
 | Area | State |
 |---|---|
-| Functional tasks (1 to 31) | All 31 implemented and merged |
-| Automated tests | 567 app + 186 backend + 31 package, all passing |
+| Functional tasks (1 to 31) | Logic and fixtures complete; device, cloud and Ring adapters not implemented. Only tasks 1 and 27 are end to end today (see the audit task matrix). |
+| Automated tests | 567 app + 192 backend + 31 package, all passing |
 | Analyzer | `dart analyze` clean (No issues found!) |
 | Android build | `flutter build apk` succeeds (fat and split per ABI) and app bundle builds |
 | UI | Full design system, light and dark, WCAG 2.2 AA on every screen |
@@ -21,10 +21,11 @@ Last updated after PR #7 merged to `main`.
 
 ## What is verified here vs deferred to your device
 
-Everything that can be proven without hardware is proven. The following need a device or emulator plus a
-Ring account, so they are the only open verification items. The code and its logic are complete and tested
-behind interfaces; only the live hardware run is outstanding. This is not missing work, it is verification
-that a sandbox cannot perform.
+The pure product logic and its fixtures are tested behind interfaces, but the production device, cloud
+and Ring adapters are not implemented: in a release build the live session, speak, Ring launch, smart
+replies and data erase paths throw, and the backend wires in-memory fixtures in every environment. The
+items below additionally need a device or emulator plus a Ring account to verify. Treat the adapter work
+as missing, not merely unverified.
 
 | Item | Why it needs you |
 |---|---|

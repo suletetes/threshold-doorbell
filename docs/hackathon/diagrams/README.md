@@ -51,8 +51,9 @@ every conversation and revokes the Ring tokens in one transaction.
 
 ## Notes
 
-- These diagrams model what is actually built and merged (31 tasks, the design system, the
-  ARCH-1 WebView approach). They are reconciled against
-  `.kiro/specs/threshold-doorbell/design.md`.
+- These diagrams model the intended design (the ARCH-1 WebView approach and the
+  full 31-task flow), reconciled against `.kiro/specs/threshold-doorbell/design.md`.
+  They show the target architecture, not what is implemented today: the device,
+  cloud and Ring adapters that would carry these flows are not yet built.
 - SVG is the source of truth here (sharp, tiny, selectable text). They are self-contained,
   so they do not depend on any local icon path and render anywhere.
