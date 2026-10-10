@@ -13,6 +13,8 @@
 // Bedrock path. The Bedrock call is network-bound and sits behind a port with a
 // fake; the on-device path is the pure onDeviceSuggestions function.
 
+import 'dart:async';
+
 import '../session/session_state.dart';
 import 'ondevice_suggestions.dart';
 
@@ -61,8 +63,31 @@ class SuggestionProvider {
       // Entirely on-device; no network, no Bedrock (FR-7.1a).
       return onDeviceSuggestions(visitorText);
     }
-    // Clarity Mode: Bedrock may be consulted; cap to 3 (FR-7.1).
-    final out = await _bedrock.suggest(visitorText);
-    return out.take(kMaxOnDeviceSuggestions).toList();
+    // Clarity Mode: Bedrock may be consulted; cap to 3 (FR-7.1). Bound the call
+    // to 2 seconds and fall back to the on-device suggestions on timeout or
+    // error so a slow or failing backend never blocks the reply bar (LOW-04).
+    List<String> out;
+    try {
+      out = await _bedrock
+          .suggest(visitorText)
+          .timeout(kBedrockSuggestionTimeout);
+    } catch (_) {
+      return onDeviceSuggestions(visitorText);
+    }
+    // Strip any dash a model may have produced (NFR-10) and drop empties.
+    final cleaned = <String>[];
+    for (final s in out) {
+      final stripped = stripDashes(s).trim();
+      if (stripped.isNotEmpty) cleaned.add(stripped);
+    }
+    return cleaned.take(kMaxOnDeviceSuggestions).toList();
   }
 }
+
+/// The time budget for a Bedrock suggestion call before falling back to the
+/// on-device set (LOW-04).
+const Duration kBedrockSuggestionTimeout = Duration(seconds: 2);
+
+/// Replace em and en dashes a model may emit with a plain hyphen so a suggestion
+/// never violates the dash-free UI copy rule (NFR-10, LOW-04).
+String stripDashes(String s) => s.replaceAll('\u2014', '-').replaceAll('\u2013', '-');

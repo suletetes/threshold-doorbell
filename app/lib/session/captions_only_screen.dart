@@ -21,8 +21,10 @@
 // shared with the conversation screen, so 0xFF0B0B0F and 0xFF15151B are gone.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
+import '../captions/caption_announcer.dart';
 import '../captions/caption_surface.dart';
 import '../design/colors.dart';
 import '../design/components/components.dart';
@@ -258,7 +260,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
 /// caption background composited over the `captionSurface` role, which is opaque
 /// so inbound video cannot bleed through the surface the 4.5:1 floor was computed
 /// against (FR-10.2, NFR-2).
-class _CaptionsOnlyRegion extends StatelessWidget {
+class _CaptionsOnlyRegion extends StatefulWidget {
   const _CaptionsOnlyRegion({
     required this.controller,
     required this.settings,
@@ -270,20 +272,38 @@ class _CaptionsOnlyRegion extends StatelessWidget {
   final bool fillHeight;
 
   @override
+  State<_CaptionsOnlyRegion> createState() => _CaptionsOnlyRegionState();
+}
+
+class _CaptionsOnlyRegionState extends State<_CaptionsOnlyRegion> {
+  final CaptionAnnouncer _announcer = CaptionAnnouncer();
+
+  @override
   Widget build(BuildContext context) {
     final semantic = ThresholdSemanticColors.of(context);
     final scheme = Theme.of(context).colorScheme;
+
+    // Announce each newly finalized turn once, throttled, rather than marking
+    // the whole container as a live region (LOW-09).
+    final announcement = _announcer.announcementFor(widget.controller.captionTurns);
+    if (announcement != null) {
+      final view = View.of(context);
+      final direction = Directionality.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SemanticsService.sendAnnouncement(view, announcement, direction);
+      });
+    }
+
     return Semantics(
-      liveRegion: true,
       label: 'Visitor captions',
       child: Container(
         key: const ValueKey('captions-only-region'),
-        constraints: fillHeight
+        constraints: widget.fillHeight
             ? null
             : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
         padding: const EdgeInsets.all(Spacing.space4),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(settings.captionBackground, semantic.captionSurface),
+          color: Color.alphaBlend(widget.settings.captionBackground, semantic.captionSurface),
           borderRadius: Radii.roundedLarge,
           border: Border.all(
             color: semantic.captionOnSurface.withValues(alpha: 0.12),
@@ -301,8 +321,8 @@ class _CaptionsOnlyRegion extends StatelessWidget {
         child: SingleChildScrollView(
           reverse: true,
           child: CaptionSurface(
-            turns: controller.captionTurns,
-            settings: settings,
+            turns: widget.controller.captionTurns,
+            settings: widget.settings,
           ),
         ),
       ),

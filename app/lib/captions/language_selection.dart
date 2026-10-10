@@ -6,6 +6,8 @@
 // LocaleSource (fixture below) so the default-and-fallback rule is testable
 // without a device.
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 
 /// The caption mode a language set belongs to. Mirrors design.md §3 CaptionMode.
@@ -22,12 +24,25 @@ const String kFallbackLanguage = 'en-US';
 String normalizeLanguageTag(String raw) {
   final trimmed = raw.trim().replaceAll('_', '-');
   if (trimmed.isEmpty) return trimmed;
-  final parts = trimmed.split('-');
+  final parts = trimmed.split('-').where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '';
   final lang = parts.first.toLowerCase();
   if (parts.length == 1) return lang;
-  final region = parts[1].toUpperCase();
+  // The second subtag may be a 4-letter SCRIPT (for example `Hant` in
+  // `zh-Hant-TW`), not a region. Treating it as a region produced the bogus
+  // `zh-HANT` (LOW-05). Skip a script subtag and use the first following region
+  // subtag (a 2-letter or 3-digit code) when present.
+  var index = 1;
+  if (_isScriptSubtag(parts[index])) index++;
+  if (index >= parts.length) return lang; // language plus script only
+  final region = parts[index].toUpperCase();
   return '$lang-$region';
 }
+
+/// Whether [part] is a BCP-47 script subtag: exactly four ASCII letters
+/// (for example `Hant`, `Latn`).
+bool _isScriptSubtag(String part) =>
+    part.length == 4 && RegExp(r'^[A-Za-z]{4}$').hasMatch(part);
 
 /// The supported recognition languages per mode (FR-16.2). These are the
 /// documented sets; a real build sources them from the engines. Clarity Mode
@@ -79,6 +94,23 @@ class FixtureLocaleSource implements LocaleSource {
   final String _locale;
   @override
   String get deviceLocale => _locale;
+}
+
+/// Reads the real device locale from the platform (LOW-05: the device locale is
+/// now actually read). Backed by [ui.PlatformDispatcher.instance.locale], which
+/// is available without a widget tree, so the default-language rule uses the
+/// resident's actual locale rather than a hard-coded value.
+class PlatformLocaleSource implements LocaleSource {
+  const PlatformLocaleSource();
+
+  @override
+  String get deviceLocale {
+    final locale = ui.PlatformDispatcher.instance.locale;
+    final country = locale.countryCode;
+    return country == null || country.isEmpty
+        ? locale.languageCode
+        : '${locale.languageCode}-$country';
+  }
 }
 
 /// The outcome of validating a requested language against a mode (FR-16.3).

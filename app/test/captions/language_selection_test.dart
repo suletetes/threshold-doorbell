@@ -18,6 +18,15 @@ void main() {
     test('empty stays empty', () {
       expect(normalizeLanguageTag(''), '');
     });
+
+    test('skips a script subtag and keeps the real region (LOW-05)', () {
+      // The script subtag Hant must not be mistaken for a region: the old code
+      // produced the bogus zh-HANT.
+      expect(normalizeLanguageTag('zh-Hant-TW'), 'zh-TW');
+      expect(normalizeLanguageTag('zh_Hans_CN'), 'zh-CN');
+      // Language plus script only (no region) keeps just the language.
+      expect(normalizeLanguageTag('sr-Latn'), 'sr');
+    });
   });
 
   group('defaultLanguageFor (Task 23, FR-16.1) [R-13]', () {

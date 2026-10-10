@@ -42,8 +42,10 @@
 // watermarkSafeInsets() and kWatermarkBandHeight are untouched (FR-4.5).
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
+import '../captions/caption_announcer.dart';
 import '../captions/caption_surface.dart';
 import '../design/colors.dart';
 import '../design/components/components.dart';
@@ -409,7 +411,7 @@ class _LiveOverlay extends StatelessWidget {
 /// against, which strengthens FR-10.2 rather than decorating it. And a
 /// translucent caption background still lands on a designed dark surface instead
 /// of on arbitrary video.
-class _CaptionPanel extends StatelessWidget {
+class _CaptionPanel extends StatefulWidget {
   const _CaptionPanel({
     required this.controller,
     required this.settings,
@@ -426,30 +428,50 @@ class _CaptionPanel extends StatelessWidget {
   final bool fillHeight;
 
   @override
+  State<_CaptionPanel> createState() => _CaptionPanelState();
+}
+
+class _CaptionPanelState extends State<_CaptionPanel> {
+  final CaptionAnnouncer _announcer = CaptionAnnouncer();
+
+  @override
   Widget build(BuildContext context) {
     final semantic = ThresholdSemanticColors.of(context);
     final scheme = Theme.of(context).colorScheme;
+
+    // Announce each newly finalized turn once, throttled (LOW-09), instead of
+    // marking the whole container as a live region which re-reads the entire
+    // run on every partial update. Scheduled post frame so the announcement
+    // does not happen during build.
+    final announcement = _announcer.announcementFor(widget.controller.captionTurns);
+    if (announcement != null) {
+      final view = View.of(context);
+      final direction = Directionality.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SemanticsService.sendAnnouncement(view, announcement, direction);
+      });
+    }
+
     // The caption run always scrolls, anchored to the bottom, because the newest
     // turn is the one being read. Under loose constraints the scroll view shrink
     // wraps to its content, so a short conversation still sizes to its text.
     final Widget captions = SingleChildScrollView(
       reverse: true,
       child: CaptionSurface(
-        turns: controller.captionTurns,
-        settings: settings,
+        turns: widget.controller.captionTurns,
+        settings: widget.settings,
       ),
     );
     return Semantics(
-      liveRegion: true,
       label: 'Visitor captions',
       child: Container(
-        key: regionKey,
-        constraints: fillHeight
+        key: widget.regionKey,
+        constraints: widget.fillHeight
             ? null
             : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
         padding: const EdgeInsets.all(Spacing.space4),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(settings.captionBackground, semantic.captionSurface),
+          color: Color.alphaBlend(widget.settings.captionBackground, semantic.captionSurface),
           borderRadius: Radii.roundedLarge,
           border: Border.all(
             color: semantic.captionOnSurface.withValues(alpha: 0.12),

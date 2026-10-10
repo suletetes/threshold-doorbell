@@ -6,6 +6,8 @@
 // detections. The fixture also proves the zero-egress property: it exposes a
 // framesTransmitted counter that stays zero.
 
+import 'dart:async';
+
 import 'privacy_zone_geometry.dart';
 
 /// A detected object cue. Only person and package cues are modeled (N1: no
@@ -41,16 +43,26 @@ class FixtureVision implements VisionPort {
   int framesTransmitted = 0;
   final List<VisionFrame> pushed = <VisionFrame>[];
 
+  // A broadcast controller so a live subscriber receives frames emitted after
+  // it subscribes. The old Stream.fromIterable snapshot replayed only the
+  // already-pushed frames, so later frames were missed (LOW-02).
+  final StreamController<VisionFrame> _controller =
+      StreamController<VisionFrame>.broadcast();
+
   @override
   bool get isAvailable => available;
 
   /// Emit a frame. Recorded locally; never transmitted (FR-11.2).
   void emit(VisionFrame frame) {
     pushed.add(frame);
+    _controller.add(frame);
   }
 
   @override
-  Stream<VisionFrame> get frames => Stream<VisionFrame>.fromIterable(pushed);
+  Stream<VisionFrame> get frames => _controller.stream;
+
+  /// Release the controller (test teardown).
+  Future<void> dispose() => _controller.close();
 }
 
 /// Filter a frame's detections through the privacy zones (FR-11.1): a detection

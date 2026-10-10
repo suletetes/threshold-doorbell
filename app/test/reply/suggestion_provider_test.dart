@@ -51,5 +51,48 @@ void main() {
       }
       expect(bedrock.callCount, 0);
     });
+
+    test('Clarity Mode falls back to on-device on a slow Bedrock (LOW-04)', () async {
+      final provider = SuggestionProvider(bedrock: _SlowBedrock());
+      final out = await provider.suggestionsFor(
+        'I have a package',
+        mode: SessionCaptionMode.clarity,
+      );
+      // The 2s timeout fired and the on-device set was used, so the result is
+      // non-empty and the request did not hang.
+      expect(out, isNotEmpty);
+      expect(out, contains('Please leave it at the door'));
+    });
+
+    test('Clarity Mode falls back to on-device when Bedrock throws (LOW-04)', () async {
+      final provider = SuggestionProvider(bedrock: _ThrowingBedrock());
+      final out = await provider.suggestionsFor(
+        'who is this',
+        mode: SessionCaptionMode.clarity,
+      );
+      expect(out, isNotEmpty);
+    });
+
+    test('Clarity Mode strips dashes from Bedrock suggestions (LOW-04, NFR-10)', () async {
+      final provider = SuggestionProvider(
+        bedrock: FakeBedrockSuggestionPort(scripted: const <String>['Leave it \u2014 thanks']),
+      );
+      final out = await provider.suggestionsFor('hi', mode: SessionCaptionMode.clarity);
+      expect(out.single.contains('\u2014'), isFalse);
+      expect(out.single.contains('\u2013'), isFalse);
+    });
   });
+}
+
+/// A Bedrock port that never resolves within the timeout window (LOW-04).
+class _SlowBedrock implements BedrockSuggestionPort {
+  @override
+  Future<List<String>> suggest(String visitorText) =>
+      Future<List<String>>.delayed(const Duration(seconds: 30), () => const <String>['too late']);
+}
+
+/// A Bedrock port that always throws (LOW-04).
+class _ThrowingBedrock implements BedrockSuggestionPort {
+  @override
+  Future<List<String>> suggest(String visitorText) async => throw StateError('backend down');
 }
