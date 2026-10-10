@@ -85,5 +85,45 @@ void main() {
       expect(confirmed, isTrue);
       expect(port.deleteCalls, 1);
     });
+
+    test('a successful erasure records success and clears local settings (HIGH-08)', () async {
+      final c = SettingsController(erasure: FakeDataErasurePort(succeeds: true));
+      c.setCaptionScale(2.0); // dirty the local state
+      expect(c.settings.captionScale, 2.0);
+      await c.deleteAllMyData(confirmed: true);
+      expect(c.erasureStatus, ErasureStatus.success);
+      // Local state is reset so nothing survives the erasure.
+      expect(c.settings.captionScale, ThresholdSettings.defaults().captionScale);
+    });
+
+    test('a failed erasure records failure and does not reset local settings (HIGH-08)', () async {
+      final c = SettingsController(erasure: FakeDataErasurePort(succeeds: false));
+      c.setCaptionScale(2.0);
+      await c.deleteAllMyData(confirmed: true);
+      expect(c.erasureStatus, ErasureStatus.failure);
+      expect(c.settings.captionScale, 2.0); // local state untouched on failure
+    });
+
+    test('a throwing erasure resolves to failure, never an unhandled throw (HIGH-08)', () async {
+      final c = SettingsController(erasure: _ThrowingErasurePort());
+      final ok = await c.deleteAllMyData(confirmed: true);
+      expect(ok, isFalse);
+      expect(c.erasureStatus, ErasureStatus.failure);
+    });
+
+    test('dismissing the erasure banner returns to idle (HIGH-08)', () async {
+      final c = SettingsController(erasure: FakeDataErasurePort(succeeds: true));
+      await c.deleteAllMyData(confirmed: true);
+      expect(c.erasureStatus, ErasureStatus.success);
+      c.dismissErasureStatus();
+      expect(c.erasureStatus, ErasureStatus.idle);
+    });
   });
+}
+
+/// An erasure port that always throws, modelling the production binding with no
+/// network (HIGH-08).
+class _ThrowingErasurePort implements DataErasurePort {
+  @override
+  Future<bool> deleteAllMyData() async => throw StateError('no network');
 }

@@ -70,13 +70,37 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('delete-cancel')));
       await tester.pumpAndSettle();
       expect(port.deleteCalls, 0);
-      // Confirm erases.
+      // Confirm erases and shows a success banner (HIGH-08).
       await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
       await tester.tap(find.byKey(const ValueKey('delete-all-data')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('delete-confirm')));
       await tester.pumpAndSettle();
       expect(port.deleteCalls, 1);
+      expect(c.erasureStatus, ErasureStatus.success);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-success-banner')), 200);
+      expect(find.byKey(const ValueKey('delete-success-banner')), findsOneWidget);
+    });
+
+    testWidgets('a failed erasure shows a failure banner with a retry (HIGH-08)', (tester) async {
+      final port = FakeDataErasurePort(succeeds: false);
+      final c = SettingsController(erasure: port);
+      await tester.pumpWidget(_wrap(c));
+      await tester.pump();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-all-data')), 200);
+      await tester.tap(find.byKey(const ValueKey('delete-all-data')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('delete-confirm')));
+      await tester.pumpAndSettle();
+      expect(c.erasureStatus, ErasureStatus.failure);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('delete-failure-banner')), 200);
+      expect(find.byKey(const ValueKey('delete-failure-banner')), findsOneWidget);
+      // Retry re-attempts the erasure (the resident already confirmed).
+      await tester.ensureVisible(find.byKey(const ValueKey('delete-retry')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('delete-retry')));
+      await tester.pumpAndSettle();
+      expect(port.deleteCalls, 2);
     });
 
     testWidgets('honors OS text scaling to 200% without overflow (NFR-2)', (tester) async {

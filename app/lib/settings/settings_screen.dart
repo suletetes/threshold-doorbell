@@ -212,11 +212,50 @@ class SettingsScreen extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              onPressed: () => _confirmDelete(context),
-              icon: const Icon(Icons.delete_outline, size: Spacing.space5),
-              label: const Text('Delete all my data'),
+              // Disabled while an erasure is in flight so it cannot be
+              // double-submitted (HIGH-08).
+              onPressed: controller.erasureInFlight ? null : () => _confirmDelete(context),
+              icon: controller.erasureInFlight
+                  ? const SizedBox(
+                      key: ValueKey('delete-in-flight'),
+                      width: Spacing.space5,
+                      height: Spacing.space5,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_outline, size: Spacing.space5),
+              label: Text(controller.erasureInFlight ? 'Deleting your data' : 'Delete all my data'),
             ),
           ),
+          // The result of the last erasure: a success or failure banner, with a
+          // retry on failure. The privacy-critical action no longer silently
+          // does nothing or throws out of the callback (HIGH-08).
+          if (controller.erasureStatus == ErasureStatus.success) ...<Widget>[
+            const SizedBox(height: Spacing.space3),
+            StatusBanner(
+              key: const ValueKey('delete-success-banner'),
+              variant: StatusVariant.success,
+              icon: Icons.check_circle_outline,
+              message: 'Your data was deleted and your Ring connection was revoked.',
+              action: StatusBannerAction(
+                label: 'Dismiss',
+                buttonKey: const ValueKey('delete-banner-dismiss'),
+                onPressed: controller.dismissErasureStatus,
+              ),
+            ),
+          ] else if (controller.erasureStatus == ErasureStatus.failure) ...<Widget>[
+            const SizedBox(height: Spacing.space3),
+            StatusBanner(
+              key: const ValueKey('delete-failure-banner'),
+              variant: StatusVariant.danger,
+              icon: Icons.error_outline,
+              message: 'We could not delete your data. Please try again.',
+              action: StatusBannerAction(
+                label: 'Try again',
+                buttonKey: const ValueKey('delete-retry'),
+                onPressed: _retryDelete,
+              ),
+            ),
+          ],
           const SizedBox(height: Spacing.space7),
         ],
       ),
@@ -256,7 +295,15 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+    // The result drives the controller's erasureStatus, which the screen
+    // renders as a success or failure banner (HIGH-08). No value is discarded.
     await controller.deleteAllMyData(confirmed: confirmed ?? false);
+  }
+
+  /// Retry a failed erasure. The resident already confirmed the destructive
+  /// action, so a retry re-attempts it directly (HIGH-08).
+  Future<void> _retryDelete() async {
+    await controller.deleteAllMyData(confirmed: true);
   }
 }
 

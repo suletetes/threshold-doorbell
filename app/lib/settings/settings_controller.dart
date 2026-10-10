@@ -33,6 +33,10 @@ class FakeDataErasurePort implements DataErasurePort {
   }
 }
 
+/// The state of the "Delete all my data" request (FR-8.6, HIGH-08). Drives the
+/// settings screen's success/failure banner and the in-flight button disable.
+enum ErasureStatus { idle, inFlight, success, failure }
+
 class SettingsController extends ChangeNotifier {
   SettingsController({
     required DataErasurePort erasure,
@@ -44,6 +48,12 @@ class SettingsController extends ChangeNotifier {
   ThresholdSettings _settings;
 
   ThresholdSettings get settings => _settings;
+
+  /// The current erasure request status (HIGH-08). The screen renders a banner
+  /// from this and disables the delete button while [ErasureStatus.inFlight].
+  ErasureStatus _erasureStatus = ErasureStatus.idle;
+  ErasureStatus get erasureStatus => _erasureStatus;
+  bool get erasureInFlight => _erasureStatus == ErasureStatus.inFlight;
 
   void _update(ThresholdSettings next) {
     _settings = next;
@@ -97,10 +107,39 @@ class SettingsController extends ChangeNotifier {
     _update(_settings.copyWith(audibleNoticeEnabled: enabled));
   }
 
-  /// Run the confirmed "Delete all my data" erasure (FR-8.6). The caller shows
-  /// the confirmation; this performs the erasure only when [confirmed] is true.
+  /// Run the confirmed "Delete all my data" erasure (FR-8.6, HIGH-08). The
+  /// caller shows the confirmation; this performs the erasure only when
+  /// [confirmed] is true. The result is captured in [erasureStatus] so the
+  /// screen can show a success or failure banner and disable the button while
+  /// in flight; on success local settings are reset so no local data survives
+  /// an erasure the resident asked for. The error is never swallowed: a thrown
+  /// binding resolves to [ErasureStatus.failure] rather than an unhandled
+  /// exception out of a button callback.
   Future<bool> deleteAllMyData({required bool confirmed}) async {
     if (!confirmed) return false;
-    return _erasure.deleteAllMyData();
+    _erasureStatus = ErasureStatus.inFlight;
+    notifyListeners();
+    bool ok;
+    try {
+      ok = await _erasure.deleteAllMyData();
+    } catch (_) {
+      ok = false;
+    }
+    if (ok) {
+      // Clear local state so an erasure leaves nothing behind on the device.
+      _settings = ThresholdSettings.defaults();
+      _erasureStatus = ErasureStatus.success;
+    } else {
+      _erasureStatus = ErasureStatus.failure;
+    }
+    notifyListeners();
+    return ok;
+  }
+
+  /// Dismiss the erasure banner (HIGH-08), returning to the idle state.
+  void dismissErasureStatus() {
+    if (_erasureStatus == ErasureStatus.idle) return;
+    _erasureStatus = ErasureStatus.idle;
+    notifyListeners();
   }
 }
