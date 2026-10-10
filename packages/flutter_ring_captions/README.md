@@ -1,7 +1,7 @@
 # flutter_ring_captions
 
 Accessibility-oriented, dependency-light pure logic for live captions and a
-reply bridge on a Ring style video doorbell. Extracted from the
+reply bridge on a Ring style video doorbell. Developed inside the
 [Threshold](../../README.md) project, a two-way captioned doorbell built for deaf
 and hard-of-hearing residents.
 
@@ -9,6 +9,19 @@ The package is deliberately free of device, network, and SDK dependencies. It is
 the decision logic you wire to your own WebRTC session, speech-to-text engine,
 and text-to-speech. That keeps it fully unit-testable and reusable in any
 live-caption UI.
+
+## Relationship to the Threshold app
+
+This package is the authoritative, reusable home for the caption/outbound
+decision logic. The Threshold app under `app/lib/` keeps its own parallel copies
+(`app/lib/captions/`, `app/lib/reply/`, `app/lib/a11y/ui_copy_lint.dart`) because
+the app has grown app-specific behaviour on top of the same core (for example
+per-word confidences and provisional-turn close-out) that is intentionally not
+part of this public, dependency-light API. The two are not auto-synchronised, so
+the shared public contract (notably `CaptionTurn.copyWith` and the forbidden-dash
+set) is kept identical by hand and covered by tests in both places. See the audit
+finding HIGH-15 for the rationale behind keeping two copies instead of a single
+path dependency.
 
 ## What it gives you
 
