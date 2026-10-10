@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Microphone for the two-way outbound reply over WebRTC sendrecv (FR-13.1, CRIT-09). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Networking to the backend (Ring OAuth/webhooks, ASR, Bedrock). Declared in the
+         main manifest so it survives in release once ML Kit is removed (HIGH-13). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Route WebRTC audio to a Bluetooth hearing aid or headset on Android 12+ (LOW-13). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <application
         android:label="threshold"
         android:name="${applicationName}"
