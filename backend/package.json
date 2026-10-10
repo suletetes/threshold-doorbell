@@ -8,7 +8,7 @@
     "node": ">=20 <21"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
