@@ -1,28 +1,33 @@
 # CI gates for Threshold (task 29, NFR-10; design.md §9, §11; steering/structure.md).
 #
-# Runs on pull requests and on pushes to feature branches. CI configuration is
-# never applied to main outside a reviewed pull request (design.md §11). Two
-# independent jobs gate a merge:
+# Runs on pull requests into main, on pushes to feature branches, and on pushes
+# to main after a merge so a merge-skew break is caught on the integration
+# branch. CI configuration still only lands on main through a reviewed pull
+# request (design.md §11). The jobs that gate a merge:
 #
 #   backend  - TypeScript typecheck, ESLint, and vitest (unit + contract + WS).
-#   app      - flutter pub get, flutter test (compiles all Dart, the primary
-#              gate in this project), and the em-dash / en-dash UI-copy lint
-#              (AT-24) which fails the build if a forbidden dash appears in any
-#              user-facing string.
+#              Runs on a Node 20 and 22 matrix: 20 is the declared engines
+#              floor, 22 is the forward LTS.
+#   app      - flutter analyze, dart format check, flutter test, and the
+#              em-dash / en-dash UI-copy lint (AT-24) which fails the build if a
+#              forbidden dash appears in any user-facing string.
+#   packages - flutter analyze, dart format check, and flutter test.
 #
-# Versions are pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10,
-# Node 20). Both Dart jobs run flutter analyze --fatal-infos and
-# dart format --set-exit-if-changed . as hard gates; flutter test compiles and
-# exercises all Dart, and analyze enforces the error promotions in
-# analysis_options.yaml on code that no test references.
+# Third-party and first-party actions are pinned to a full commit SHA with the
+# released tag in a trailing comment, and every job has a timeout. Versions are
+# pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10, Node 20/22).
 
 name: CI
 
 on:
   pull_request:
     branches: [main]
+  # Build every pushed branch, including main after a merge (MED-40). A pull
+  # request from a branch in this same repo also triggers the push event; the
+  # concurrency group below cancels the superseded run so this does not double
+  # the cost.
   push:
-    branches-ignore: [main]
+    branches: ["**"]
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
@@ -36,19 +41,25 @@ jobs:
   backend:
     name: Backend (typecheck, lint, vitest)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the engines floor declared in backend/package.json; 22 is the
+        # forward LTS the service is expected to run on next. Test both so CI
+        # never diverges from the declared runtime (MED-41).
+        node-version: ["20", "22"]
     defaults:
       run:
         working-directory: backend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4.1.0
         with:
-          # 22 (active LTS) on the runner to avoid the Node 20 runner
-          # deprecation warning; the backend targets Node 20+ and runs on both.
-          node-version: "22"
+          node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -67,15 +78,16 @@ jobs:
   app:
     name: App (flutter test, UI-copy lint)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: app
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Flutter 3.38.10
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a40bde3801046 # v2.19.0
         with:
           flutter-version: "3.38.10"
           channel: stable
@@ -99,15 +111,16 @@ jobs:
   packages:
     name: Package flutter_ring_captions (test, lint)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: packages/flutter_ring_captions
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Flutter 3.38.10
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a40bde3801046 # v2.19.0
         with:
           flutter-version: "3.38.10"
           channel: stable
