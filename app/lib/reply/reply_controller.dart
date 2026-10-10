@@ -87,10 +87,24 @@ class ReplyController extends ChangeNotifier {
   String? _inFlightText; // the reply currently being spoken (FR-6.3)
   String? _errorMessage;
   final List<ResidentTurn> _turns = <ResidentTurn>[];
+  List<String> _contextualSuggestions = const <String>[];
 
   ReplyState get state => _state;
   String? get inFlightText => _inFlightText;
   String? get errorMessage => _errorMessage;
+
+  /// The contextual reply suggestions for the latest visitor turn (FR-7.1a,
+  /// MED-13). Set by the composition root from the suggestion provider; held
+  /// here so the reply bar (which already rebuilds on this controller) renders
+  /// them, rather than being passed as a widget field that the conversation
+  /// screen's state switcher would not propagate.
+  List<String> get contextualSuggestions => List.unmodifiable(_contextualSuggestions);
+
+  /// Replace the contextual suggestions and notify so the reply bar repaints.
+  void setContextualSuggestions(List<String> suggestions) {
+    _contextualSuggestions = List<String>.from(suggestions);
+    notifyListeners();
+  }
 
   /// Resident turns appended so far (FR-6.5). The transcript source of truth.
   List<ResidentTurn> get turns => List.unmodifiable(_turns);

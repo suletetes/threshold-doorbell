@@ -29,11 +29,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../captions/language_selection.dart';
+import '../captions/turn_segmentation.dart';
 import '../design/components/components.dart';
 import '../design/tokens.dart';
 import '../reply/reply_bar.dart';
 import '../session/captions_only_screen.dart';
 import '../session/conversation_screen.dart';
+import '../session/session_controller.dart';
 import '../session/session_state.dart';
 import '../settings/settings_screen.dart';
 import 'providers.dart';
@@ -206,6 +208,10 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
   /// before the session even starts (CRIT-05).
   bool _everStarted = false;
 
+  /// The visitor text the current suggestions were produced for, so we do not
+  /// re-request on every unrelated notification (FR-7.1a, MED-13).
+  String? _suggestionsForText;
+
   @override
   void initState() {
     super.initState();
@@ -243,6 +249,39 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
     _leave();
   }
 
+  /// Request contextual suggestions for the latest final visitor turn when it
+  /// changes (FR-7.1a, MED-13). Routed by the session mode through the
+  /// suggestionProvider: Clarity consults Bedrock, Privacy stays on device.
+  void _maybeRefreshSuggestions(SessionController controller) {
+    final turns = controller.captionTurns;
+    // The newest finalized visitor turn is what the suggestions respond to.
+    String? latest;
+    for (final turn in turns.reversed) {
+      if (turn.speaker == CaptionSpeaker.visitor && turn.isFinal) {
+        latest = turn.text.trim();
+        break;
+      }
+    }
+    if (latest == null || latest.isEmpty) return;
+    if (latest == _suggestionsForText) return; // already requested for this text
+    _suggestionsForText = latest;
+    final provider = ref.read(suggestionProvider);
+    final reply = ref.read(replyControllerProvider.notifier);
+    final mode = controller.mode;
+    unawaited(() async {
+      try {
+        final result = await provider.suggestionsFor(latest!, mode: mode);
+        if (!mounted || _suggestionsForText != latest) return;
+        // Set on the reply controller so the reply bar (which rebuilds on this
+        // controller) repaints with the suggestions (FR-7.1a, MED-13).
+        reply.setContextualSuggestions(result);
+      } catch (_) {
+        // A suggestion failure is non-fatal: the reply bar still shows the fixed
+        // safe set. Leave the previous suggestions in place.
+      }
+    }());
+  }
+
   /// Pop the host route now that the session is ending. canPop is already true
   /// (we set [_ending]), so this real pop is not re-intercepted by the PopScope.
   void _leave() {
@@ -274,6 +313,10 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
 
     if (controller.state != SessionState.idle) _everStarted = true;
 
+    // Refresh contextual suggestions when the latest final visitor turn changes
+    // (FR-7.1a, MED-13).
+    _maybeRefreshSuggestions(controller);
+
     // When the session returns to idle AFTER it started (the user tapped End, or
     // recovery was declined), pop back to a usable screen instead of stranding
     // the user on a blank media surface (CRIT-05). Scheduled post frame so we do
@@ -300,7 +343,8 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
         authPort: ref.watch(authPortProvider),
         replyBar: ReplyBar(
           controller: replyController,
-          contextualSuggestions: const <String>[],
+          // Contextual suggestions come from the controller (set by
+          // _maybeRefreshSuggestions via the suggestion provider, FR-7.1a).
         ),
       );
     }

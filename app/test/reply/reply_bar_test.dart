@@ -63,6 +63,21 @@ void main() {
       c.dispose();
     });
 
+    testWidgets('renders contextual suggestions from the controller (MED-13, FR-7.1a)', (tester) async {
+      final port = FakeReplyPort();
+      final c = ReplyController(port: port, outbound: _twoWay());
+      await tester.pumpWidget(_wrap(c, const <String>[]));
+      await tester.pump();
+      // No controller suggestions yet: only the fixed safe set shows.
+      expect(find.text('Thanks, one moment'), findsNothing);
+      // The composition root pushes suggestions onto the controller; the bar
+      // repaints and shows them (it reads the controller, not just the field).
+      c.setContextualSuggestions(const <String>['Thanks, one moment']);
+      await tester.pump();
+      expect(find.text('Thanks, one moment'), findsOneWidget);
+      c.dispose();
+    });
+
     testWidgets('controls carry Semantics labels (G4)', (tester) async {
       final handle = tester.ensureSemantics();
       final port = FakeReplyPort();

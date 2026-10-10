@@ -45,13 +45,15 @@ class ReplyBar extends StatefulWidget {
   const ReplyBar({
     super.key,
     required this.controller,
-    required this.contextualSuggestions,
+    this.contextualSuggestions = const <String>[],
   });
 
   final ReplyController controller;
 
   /// Up to 3 contextual suggestions (Bedrock or on-device). The fixed safe set
-  /// is always appended by [composeReplyButtons].
+  /// is always appended by [composeReplyButtons]. The composition root supplies
+  /// live suggestions via the controller; this field is a static fallback used
+  /// by presentation tests.
   final List<String> contextualSuggestions;
 
   @override
@@ -95,7 +97,13 @@ class _ReplyBarState extends State<ReplyBar> {
 
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
-        final buttons = composeReplyButtons(widget.contextualSuggestions);
+        // Prefer the controller's live suggestions (set by the composition root
+        // from the suggestion provider, FR-7.1a) so they repaint on notify;
+        // fall back to the static widget field used by presentation tests.
+        final List<String> contextual = c.contextualSuggestions.isNotEmpty
+            ? c.contextualSuggestions
+            : widget.contextualSuggestions;
+        final buttons = composeReplyButtons(contextual);
         final busy = c.state == ReplyState.synthesizing;
         final String? errorMessage = c.errorMessage;
         final String? played = _playedReply;

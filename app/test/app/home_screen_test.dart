@@ -14,6 +14,7 @@ import 'package:threshold/app/home_screen.dart';
 import 'package:threshold/app/providers.dart';
 import 'package:threshold/captions/language_selection.dart';
 import 'package:threshold/captions/model_provisioning.dart';
+import 'package:threshold/captions/turn_segmentation.dart';
 import 'package:threshold/design/components/components.dart';
 import 'package:threshold/design/theme.dart';
 import 'package:threshold/design/tokens.dart';
@@ -220,6 +221,60 @@ void main() {
       expect(port.closeCalls, greaterThanOrEqualTo(1));
       expect(find.byType(ConversationScreen), findsNothing);
       expect(find.byKey(const ValueKey('home-answer')), findsOneWidget);
+    });
+  });
+
+  group('Contextual suggestions are wired (MED-13, FR-7.1a)', () {
+    testWidgets('a visitor turn produces Bedrock suggestions in the reply bar',
+        (tester) async {
+      final port = FakeSessionPort();
+      final bedrock = FakeBedrockSuggestionPort(
+        scripted: const <String>['Thanks, one moment', 'Leave it there please'],
+      );
+      late WidgetRef capturedRef;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            sessionPortProvider.overrideWithValue(port),
+            replyPortProvider.overrideWithValue(FakeReplyPort()),
+            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
+            bedrockSuggestionPortProvider.overrideWithValue(bedrock),
+            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+          ],
+          child: MaterialApp(
+            theme: ThresholdTheme.light(),
+            home: Consumer(builder: (context, ref, _) {
+              capturedRef = ref;
+              return const HomeScreen();
+            }),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationScreen), findsOneWidget);
+
+      // A finalized visitor caption arrives.
+      capturedRef.read(sessionControllerProvider.notifier).ingestCaption(
+            const CaptionResult(
+              speaker: CaptionSpeaker.visitor,
+              text: 'can you take this package',
+              isFinal: true,
+              timestampMs: 0,
+              confidence: 0.9,
+            ),
+          );
+      await tester.pumpAndSettle();
+
+      // The suggestion provider is now consulted (it was dead before, MED-13)
+      // and its suggestions are pushed onto the reply controller, which the
+      // reply bar reads (FR-7.1a against the fake Bedrock port). Asserted on the
+      // controller because that is the single source the reply bar renders from.
+      expect(bedrock.callCount, 1, reason: 'suggestion provider must be consulted');
+      final reply = capturedRef.read(replyControllerProvider.notifier);
+      expect(reply.contextualSuggestions, contains('Thanks, one moment'));
+      expect(reply.contextualSuggestions, contains('Leave it there please'));
     });
   });
 
