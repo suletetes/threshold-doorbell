@@ -17,7 +17,7 @@
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
-import { SESSION_COOKIE, verifySession, type SessionClaims } from '../security/session.js';
+import { authenticateWs } from '../security/ws-auth.js';
 import {
   DeviceNotAuthorizedError,
   SessionAlreadyActiveError,
@@ -54,7 +54,8 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
   app.decorate('signalingService', service);
 
   app.get('/signaling', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
-    const claims = authenticate(request, app.container.config.sessionSecret);
+    const { sessionSecret, wsAllowedOrigins } = app.container.config;
+    const claims = authenticateWs(request, sessionSecret, wsAllowedOrigins);
     if (!claims) {
       // Send a typed error frame then close 4401 so the app runs the unified
       // auth-recovery flow (FR-1.5). Deferred so the client has attached its
@@ -188,23 +189,6 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
       }
     }
   });
-}
-
-/**
- * Authenticate a WS upgrade. Browsers cannot set the Authorization header on a
- * WebSocket, so the session credential may arrive as the `token` query param,
- * the session cookie, or a Bearer header (used by injectWS tests). residentSub
- * is always derived from the verified credential, never from client input.
- */
-function authenticate(request: FastifyRequest, secret: string): SessionClaims | null {
-  const query = request.query as { token?: unknown } | undefined;
-  const queryToken = typeof query?.token === 'string' ? query.token : undefined;
-  const cookieToken = request.cookies?.[SESSION_COOKIE];
-  const auth = request.headers.authorization;
-  const bearer =
-    typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : undefined;
-  const token = queryToken ?? bearer ?? cookieToken;
-  return verifySession(token, secret);
 }
 
 type IncomingMessage = OfferMessage | { type: 'end' };

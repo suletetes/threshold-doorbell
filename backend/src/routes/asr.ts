@@ -19,7 +19,7 @@
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
-import { verifySession, SESSION_COOKIE } from '../security/session.js';
+import { authenticateWs } from '../security/ws-auth.js';
 import { AsrReplayBuffer } from '../services/asr-replay-buffer.js';
 import type {
   AudioChunk,
@@ -45,7 +45,8 @@ export async function registerAsrRoutes(app: FastifyInstance): Promise<void> {
   const port: TranscribePort = app.container.transcribe;
 
   app.get('/asr/stream', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
-    if (!isAuthed(request, app.container.config.sessionSecret)) {
+    const { sessionSecret, wsAllowedOrigins } = app.container.config;
+    if (authenticateWs(request, sessionSecret, wsAllowedOrigins) === null) {
       // Defer so the client has attached its listeners before the error frame
       // and close arrive (the socket resolves to the caller after the upgrade).
       setImmediate(() => {
@@ -259,16 +260,6 @@ function toBuffer(raw: Buffer | ArrayBuffer | Buffer[]): Buffer {
   if (Buffer.isBuffer(raw)) return raw;
   if (Array.isArray(raw)) return Buffer.concat(raw);
   return Buffer.from(raw);
-}
-
-function isAuthed(request: FastifyRequest, secret: string): boolean {
-  const query = request.query as { token?: unknown } | undefined;
-  const queryToken = typeof query?.token === 'string' ? query.token : undefined;
-  const cookieToken = request.cookies?.[SESSION_COOKIE];
-  const auth = request.headers.authorization;
-  const bearer =
-    typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : undefined;
-  return verifySession(queryToken ?? bearer ?? cookieToken, secret) !== null;
 }
 
 function safeSend(socket: WebSocket, payload: unknown): void {

@@ -33,6 +33,7 @@ export interface Config {
   appDeepLink: string;
   webhookHmacKey: string; // primary key (used to sign in tests / tooling)
   webhookHmacKeys: string[]; // accepted keys, newest first, for rotation (MED-38)
+  wsAllowedOrigins: string[]; // browser Origins allowed to open a WebSocket (MED-34)
   kmsKeyId: string;
 }
 
@@ -88,6 +89,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       readEnv(env, 'WEBHOOK_HMAC_KEY', DEFAULT_WEBHOOK_HMAC_KEY),
       readEnv(env, 'WEBHOOK_HMAC_KEYS', ''),
     ),
+    // MED-34: browser Origins allowed to open a WebSocket. Empty by default, so
+    // only native clients (no Origin header) connect until origins are set.
+    wsAllowedOrigins: readEnv(env, 'WS_ALLOWED_ORIGINS', '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter((o) => o !== ''),
     kmsKeyId: readEnv(env, 'KMS_KEY_ID', 'alias/threshold-ring-tokens'),
   };
 
