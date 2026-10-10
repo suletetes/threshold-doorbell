@@ -28,6 +28,7 @@
 import 'package:flutter/material.dart';
 
 import '../alerts/haptic_vocabulary.dart';
+import '../alerts/strobe_config.dart';
 import '../captions/language_selection.dart';
 import '../design/colors.dart';
 import '../design/components/components.dart';
@@ -152,6 +153,16 @@ class SettingsScreen extends StatelessWidget {
                 const Text('Off by default. Capped at 2 flashes per second.'),
             value: s.strobeEnabled,
             onChanged: controller.setStrobeEnabled,
+          ),
+          // Photosensitivity warning (MED-09): the seizure risk and the safety
+          // caps are stated up front, next to the toggle.
+          const Padding(
+            padding: EdgeInsets.only(top: Spacing.space2),
+            child: StatusBanner(
+              key: ValueKey('strobe-photosensitivity-warning'),
+              variant: StatusVariant.warning,
+              message: kStrobePhotosensitivityWarning,
+            ),
           ),
           const SectionHeader(title: 'Haptic reference', dense: true),
           for (final pattern in HapticVocabulary.all)

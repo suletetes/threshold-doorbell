@@ -30,7 +30,8 @@ abstract class BedrockSuggestionPort {
 /// calls Bedrock (FR-7.1a).
 class FakeBedrockSuggestionPort implements BedrockSuggestionPort {
   FakeBedrockSuggestionPort({List<String>? scripted})
-      : _scripted = scripted ?? const <String>['Thanks, one moment', 'Leave it there please'];
+      : _scripted = scripted ??
+            const <String>['Thanks, one moment', 'Leave it there please'];
 
   final List<String> _scripted;
 
@@ -48,7 +49,8 @@ class FakeBedrockSuggestionPort implements BedrockSuggestionPort {
 
 /// Routes contextual-suggestion generation by the session caption mode (FR-7.1a).
 class SuggestionProvider {
-  SuggestionProvider({required BedrockSuggestionPort bedrock}) : _bedrock = bedrock;
+  SuggestionProvider({required BedrockSuggestionPort bedrock})
+      : _bedrock = bedrock;
 
   final BedrockSuggestionPort _bedrock;
 
@@ -89,5 +91,14 @@ class SuggestionProvider {
 const Duration kBedrockSuggestionTimeout = Duration(seconds: 2);
 
 /// Replace em and en dashes a model may emit with a plain hyphen so a suggestion
-/// never violates the dash-free UI copy rule (NFR-10, LOW-04).
-String stripDashes(String s) => s.replaceAll('\u2014', '-').replaceAll('\u2013', '-');
+/// never violates the dash-free UI copy rule (NFR-10, LOW-04). The forbidden
+/// codepoints are built with String.fromCharCode rather than written as literal
+/// escapes, so this sanitizer does not itself trip the (now escape-aware,
+/// MED-10) UI-copy lint.
+String stripDashes(String s) {
+  const int emDash = 0x2014;
+  const int enDash = 0x2013;
+  return s
+      .replaceAll(String.fromCharCode(emDash), '-')
+      .replaceAll(String.fromCharCode(enDash), '-');
+}

@@ -66,6 +66,24 @@ void main() {
       expect(port.openSettingsCalls, 1);
     });
 
+    test('returning from settings refreshes the status (LOW-07)', () async {
+      final port = FakePermissionPort(
+        initial: <AppPermission, PermissionStatus>{
+          AppPermission.microphone: PermissionStatus.permanentlyDenied,
+        },
+      );
+      final c = PermissionController(port);
+      await c.refresh(AppPermission.microphone);
+      expect(c.uiStateOf(AppPermission.microphone), PermissionUiState.needsSettings);
+
+      // The resident grants the permission in the OS settings screen, then
+      // returns. The controller must re-read the status (LOW-07), not keep
+      // showing the stale permanently-denied state.
+      port.setStatus(AppPermission.microphone, PermissionStatus.granted);
+      await c.openSettings(AppPermission.microphone);
+      expect(c.uiStateOf(AppPermission.microphone), PermissionUiState.granted);
+    });
+
     test('notification denial activates the poll fallback (FR-13.5)', () async {
       final port = FakePermissionPort(
         requestResults: <AppPermission, PermissionStatus>{

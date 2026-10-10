@@ -98,6 +98,28 @@ void main() {
       expect(scanSource(src), isEmpty);
     });
 
+    test('flags a dash written as a \\uXXXX escape (MED-10)', () {
+      // The old scanner skipped the escaped char without decoding it, so a dash
+      // written as \u2014 bypassed the lint entirely.
+      const src = r"const s = 'Replies unavailable \u2014 try later';";
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2014');
+    });
+
+    test('flags a dash written as a \\u{XXXX} braced escape (MED-10)', () {
+      const src = r"const s = 'Open 9\u{2013}5';";
+      final v = scanSource(src, filePath: 'sample.dart');
+      expect(v, hasLength(1));
+      expect(v.single.character, '\u2013');
+    });
+
+    test('a non-dash unicode escape still passes (MED-10)', () {
+      // A normal escaped character must not be falsely flagged.
+      const src = r"const s = 'line one\u000Aline two';";
+      expect(scanSource(src), isEmpty);
+    });
+
     test('the real lib/ tree contains no forbidden dashes (AT-24)', () {
       // Resolve lib/ relative to the package root regardless of the test CWD.
       final libDir = Directory('lib');

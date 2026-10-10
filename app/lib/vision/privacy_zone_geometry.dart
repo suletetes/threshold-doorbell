@@ -13,7 +13,11 @@ import 'package:flutter/foundation.dart';
 /// design.md §3 BoundingBox (x, y, width, height).
 @immutable
 class Rect {
-  const Rect({required this.x, required this.y, required this.width, required this.height});
+  const Rect(
+      {required this.x,
+      required this.y,
+      required this.width,
+      required this.height});
 
   final double x;
   final double y;
@@ -31,7 +35,10 @@ class Rect {
 
   /// True when [point] lies inside this rectangle (inclusive of edges).
   bool contains(({double x, double y}) point) =>
-      point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
+      point.x >= left &&
+      point.x <= right &&
+      point.y >= top &&
+      point.y <= bottom;
 
   /// The overlapping rectangle with [other], or null when they do not overlap.
   Rect? intersection(Rect other) {
@@ -44,7 +51,8 @@ class Rect {
   }
 
   /// True when this rectangle overlaps any of [zones].
-  bool overlapsAny(List<Rect> zones) => zones.any((z) => intersection(z) != null);
+  bool overlapsAny(List<Rect> zones) =>
+      zones.any((z) => intersection(z) != null);
 }
 
 /// The fraction of [region] that is covered by any of the [zones] (0..1). Used
@@ -65,7 +73,8 @@ double maskedFraction(Rect region, List<Rect> zones) {
 /// True when [region] is admissible for processing: it is not substantially
 /// inside a privacy zone (FR-11.1). A region whose masked fraction meets or
 /// exceeds [threshold] is excluded so masked pixels are never processed.
-bool isAdmissibleRegion(Rect region, List<Rect> zones, {double threshold = 0.5}) {
+bool isAdmissibleRegion(Rect region, List<Rect> zones,
+    {double threshold = 0.5}) {
   return maskedFraction(region, zones) < threshold;
 }
 
@@ -79,4 +88,67 @@ Rect? admitDetection(Rect region, List<Rect> zones, {double threshold = 0.5}) {
   if (zones.any((z) => z.contains(c))) return null; // center is masked
   if (!isAdmissibleRegion(region, zones, threshold: threshold)) return null;
   return region;
+}
+
+/// Mask the privacy [zones] out of [frame] BEFORE any detection runs (MED-08,
+/// FR-11.1). The audit found detection ran on the full frame and masked
+/// detections were only filtered afterward, so masked pixels were processed. The
+/// correct order is mask first, then detect: this returns the sub-rectangles of
+/// [frame] that remain after the masked zones are removed, so a detector only
+/// ever sees unmasked pixels. The result is the frame clipped to exclude each
+/// zone (a conservative decomposition: when zones overlap, the union is removed).
+///
+/// This is pure geometry over normalized rectangles; the live vision binding
+/// zeroes the corresponding pixel regions on device before inference.
+List<Rect> maskBeforeDetection(Rect frame, List<Rect> zones) {
+  // Start with the whole frame and subtract each zone's intersection by
+  // splitting the remaining regions around it. For v1 there are at most a
+  // handful of zones, so a straightforward rectangle-subtraction is enough.
+  var regions = <Rect>[frame];
+  for (final zone in zones) {
+    final next = <Rect>[];
+    for (final r in regions) {
+      next.addAll(_subtract(r, zone));
+    }
+    regions = next;
+  }
+  return regions;
+}
+
+/// Subtract [zone] from [r], returning the (up to four) rectangles of [r] that
+/// lie outside [zone]. When they do not overlap, [r] is returned unchanged.
+List<Rect> _subtract(Rect r, Rect zone) {
+  final overlap = r.intersection(zone);
+  if (overlap == null) return <Rect>[r];
+  final parts = <Rect>[];
+  // Top strip (above the overlap).
+  if (overlap.top > r.top) {
+    parts
+        .add(Rect(x: r.x, y: r.y, width: r.width, height: overlap.top - r.top));
+  }
+  // Bottom strip (below the overlap).
+  if (overlap.bottom < r.bottom) {
+    parts.add(Rect(
+        x: r.x,
+        y: overlap.bottom,
+        width: r.width,
+        height: r.bottom - overlap.bottom));
+  }
+  // Left strip (beside the overlap, within its vertical band).
+  if (overlap.left > r.left) {
+    parts.add(Rect(
+        x: r.x,
+        y: overlap.top,
+        width: overlap.left - r.left,
+        height: overlap.height));
+  }
+  // Right strip (beside the overlap, within its vertical band).
+  if (overlap.right < r.right) {
+    parts.add(Rect(
+        x: overlap.right,
+        y: overlap.top,
+        width: r.right - overlap.right,
+        height: overlap.height));
+  }
+  return parts;
 }

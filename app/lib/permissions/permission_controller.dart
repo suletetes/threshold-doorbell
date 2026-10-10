@@ -66,7 +66,8 @@ class PermissionController extends ChangeNotifier {
   /// or permanently denied.
   bool get pollFallbackActive {
     final s = _statuses[AppPermission.notifications];
-    return s == PermissionStatus.denied || s == PermissionStatus.permanentlyDenied;
+    return s == PermissionStatus.denied ||
+        s == PermissionStatus.permanentlyDenied;
   }
 
   PermissionStatus statusOf(AppPermission permission) =>
@@ -113,7 +114,24 @@ class PermissionController extends ChangeNotifier {
     return _uiState(result);
   }
 
-  /// Open OS settings for a permanently denied permission (FR-13.4). Only valid
-  /// from the needsSettings state; returns whether settings opened.
-  Future<bool> openSettings() => _port.openSettings();
+  /// Open OS settings for a permanently denied permission (FR-13.4), then
+  /// refresh the cached status when the resident returns (LOW-07). The old code
+  /// opened settings but never re-checked, so a permission the resident just
+  /// granted in Settings still showed as denied until something else refreshed
+  /// it. Returns whether settings opened. Pass [permission] to refresh a single
+  /// permission; with none, every tracked permission is refreshed.
+  Future<bool> openSettings([AppPermission? permission]) async {
+    final opened = await _port.openSettings();
+    // Re-read status on return from the OS settings screen so a change the
+    // resident made there is reflected immediately (LOW-07).
+    if (permission != null) {
+      await refresh(permission);
+    } else {
+      final tracked = _statuses.keys.toList();
+      for (final p in tracked) {
+        await refresh(p);
+      }
+    }
+    return opened;
+  }
 }

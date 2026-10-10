@@ -7,7 +7,12 @@
 import 'dart:io';
 
 /// Forbidden dash characters (NFR-10). Em-dash, en-dash, figure dash, horizontal bar.
-const List<String> kForbiddenDashes = <String>['\u2014', '\u2013', '\u2012', '\u2015'];
+const List<String> kForbiddenDashes = <String>[
+  '\u2014',
+  '\u2013',
+  '\u2012',
+  '\u2015'
+];
 
 /// A single lint finding.
 class DashViolation {
@@ -199,9 +204,20 @@ void _consumeStringBody({
 
   while (i < n) {
     final ch = source[i];
-    // Escapes: only in non-raw strings. Skip the escaped char.
+    // Escapes: only in non-raw strings. DECODE unicode escapes and check the
+    // decoded character, so a forbidden dash written as `\u2014` or `\u{2014}`
+    // cannot bypass the lint (MED-10). Other escapes (for example `\n`) skip the
+    // escaped char as before.
     if (!raw && ch == r'\') {
-      step(2);
+      final decoded = _decodeUnicodeEscape(source, i, n);
+      if (decoded != null) {
+        if (kForbiddenDashes.contains(decoded.char)) {
+          onDash(line, col, decoded.char, snippetFor(i));
+        }
+        step(decoded.length);
+        continue;
+      }
+      step(2); // a non-unicode escape: skip the backslash and the escaped char
       continue;
     }
     // Closing delimiter?
@@ -226,6 +242,43 @@ void _consumeStringBody({
   setIndex(i);
   setLine(line);
   setCol(col);
+}
+
+/// A decoded unicode escape: the resulting [char] and the [length] of the whole
+/// escape sequence in the source (including the leading backslash).
+class _DecodedEscape {
+  const _DecodedEscape(this.char, this.length);
+  final String char;
+  final int length;
+}
+
+/// Decode a Dart unicode escape starting at [i] (which points at a backslash),
+/// supporting `\uXXXX` (exactly four hex digits) and `\u{X...}` (one to six hex
+/// digits). Returns null when the sequence at [i] is not a unicode escape, so
+/// the caller falls back to the plain two-character escape skip (MED-10).
+_DecodedEscape? _decodeUnicodeEscape(String source, int i, int n) {
+  String at(int k) => (k >= 0 && k < n) ? source[k] : '';
+  if (at(i) != r'\' || at(i + 1) != 'u') return null;
+  // Braced form: \u{...}
+  if (at(i + 2) == '{') {
+    var j = i + 3;
+    final hex = StringBuffer();
+    while (j < n && source[j] != '}') {
+      hex.write(source[j]);
+      j++;
+    }
+    if (j >= n || source[j] != '}') return null; // unterminated
+    final code = int.tryParse(hex.toString(), radix: 16);
+    if (code == null) return null;
+    // length spans \u{...}
+    return _DecodedEscape(String.fromCharCode(code), (j - i) + 1);
+  }
+  // Fixed form: \uXXXX (exactly four hex digits).
+  final hex = source.substring(i + 2, (i + 6) <= n ? i + 6 : n);
+  if (hex.length < 4) return null;
+  final code = int.tryParse(hex, radix: 16);
+  if (code == null) return null;
+  return _DecodedEscape(String.fromCharCode(code), 6);
 }
 
 /// Recursively scan all `.dart` files under [root], excluding generated and
@@ -258,7 +311,8 @@ List<DashViolation> scanDirectory(
     if (segments.any(excludeDirNames.contains)) continue;
     final name = segments.isNotEmpty ? segments.last : '';
     if (excludeFileNames.contains(name)) continue;
-    violations.addAll(scanSource(entity.readAsStringSync(), filePath: entity.path));
+    violations
+        .addAll(scanSource(entity.readAsStringSync(), filePath: entity.path));
   }
   return violations;
 }
