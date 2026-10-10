@@ -31,7 +31,8 @@ export interface Config {
     apiBase: string;
   };
   appDeepLink: string;
-  webhookHmacKey: string;
+  webhookHmacKey: string; // primary key (used to sign in tests / tooling)
+  webhookHmacKeys: string[]; // accepted keys, newest first, for rotation (MED-38)
   kmsKeyId: string;
 }
 
@@ -81,6 +82,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     appDeepLink: readEnv(env, 'APP_DEEP_LINK', 'threshold://auth/complete'),
     webhookHmacKey: readEnv(env, 'WEBHOOK_HMAC_KEY', DEFAULT_WEBHOOK_HMAC_KEY),
+    // MED-38: accept a comma-separated key list so a webhook signing key can be
+    // rotated with an overlap window. The primary key is always first.
+    webhookHmacKeys: parseKeyList(
+      readEnv(env, 'WEBHOOK_HMAC_KEY', DEFAULT_WEBHOOK_HMAC_KEY),
+      readEnv(env, 'WEBHOOK_HMAC_KEYS', ''),
+    ),
     kmsKeyId: readEnv(env, 'KMS_KEY_ID', 'alias/threshold-ring-tokens'),
   };
 
@@ -98,6 +105,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   return config;
+}
+
+/** Build the accepted webhook key list: the primary key, then any extra keys. */
+function parseKeyList(primary: string, extra: string): string[] {
+  const extras = extra
+    .split(',')
+    .map((k) => k.trim())
+    .filter((k) => k !== '');
+  return [primary, ...extras.filter((k) => k !== primary)];
 }
 
 function assertStrongSecret(
