@@ -1,9 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing is loaded from android/key.properties (gitignored) or, in CI,
+// from the matching environment variables. There is deliberately NO debug-key
+// fallback for release: a release build without a real upload key must fail loudly
+// rather than ship an unpublishable, debug-signed APK (HIGH-12). See
+// android/key.properties.example for the template.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
+fun releaseSigningValue(key: String, env: String): String? =
+    keystoreProperties.getProperty(key) ?: System.getenv(env)
 
 android {
     namespace = "com.example.threshold"
@@ -33,18 +49,33 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = releaseSigningValue("storeFile", "THRESHOLD_KEYSTORE_FILE")
+            val storePasswordValue = releaseSigningValue("storePassword", "THRESHOLD_KEYSTORE_PASSWORD")
+            val keyAliasValue = releaseSigningValue("keyAlias", "THRESHOLD_KEY_ALIAS")
+            val keyPasswordValue = releaseSigningValue("keyPassword", "THRESHOLD_KEY_PASSWORD")
+
+            if (storeFilePath != null) {
+                storeFile = file(storeFilePath)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use the real release key. There is NO debug fallback: if the key is
+            // missing, verifyReleaseSigning below fails the build before packaging
+            // so an unpublishable debug-signed APK can never ship (HIGH-12).
+            signingConfig = signingConfigs.getByName("release")
 
             // Shrink the release build to cut APK/AAB size. R8 removes unused
-            // code and resource shrinking strips unused resources. The native
-            // plugins (flutter_webrtc, ML Kit, flutter_local_notifications,
-            // flutter_tts) use JNI/reflection, so the keep rules in
-            // proguard-rules.pro protect the classes R8 cannot see. See
-            // docs/hackathon/APK_SIZE.md for measured before/after sizes.
+            // code and resource shrinking strips unused resources. The keep rules
+            // in proguard-rules.pro are narrowed to the plugins that remain
+            // (MED-19). See docs/hackathon/APK_SIZE.md for measured sizes.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -52,6 +83,27 @@ android {
                 "proguard-rules.pro",
             )
         }
+    }
+
+    // Fail a release build loudly when the upload key is not configured, instead
+    // of silently signing with the debug key (HIGH-12). A real keystore plus
+    // android/key.properties (or the THRESHOLD_* CI env vars) is required to
+    // produce a store-signable APK/AAB.
+    afterEvaluate {
+        tasks.matching { it.name.startsWith("package") && it.name.contains("Release") }
+            .configureEach {
+                doFirst {
+                    val release = signingConfigs.getByName("release")
+                    if (release.storeFile == null) {
+                        throw GradleException(
+                            "No release signing key configured. Create android/key.properties " +
+                                "from android/key.properties.example (or set THRESHOLD_KEYSTORE_FILE, " +
+                                "THRESHOLD_KEYSTORE_PASSWORD, THRESHOLD_KEY_ALIAS and THRESHOLD_KEY_PASSWORD " +
+                                "in CI). Release builds must not fall back to the debug key.",
+                        )
+                    }
+                }
+            }
     }
 }
 
