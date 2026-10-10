@@ -11,6 +11,8 @@ import 'dart:async';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../captions/asr_client.dart';
+import '../captions/turn_segmentation.dart';
 import '../consent/recording_notice.dart';
 import '../reply/echo_gate.dart';
 import '../reply/reply_port.dart';
@@ -155,4 +157,26 @@ class ProductionAuthPort implements AuthPort {
 /// Builds the production echo gate (FR-5.6). Pure logic; safe everywhere.
 class ProductionEchoGate {
   static EchoGate build() => EchoGate();
+}
+
+/// The Clarity-Mode cloud ASR client over the backend /asr/stream WebSocket
+/// (FR-5.1, CRIT-07). The real WebSocket client is DEFERRED: it needs the
+/// backend and a live network, which this environment cannot provide, so start()
+/// fails closed rather than pretending a stream opened. The caption pump + the
+/// CaptionSource interface are wired in the composition root so a fake engine's
+/// captions provably reach the screen under test; only the live socket is
+/// deferred to the device/backend.
+class ProductionAsrStreamClient implements AsrStreamClient {
+  final _out = StreamController<CaptionResult>.broadcast();
+
+  @override
+  Stream<CaptionResult> get captions => _out.stream;
+
+  @override
+  Future<void> start({required String deviceId, required String language}) async {
+    throw const DeviceBindingUnavailable('The cloud caption stream');
+  }
+
+  @override
+  Future<void> dispose() => _out.close();
 }

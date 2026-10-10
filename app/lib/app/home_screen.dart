@@ -28,6 +28,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../captions/asr_client.dart';
 import '../captions/language_selection.dart';
 import '../captions/turn_segmentation.dart';
 import '../consent/recording_notice.dart';
@@ -246,9 +247,21 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
   /// after the probe, so the hard-coded outboundAvailable:true is gone.
   bool _complianceResolved = false;
 
+  /// Pumps live caption results from the ASR engine into the session controller
+  /// (CRIT-07). Without this the caption surface never received a feed. Started
+  /// in initState and stopped in dispose.
+  CaptionPump? _captionPump;
+
   @override
   void initState() {
     super.initState();
+    // Attach the caption pump so live caption results reach the surface for this
+    // session (CRIT-07). The controller drops results while idle/closed; the
+    // pump just delivers the feed. The echo gate (FR-5.6) and the
+    // transcription-disabled fallback (FR-14.3a) are enforced in ingestCaption.
+    final controller = ref.read(sessionControllerProvider);
+    final source = ref.read(captionSourceProvider);
+    _captionPump = CaptionPump(controller: controller, source: source)..start();
     // Open the session after the first frame so a connect failure surfaces in
     // the controller snapshot rather than throwing during build.
     WidgetsBinding.instance.addPostFrameCallback((_) => _open());
@@ -380,6 +393,9 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
 
   @override
   void dispose() {
+    // Stop pumping captions (CRIT-07); the source itself is owned by its
+    // provider and disposed with the scope.
+    unawaited(_captionPump?.stop());
     // Leaving the host for any reason ends the session so nothing is left live
     // off screen (CRIT-05). Guard the read: if the ProviderScope is tearing
     // down with us, it has already disposed the controller (which closes the

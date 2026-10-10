@@ -10,6 +10,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../captions/asr_client.dart';
 import '../captions/model_provisioning.dart';
 import '../consent/recording_notice.dart';
 import '../consent/recording_notice_controller.dart';
@@ -49,6 +50,14 @@ final authPortProvider = Provider<AuthPort>((ref) => ProductionAuthPort());
 
 final bedrockSuggestionPortProvider =
     Provider<BedrockSuggestionPort>((ref) => ProductionBedrockSuggestionPort());
+
+/// The caption source for the live session (CRIT-07). Clarity Mode uses the
+/// cloud /asr/stream client; the real socket is deferred and fails closed. A
+/// test overrides this with a scripted fake so captions provably reach the
+/// screen. The session host attaches a CaptionPump from this source to the
+/// SessionController when a session goes live.
+final captionSourceProvider =
+    Provider<CaptionSource>((ref) => ProductionAsrStreamClient());
 
 /// The persisted consent store (FR-14.1, HIGH-10). In production main() loads a
 /// shared_preferences-backed [ProductionConsentStore] before the first frame and
