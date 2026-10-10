@@ -38,6 +38,11 @@ import '../session/session_state.dart';
 import '../settings/settings_screen.dart';
 import 'providers.dart';
 
+/// The device id used when a session is started from the home hero action with
+/// no originating alert (MED-14). An alert-driven open supplies its own device
+/// id; the alert path is deferred (CRIT-08).
+const String kDefaultDeviceId = 'front-door';
+
 /// What the hero action does, in one line under the label. Dash-free (NFR-10).
 const String kHomeHeroSupportingLine = 'Captions appear as your visitor speaks.';
 
@@ -130,11 +135,33 @@ class HomeScreen extends ConsumerWidget {
     );
 
     if (!context.mounted) return;
-    // Route to the live session screen. The screen renders from the controller
-    // snapshot; the reply bar hides itself when outbound is unavailable.
+
+    // Surface a refused Privacy Mode request instead of silently falling back
+    // to Clarity while the badge or expectation says Privacy (MED-14). The
+    // session runs in plan.mode (Clarity), and the resident is told why.
+    if (plan.privacyRefused) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          key: const ValueKey('privacy-refused-notice'),
+          content: Text(
+            plan.privacyUnavailableLabel.isEmpty
+                ? 'Privacy Mode is not ready yet. Starting in Clarity Mode.'
+                : plan.privacyUnavailableLabel,
+          ),
+        ),
+      );
+    }
+
+    // Route to the live session screen in the resolved mode (MED-14: use
+    // plan.mode, not the requested mode). The deviceId comes from the alert
+    // that opened the session; with the alert path deferred (CRIT-08) it
+    // defaults to the resident's primary doorbell.
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _SessionHost(mode: plan.mode),
+        builder: (_) => _SessionHost(
+          mode: plan.mode,
+          deviceId: kDefaultDeviceId,
+        ),
       ),
     );
   }
@@ -156,8 +183,13 @@ class HomeScreen extends ConsumerWidget {
 /// screen per the sticky outbound mode. This is where alert -> conversation /
 /// captions-only routing happens (FR-6.4, FR-12.4).
 class _SessionHost extends ConsumerStatefulWidget {
-  const _SessionHost({required this.mode});
+  const _SessionHost({required this.mode, required this.deviceId});
   final SessionCaptionMode mode;
+
+  /// The doorbell the session is for. Supplied by the alert that opened the
+  /// session; defaults to the primary doorbell when started from the home hero
+  /// action (MED-14). Replaces a hard-coded 'front-door'.
+  final String deviceId;
 
   @override
   ConsumerState<_SessionHost> createState() => _SessionHostState();
@@ -185,10 +217,14 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
   Future<void> _open() async {
     final controller = ref.read(sessionControllerProvider);
     try {
-      await controller.open(deviceId: 'front-door', mode: widget.mode);
-    } catch (_) {
-      // The controller records ERROR in its snapshot; the screen renders it.
+      await controller.open(deviceId: widget.deviceId, mode: widget.mode);
+    } on StateError {
+      // A session is already active (concurrency rule, FR-4.6/4.7): the open was
+      // refused. Do not re-show a stale session; leave the host (MED-14).
+      if (mounted) _leave();
     }
+    // Any connect/probe failure is recorded as ERROR in the controller snapshot
+    // and rendered by the screen; it is not swallowed here (HIGH-04).
   }
 
   /// End the session and leave the host route. Called from both the system back

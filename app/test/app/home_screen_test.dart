@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/app/home_screen.dart';
 import 'package:threshold/app/providers.dart';
+import 'package:threshold/captions/language_selection.dart';
 import 'package:threshold/captions/model_provisioning.dart';
 import 'package:threshold/design/components/components.dart';
 import 'package:threshold/design/theme.dart';
@@ -21,6 +22,7 @@ import 'package:threshold/reply/suggestion_provider.dart';
 import 'package:threshold/session/conversation_screen.dart';
 import 'package:threshold/session/ring_app_launcher.dart';
 import 'package:threshold/session/session_port.dart';
+import 'package:threshold/session/session_state.dart';
 import 'package:threshold/settings/settings_controller.dart';
 import 'package:threshold/settings/settings_screen.dart';
 
@@ -218,6 +220,49 @@ void main() {
       expect(port.closeCalls, greaterThanOrEqualTo(1));
       expect(find.byType(ConversationScreen), findsNothing);
       expect(find.byKey(const ValueKey('home-answer')), findsOneWidget);
+    });
+  });
+
+  group('Session start mode and refusal (MED-14)', () {
+    testWidgets('a refused Privacy Mode request surfaces a notice and runs Clarity',
+        (tester) async {
+      final port = FakeSessionPort();
+      late WidgetRef capturedRef;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            sessionPortProvider.overrideWithValue(port),
+            replyPortProvider.overrideWithValue(FakeReplyPort()),
+            ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
+            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+            dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+            // Default provisioning: the on device model is NOT verified, so
+            // Privacy Mode is refused.
+          ],
+          child: MaterialApp(
+            theme: ThresholdTheme.light(),
+            home: Consumer(builder: (context, ref, _) {
+              capturedRef = ref;
+              return const HomeScreen();
+            }),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Request Privacy Mode for the next session, then answer the door.
+      capturedRef.read(settingsControllerProvider).requestModeChange(CaptionMode.privacy);
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pump();
+
+      // The refusal is surfaced, not silent (MED-14).
+      expect(find.byKey(const ValueKey('privacy-refused-notice')), findsOneWidget);
+      await tester.pumpAndSettle();
+
+      // The session runs in Clarity, not Privacy (plan.mode was used).
+      expect(find.byType(ConversationScreen), findsOneWidget);
+      expect(capturedRef.read(sessionControllerProvider.notifier).mode,
+          SessionCaptionMode.clarity);
     });
   });
 

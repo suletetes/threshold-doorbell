@@ -57,6 +57,16 @@ class CaptionsOnlyScreen extends StatelessWidget {
 
   ThresholdSettings get _settings => settings ?? ThresholdSettings.defaults();
 
+  /// The session states Captions-Only renders its own receive-only layout for.
+  /// Every other state (connecting, probing, reconnecting, error, closing, auth
+  /// recovery, idle) is delegated to the shared conversation screen state
+  /// switcher so Captions-Only is not stuck showing the live layout in every
+  /// state and does not stay up after End (MED-07).
+  static const Set<SessionState> _ownLayoutStates = <SessionState>{
+    SessionState.live,
+    SessionState.backgrounded,
+  };
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -71,6 +81,21 @@ class CaptionsOnlyScreen extends StatelessWidget {
   }
 
   Widget _build(BuildContext context, SessionSnapshot snap) {
+    // Share the conversation screen's error/reconnecting/auth/idle switcher for
+    // every state other than the live receive-only ones (MED-07). The reply bar
+    // stays absent, so this remains Captions-Only; only the transient and
+    // terminal states are handled consistently with the two-way screen.
+    if (!_ownLayoutStates.contains(snap.state)) {
+      return ConversationScreen(
+        controller: controller,
+        settings: _settings,
+        videoSurfaceBuilder: videoSurfaceBuilder,
+      );
+    }
+    return _liveBuild(context, snap);
+  }
+
+  Widget _liveBuild(BuildContext context, SessionSnapshot snap) {
     final builder = videoSurfaceBuilder ?? defaultVideoSurface;
     final semantic = ThresholdSemanticColors.of(context);
     final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
@@ -102,7 +127,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _banner(),
+        _banner(context),
         // Caption region: the visitor's speech, receive-only (FR-12.1).
         Expanded(
           child: Column(
@@ -131,7 +156,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _banner(),
+              _banner(context),
               const Spacer(),
               _endControl(),
             ],
@@ -150,7 +175,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
     );
   }
 
-  Widget _banner() {
+  Widget _banner(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(Spacing.space3),
       child: StatusBanner(
@@ -164,7 +189,31 @@ class CaptionsOnlyScreen extends StatelessWidget {
           label: 'Open Ring app',
           icon: Icons.open_in_new,
           buttonKey: const ValueKey('open-ring-app'),
-          onPressed: () => launcher.openRingApp(),
+          onPressed: () => _openRingApp(context),
+        ),
+      ),
+    );
+  }
+
+  /// Open the Ring app, honoring the launch result (MED-07). The old code
+  /// discarded the result, so an "app not installed" outcome was silently
+  /// ignored. When the app cannot be launched the resident is told to install
+  /// it from the store (the store fallback), via a dash-free snackbar.
+  Future<void> _openRingApp(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    bool launched;
+    try {
+      launched = await launcher.openRingApp();
+    } catch (_) {
+      launched = false;
+    }
+    if (launched) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        key: ValueKey('ring-app-fallback'),
+        content: Text(
+          'The Ring app is not installed. Please install it from your app store '
+          'to reply by voice.',
         ),
       ),
     );
