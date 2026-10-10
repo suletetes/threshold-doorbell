@@ -41,6 +41,15 @@ describe('parseWebhook', () => {
     expect(() => parseWebhook({ request_id: 'r', event_type: 'motion_detected' })).toThrow();
   });
 
+  it('rejects a confidence outside [0,1] or non-finite (LOW-32)', () => {
+    const base = { request_id: 'r1', event_type: 'motion_detected', device_id: 'd1' };
+    expect(() => parseWebhook({ ...base, confidence: 1.5 })).toThrow(AppError);
+    expect(() => parseWebhook({ ...base, confidence: -0.1 })).toThrow(AppError);
+    expect(() => parseWebhook({ ...base, confidence: Number.POSITIVE_INFINITY })).toThrow(AppError);
+    // A valid in-range confidence still parses.
+    expect(parseWebhook({ ...base, confidence: 0.5 }).confidence).toBe(0.5);
+  });
+
   it('ignores a malformed bounding_box (sets null, not a crash)', () => {
     const event = parseWebhook({
       request_id: 'r1',

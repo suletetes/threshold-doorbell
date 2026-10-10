@@ -64,6 +64,16 @@ export function parseWebhook(raw: unknown): DoorEvent {
       ? w.timestamp
       : new Date().toISOString();
 
+  // LOW-32: a confidence outside [0,1] (or non-finite) is a contract violation,
+  // not a value to store verbatim. Reject it rather than persist a bad number.
+  let confidence: number | null = null;
+  if (w.confidence !== undefined && w.confidence !== null) {
+    if (typeof w.confidence !== 'number' || !Number.isFinite(w.confidence) || w.confidence < 0 || w.confidence > 1) {
+      throw errors.schema('Webhook confidence out of range.');
+    }
+    confidence = w.confidence;
+  }
+
   return {
     eventId: randomUUID(),
     requestId: w.request_id,
@@ -73,12 +83,20 @@ export function parseWebhook(raw: unknown): DoorEvent {
     type: w.event_type as EventType,
     deviceId: w.device_id,
     timestamp,
-    confidence: typeof w.confidence === 'number' ? w.confidence : null,
+    confidence,
     boundingBox: parseBoundingBox(w.bounding_box),
     thumbnailUrl: typeof w.thumbnail_url === 'string' ? w.thumbnail_url : null,
     processedAt: null,
   };
 }
+
+/**
+ * The residentSub used to quarantine an event whose device is not mapped to any
+ * resident (LOW-30). It is an explicit, non-empty marker so the event is never
+ * silently stored under '' (which would be unreachable and unerasable) and is
+ * never confused with a real resident.
+ */
+export const UNMAPPED_RESIDENT = '__unmapped__';
 
 export interface WebhookOutcome {
   /** true when this was the first time we saw this requestId. */
@@ -103,7 +121,9 @@ export class WebhookService {
    */
   async record(event: DoorEvent): Promise<WebhookOutcome> {
     const residentSub = await this.resolveResident(event.deviceId);
-    const scoped: DoorEvent = { ...event, residentSub: residentSub ?? '' };
+    // LOW-30: an unmapped device is quarantined under an explicit marker, never
+    // stored under '' (which would be orphaned and unerasable).
+    const scoped: DoorEvent = { ...event, residentSub: residentSub ?? UNMAPPED_RESIDENT };
     const result = await this.events.putIfAbsent(scoped);
     return { firstDelivery: result.created, event: result.event };
   }
@@ -114,11 +134,13 @@ export class WebhookService {
    * is a surfaced result (the app falls back to the FR-3.5 poll), never silent.
    */
   async enqueuePush(event: DoorEvent): Promise<boolean> {
+    // A quarantined (unmapped) event has no real owner, so never push it.
+    if (event.residentSub === UNMAPPED_RESIDENT) return false;
     // The event already carries its server-resolved owner (set in record());
     // fall back to a fresh resolve for events built outside that path.
     const residentSub =
       event.residentSub !== '' ? event.residentSub : await this.resolveResident(event.deviceId);
-    if (!residentSub) return false;
+    if (!residentSub || residentSub === UNMAPPED_RESIDENT) return false;
     const message: PushMessage = {
       residentSub,
       type: event.type,

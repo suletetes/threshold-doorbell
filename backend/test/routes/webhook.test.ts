@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp } from '../helpers/test-app.js';
 import { computeSignature } from '../../src/security/hmac.js';
+import { UNMAPPED_RESIDENT } from '../../src/services/webhook-service.js';
 
 let app: FastifyInstance | undefined;
 afterEach(async () => {
@@ -199,5 +200,30 @@ describe('POST /webhook tenancy isolation (CRIT-04)', () => {
     expect(await t.eventStore.listOrdered('resident-account-1')).toHaveLength(0);
     expect(await t.eventStore.listOrdered('unmapped-device')).toHaveLength(0);
     expect(t.push.sent).toHaveLength(0);
+    // LOW-30: it is quarantined under the explicit marker, never under ''.
+    expect(await t.eventStore.listOrdered('')).toHaveLength(0);
+    expect(await t.eventStore.listOrdered(UNMAPPED_RESIDENT)).toHaveLength(1);
+  });
+
+  it('rejects a webhook whose confidence is out of range (LOW-32)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const body = {
+      request_id: 'bad-conf',
+      event_type: 'person_detected',
+      device_id: 'ring-doorbell-001',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      confidence: 1.5,
+    };
+    const raw = JSON.stringify(body);
+    const sig = computeSignature(raw, t.config.webhookHmacKey);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook',
+      headers: { 'content-type': 'application/json', 'x-ring-signature': sig },
+      payload: raw,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
   });
 });
