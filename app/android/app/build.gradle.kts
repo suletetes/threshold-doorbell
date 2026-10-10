@@ -22,7 +22,7 @@ fun releaseSigningValue(key: String, env: String): String? =
     keystoreProperties.getProperty(key) ?: System.getenv(env)
 
 android {
-    namespace = "com.example.threshold"
+    namespace = "dev.suletetes.threshold"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -39,8 +39,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.threshold"
+        // Real reverse-DNS application id (HIGH-14). com.example is blocked by Play
+        // and is permanent once published.
+        applicationId = "dev.suletetes.threshold"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
