@@ -52,6 +52,14 @@ class OutboundModeMachine {
 
   /// Record the outcome of an injection attempt. A failure while two-way degrades
   /// the session to captions-only for the remainder and never auto-recovers.
+  ///
+  /// Calling this before the probe has run is a programming error and throws.
+  /// Calling it once the session is already captions-only (either from the probe
+  /// or from an earlier degrade) is a deliberate NO-OP, not an error (LOW-23):
+  /// the reply bar is disabled in captions-only mode so a host app should not be
+  /// injecting, but the state is terminal for the session and there is nothing
+  /// left to downgrade. The no-op keeps a late or racing injection callback from
+  /// throwing and crashing the session. Use [isCaptionsOnly] to gate the UI.
   void recordInjection({required bool success}) {
     if (!_probed) {
       throw StateError('Injection attempted before the capability probe ran');
@@ -59,5 +67,7 @@ class OutboundModeMachine {
     if (_state == OutboundState.twoWay && !success) {
       _state = OutboundState.captionsOnlyDegraded;
     }
+    // In any captions-only state this is a documented no-op: no auto-recovery
+    // and no further downgrade are possible.
   }
 }

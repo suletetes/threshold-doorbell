@@ -26,8 +26,20 @@ class CaptionResult {
   });
 
   final CaptionSpeaker speaker;
+
+  /// The caption text for this result.
+  ///
+  /// Contract (LOW-20): [text] is CUMULATIVE for a turn, not a delta. When a
+  /// result extends the current turn, [TurnAccumulator.apply] REPLACES the
+  /// turn's text with this value rather than appending to it, so the engine must
+  /// deliver each partial as the full text of the turn so far. An engine that
+  /// emits only the newly recognized words (a delta) would lose earlier words.
+  /// Adapt such an engine by accumulating deltas before constructing a result.
   final String text;
   final bool isFinal;
+
+  /// Monotonic timestamp in milliseconds. Results are expected in time order;
+  /// see [TurnAccumulator.apply] for how out-of-order input is handled (LOW-19).
   final int timestampMs;
   final bool segmentBoundary;
   final double? confidence;
@@ -98,6 +110,30 @@ class TurnAccumulator {
   CaptionTurn? get current => _turns.isEmpty ? null : _turns.last;
 
   void apply(CaptionResult result) {
+    // Input validation (LOW-19). Reject empty or whitespace-only text so the
+    // accumulator never produces an empty labeled turn.
+    if (result.text.trim().isEmpty) {
+      throw ArgumentError.value(
+        result.text,
+        'result.text',
+        'caption result text must not be empty',
+      );
+    }
+    // Guard against out-of-order (non-monotonic) timestamps when extending the
+    // current turn: a result older than the turn's last update would otherwise
+    // move lastUpdatedMs backwards and corrupt the pause-threshold logic. Such a
+    // stale result is ignored. A debug assert surfaces the upstream ordering bug.
+    final CaptionTurn? openTurn = current;
+    if (openTurn != null &&
+        !startsNewTurn(openTurn, result) &&
+        result.timestampMs < openTurn.lastUpdatedMs) {
+      assert(
+        false,
+        'out-of-order caption result: ${result.timestampMs}ms < '
+        'last update ${openTurn.lastUpdatedMs}ms',
+      );
+      return;
+    }
     if (startsNewTurn(current, result)) {
       _turns.add(
         CaptionTurn(

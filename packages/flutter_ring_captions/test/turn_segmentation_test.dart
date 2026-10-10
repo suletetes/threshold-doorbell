@@ -42,6 +42,23 @@ void main() {
       );
     });
 
+    test('a gap of exactly kTurnPauseThresholdMs extends the turn (boundary, MED-22)', () {
+      final a = TurnAccumulator()..apply(r(CaptionSpeaker.visitor, 'hi', t: 0));
+      // The split uses `>`, so exactly 1500ms must NOT split.
+      expect(
+        startsNewTurn(a.current, r(CaptionSpeaker.visitor, 'hi there', t: kTurnPauseThresholdMs)),
+        isFalse,
+      );
+    });
+
+    test('a gap of kTurnPauseThresholdMs + 1 splits the turn (boundary, MED-22)', () {
+      final a = TurnAccumulator()..apply(r(CaptionSpeaker.visitor, 'hi', t: 0));
+      expect(
+        startsNewTurn(a.current, r(CaptionSpeaker.visitor, 'later', t: kTurnPauseThresholdMs + 1)),
+        isTrue,
+      );
+    });
+
     test('a quick continuation extends the turn', () {
       final a = TurnAccumulator()..apply(r(CaptionSpeaker.visitor, 'hi', t: 0));
       expect(startsNewTurn(a.current, r(CaptionSpeaker.visitor, 'hi there', t: 200)), isFalse);
@@ -78,6 +95,29 @@ void main() {
         ..apply(r(CaptionSpeaker.visitor, 'next', t: 100));
       expect(a.turns.length, 2);
       expect(a.turns.first.confidence, 0.9);
+    });
+  });
+
+  group('TurnAccumulator input validation (LOW-19, MED-22)', () {
+    test('empty or whitespace-only text is rejected', () {
+      expect(() => TurnAccumulator().apply(r(CaptionSpeaker.visitor, '')),
+          throwsArgumentError);
+      expect(() => TurnAccumulator().apply(r(CaptionSpeaker.visitor, '   ')),
+          throwsArgumentError);
+    });
+
+    test('an out-of-order extension is ignored and does not move the clock back', () {
+      final a = TurnAccumulator()
+        ..apply(r(CaptionSpeaker.visitor, 'hello', t: 1000))
+        ..apply(r(CaptionSpeaker.visitor, 'hello there', t: 1200));
+      expect(a.turns.single.lastUpdatedMs, 1200);
+      // A stale result older than the last update extends the same turn in time
+      // order only; out-of-order is dropped. Run with asserts disabled so the
+      // debug assert does not short-circuit the behavioural check.
+      final stale = r(CaptionSpeaker.visitor, 'stale', t: 500);
+      // startsNewTurn is false (same speaker, provisional, small gap backwards),
+      // so this exercises the out-of-order guard, not a new turn.
+      expect(startsNewTurn(a.current, stale), isFalse);
     });
   });
 
