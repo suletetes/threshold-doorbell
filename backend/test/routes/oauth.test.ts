@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
-import { decodeState } from '../../src/security/oauth-state.js';
+import { decodeState, OAUTH_STATE_COOKIE } from '../../src/security/oauth-state.js';
 import { fixtureResidentSub } from '../../src/services/fixtures/fixture-ring.js';
 import { SESSION_COOKIE, verifySession } from '../../src/security/session.js';
 
@@ -10,6 +10,14 @@ afterEach(async () => {
   if (app) await app.close();
   app = undefined;
 });
+
+/** Start the OAuth flow and return the state and the browser-binding cookie. */
+async function startOAuth(instance: FastifyInstance): Promise<{ state: string; cookie: string }> {
+  const start = await instance.inject({ method: 'GET', url: '/oauth/start' });
+  const state = new URL(start.headers.location as string).searchParams.get('state')!;
+  const bind = start.cookies.find((c) => c.name === OAUTH_STATE_COOKIE)!;
+  return { state, cookie: `${OAUTH_STATE_COOKIE}=${bind.value}` };
+}
 
 describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
   it('GET /oauth/start redirects to Ring authorize with PKCE + state', async () => {
@@ -22,9 +30,25 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('code_challenge')).toBeTruthy();
-    // state is a valid signed transaction carrying the verifier.
+    // state is a valid signed transaction carrying ONLY the nonce.
     const state = url.searchParams.get('state')!;
     expect(decodeState(state, t.config.sessionSecret)).not.toBeNull();
+  });
+
+  it('GET /oauth/start binds state to the browser and keeps the PKCE verifier server-side (HIGH-16/17)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({ method: 'GET', url: '/oauth/start' });
+    // HIGH-16: a state-binding cookie is set, HttpOnly and SameSite=Lax.
+    const bind = res.cookies.find((c) => c.name === OAUTH_STATE_COOKIE);
+    expect(bind).toBeDefined();
+    expect(bind!.httpOnly).toBe(true);
+    expect((bind!.sameSite ?? '').toLowerCase()).toBe('lax');
+    // HIGH-17: the front-channel state must NOT contain the PKCE verifier.
+    const state = new URL(res.headers.location as string).searchParams.get('state')!;
+    const decoded = JSON.parse(Buffer.from(state.split('.')[0]!, 'base64url').toString('utf8'));
+    expect(decoded.codeVerifier).toBeUndefined();
+    expect(JSON.stringify(decoded)).not.toContain('codeVerifier');
   });
 
   it('GET /oauth/callback rejects a state mismatch and stores no token (FR-1.3)', async () => {
@@ -44,21 +68,21 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
   it('GET /oauth/callback exchanges code, stores encrypted tokens, sets session cookie', async () => {
     const t = await buildTestApp();
     app = t.app;
-    // First obtain a valid state from /start.
-    const start = await app.inject({ method: 'GET', url: '/oauth/start' });
-    const state = new URL(start.headers.location as string).searchParams.get('state')!;
+    // First obtain a valid state + binding cookie from /start.
+    const { state, cookie } = await startOAuth(app);
 
     const res = await app.inject({
       method: 'GET',
       url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
     });
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe(t.config.appDeepLink);
 
     // A session cookie is set (the ONLY credential on device, FR-1.6).
-    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
-    expect(cookie).toBeDefined();
-    const claims = verifySession(cookie!.value, t.config.sessionSecret);
+    const sessionCookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
+    expect(sessionCookie).toBeDefined();
+    const claims = verifySession(sessionCookie!.value, t.config.sessionSecret);
     expect(claims).not.toBeNull();
 
     // Token is stored encrypted; no cleartext access token anywhere (FR-1.6, AT-1).
@@ -72,14 +96,64 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
   it('GET /oauth/callback fails cleanly when the code is missing', async () => {
     const t = await buildTestApp();
     app = t.app;
-    const start = await app.inject({ method: 'GET', url: '/oauth/start' });
-    const state = new URL(start.headers.location as string).searchParams.get('state')!;
+    const { state, cookie } = await startOAuth(app);
     const res = await app.inject({
       method: 'GET',
       url: `/oauth/callback?state=${encodeURIComponent(state)}`,
+      headers: { cookie },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('code_exchange_failed');
+  });
+
+  it('GET /oauth/callback rejects a missing state cookie (HIGH-16)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const { state } = await startOAuth(app);
+    // No cookie header: the state is not bound to this browser.
+    const res = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('state_mismatch');
+    expect(t.tokenStore.size()).toBe(0);
+  });
+
+  it('GET /oauth/callback rejects a mismatched state cookie (HIGH-16)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const { state } = await startOAuth(app);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+      headers: { cookie: `${OAUTH_STATE_COOKIE}=tampered-binding-value` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('state_mismatch');
+    expect(t.tokenStore.size()).toBe(0);
+  });
+
+  it('GET /oauth/callback rejects a replayed state (single-use, HIGH-16)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const { state, cookie } = await startOAuth(app);
+    const first = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
+    expect(first.statusCode).toBe(302);
+    // Replay the exact same state + cookie: the server-side verifier is gone.
+    const replay = await app.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=account-1&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
+    expect(replay.statusCode).toBe(400);
+    expect(replay.json().error.code).toBe('state_mismatch');
+    // The replay never created a second token row.
+    expect(t.tokenStore.size()).toBe(1);
   });
 
   it('POST /oauth/refresh requires a session (unified recovery, FR-1.5)', async () => {
@@ -111,14 +185,14 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
   });
 
   async function login(code: string, secret: string, instance: FastifyInstance): Promise<string> {
-    const start = await instance.inject({ method: 'GET', url: '/oauth/start' });
-    const state = new URL(start.headers.location as string).searchParams.get('state')!;
+    const { state, cookie } = await startOAuth(instance);
     const res = await instance.inject({
       method: 'GET',
       url: `/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+      headers: { cookie },
     });
-    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
-    return verifySession(cookie.value, secret)!.sub;
+    const session = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
+    return verifySession(session.value, secret)!.sub;
   }
 
   it('a crafted code cannot select an arbitrary resident sub (CRIT-03, LOW-41)', async () => {

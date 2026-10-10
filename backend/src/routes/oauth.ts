@@ -6,7 +6,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { errors } from '../domain/errors.js';
 import { createPkcePair, generateState } from '../security/pkce.js';
-import { decodeState, encodeState } from '../security/oauth-state.js';
+import {
+  decodeState,
+  encodeState,
+  hashNonce,
+  nonceCookieMatches,
+  OAUTH_STATE_COOKIE,
+} from '../security/oauth-state.js';
 import { issueSession, SESSION_COOKIE, SESSION_IDLE_MS } from '../security/session.js';
 
 interface CallbackQuery {
@@ -14,15 +20,24 @@ interface CallbackQuery {
   state?: string;
 }
 
+// How long a started OAuth transaction stays redeemable (matches the signed
+// state TTL in oauth-state.ts): the nonce entry and cookie expire together.
+const OAUTH_TXN_TTL_MS = 10 * 60 * 1000;
+
 export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
   const { config } = app.container;
 
-  // GET /oauth/start -> 302 to Ring authorize with PKCE + signed state.
+  // GET /oauth/start -> 302 to Ring authorize with PKCE + signed state. The PKCE
+  // verifier is kept server-side keyed by the nonce (HIGH-17); the state carries
+  // only the nonce. An HttpOnly SameSite=Lax cookie holds H(nonce) to bind the
+  // state to this browser (HIGH-16).
   app.get('/oauth/start', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       const pkce = createPkcePair();
       const nonce = generateState();
-      const state = encodeState(nonce, pkce.codeVerifier, config.sessionSecret);
+      // Keep the verifier server-side, single-use, short-lived (HIGH-17).
+      await app.container.oauthTxnStore.put(nonce, pkce.codeVerifier, OAUTH_TXN_TTL_MS);
+      const state = encodeState(nonce, config.sessionSecret);
       const url = new URL(config.ring.authorizeUrl);
       url.searchParams.set('response_type', 'code');
       url.searchParams.set('client_id', config.ring.clientId);
@@ -31,7 +46,17 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
       url.searchParams.set('state', state);
       url.searchParams.set('code_challenge', pkce.codeChallenge);
       url.searchParams.set('code_challenge_method', pkce.challengeMethod);
-      reply.code(302).header('location', url.toString()).send();
+      reply
+        .code(302)
+        .header('location', url.toString())
+        .setCookie(OAUTH_STATE_COOKIE, hashNonce(nonce, config.sessionSecret), {
+          httpOnly: true,
+          secure: config.env !== 'local',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: Math.floor(OAUTH_TXN_TTL_MS / 1000),
+        })
+        .send();
     } catch {
       throw errors.oauthInitFailed();
     }
@@ -50,6 +75,20 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
       if (!txn) {
         throw errors.stateMismatch();
       }
+      // HIGH-16: the state must be bound to THIS browser. The cookie holds
+      // H(nonce); reject when it is missing or does not match the state nonce.
+      const stateCookie = request.cookies?.[OAUTH_STATE_COOKIE];
+      if (!nonceCookieMatches(stateCookie, hashNonce(txn.nonce, config.sessionSecret))) {
+        throw errors.stateMismatch();
+      }
+      // HIGH-16/17: redeem the server-side verifier. take() is single-use, so a
+      // replayed state finds no verifier and is rejected. Clear the binding
+      // cookie now that the transaction is consumed.
+      const codeVerifier = await app.container.oauthTxnStore.take(txn.nonce);
+      reply.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
+      if (codeVerifier === null) {
+        throw errors.stateMismatch();
+      }
       if (typeof code !== 'string' || code === '') {
         throw errors.codeExchangeFailed();
       }
@@ -59,7 +98,7 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
       try {
         tokens = await app.container.ring.exchangeCode(
           code,
-          txn.codeVerifier,
+          codeVerifier,
           config.ring.redirectUri,
         );
       } catch {

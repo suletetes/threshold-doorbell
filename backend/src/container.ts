@@ -29,6 +29,8 @@ import {
   MemoryTokenStore,
 } from './services/fixtures/memory-stores.js';
 import { MemoryDeviceAccountStore } from './services/fixtures/memory-device-account-store.js';
+import type { OAuthTxnStorePort } from './services/oauth-txn-store.js';
+import { MemoryOAuthTxnStore } from './services/fixtures/memory-oauth-txn-store.js';
 import { RingTokenService } from './services/ring-token-service.js';
 import { RingGateway } from './services/ring-gateway.js';
 
@@ -44,6 +46,7 @@ export interface Container {
   eventStore: EventStorePort;
   conversationStore: ConversationStorePort;
   deviceAccountStore: DeviceAccountStorePort;
+  oauthTxnStore: OAuthTxnStorePort;
   ringTokens: RingTokenService;
   ringGateway: RingGateway;
   metrics: MetricsPort;
@@ -60,6 +63,7 @@ export interface ContainerOverrides {
   eventStore?: EventStorePort;
   conversationStore?: ConversationStorePort;
   deviceAccountStore?: DeviceAccountStorePort;
+  oauthTxnStore?: OAuthTxnStorePort;
   metrics?: MetricsPort;
 }
 
@@ -88,6 +92,7 @@ const REQUIRED_REAL_PORTS: readonly (keyof ContainerOverrides)[] = [
   'eventStore',
   'conversationStore',
   'deviceAccountStore',
+  'oauthTxnStore',
 ];
 
 /**
@@ -120,6 +125,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const eventStore = overrides.eventStore ?? new MemoryEventStore();
   const conversationStore = overrides.conversationStore ?? new MemoryConversationStore();
   const deviceAccountStore = overrides.deviceAccountStore ?? new MemoryDeviceAccountStore();
+  const oauthTxnStore = overrides.oauthTxnStore ?? new MemoryOAuthTxnStore();
   const metrics = overrides.metrics ?? new InMemoryMetricsSink();
 
   return {
@@ -134,6 +140,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
     eventStore,
     conversationStore,
     deviceAccountStore,
+    oauthTxnStore,
     ringTokens: new RingTokenService(ring, tokenStore, crypto),
     ringGateway: new RingGateway(ring),
     metrics,
