@@ -23,9 +23,14 @@ export async function buildTestApp() {
   const config = loadConfig({ THRESHOLD_ENV: 'local', SESSION_SECRET: 'test-secret-for-sessions' });
   const ring = new FixtureRing();
   const ringSignaling = new FixtureRingSignaling();
-  const transcribe = new FixtureTranscribe();
+  // Retain audio in the test harness so ASR route tests can assert replay and
+  // the opened-language sequence. Production wires FixtureTranscribe() without
+  // retention so no raw audio is kept (HIGH-21).
+  const transcribe = new FixtureTranscribe(true);
   const bedrock = new FixtureBedrock();
-  const push = new FixturePush();
+  // Retain sent push messages in the test harness so webhook tests can assert
+  // delivery. Production wires FixturePush() without retention (HIGH-21).
+  const push = new FixturePush(true);
   const crypto = new LocalCrypto(config.sessionSecret);
   const tokenStore = new MemoryTokenStore();
   const eventStore = new MemoryEventStore();

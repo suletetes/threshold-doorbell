@@ -128,6 +128,14 @@ export class TranscriptService {
     if (typeof input.mode !== 'string' || !MODES.includes(input.mode as CaptionMode)) {
       throw errors.schema('Invalid mode.');
     }
+    // MED-25: Privacy Mode keeps audio AND transcript text on the handset; the
+    // privacy policy promises "neither the audio nor the transcript text leaves
+    // the handset" (PRIVACY_POLICY.md, FR-5.2/NFR-4). A privacy-mode transcript
+    // must therefore never be uploaded for server-side storage. Reject it so
+    // the code and the policy agree.
+    if ((input.mode as CaptionMode) === 'privacy') {
+      throw errors.schema('Privacy Mode transcripts stay on the device and cannot be uploaded.');
+    }
     if (typeof input.language !== 'string' || input.language === '') {
       throw errors.schema('Missing language.');
     }

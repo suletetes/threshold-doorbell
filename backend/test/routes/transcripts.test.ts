@@ -55,6 +55,22 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     expect(stored!.residentSub).toBe(SUB);
   });
 
+  it('rejects a privacy-mode transcript upload (MED-25, FR-5.2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, mode: 'privacy' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
+    // Nothing was stored for this resident.
+    const stored = await t.conversationStore.listOrdered(SUB, {});
+    expect(stored).toHaveLength(0);
+  });
+
   it('rejects a foreign residentSub with 403 (FR-8.7, AT-19)', async () => {
     const t = await buildTestApp();
     app = t.app;
