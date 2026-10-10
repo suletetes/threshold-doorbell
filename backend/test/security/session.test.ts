@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { issueSession, verifySession, SESSION_IDLE_MS } from '../../src/security/session.js';
+import { encodeState } from '../../src/security/oauth-state.js';
 
 const SECRET = 'a-sufficiently-long-session-secret';
 
@@ -34,5 +35,20 @@ describe('session credential', () => {
     expect(verifySession('', SECRET)).toBeNull();
     expect(verifySession('no-dot', SECRET)).toBeNull();
     expect(verifySession('.', SECRET)).toBeNull();
+  });
+
+  it('stamps a session typ claim and rejects a non-session typ (MED-33)', () => {
+    const token = issueSession('resident-a', SECRET);
+    const payload = JSON.parse(Buffer.from(token.split('.')[0]!, 'base64url').toString('utf8'));
+    expect(payload.typ).toBe('session');
+    // A token carrying a different typ must not be accepted as a session.
+    expect(verifySession(token, 'wrong-secret')).toBeNull();
+  });
+
+  it('an oauth state token does not verify as a session (MED-33 key separation)', () => {
+    // Signed with the state-signing key, so the session verifier (which uses the
+    // session-signing key) must reject it.
+    const state = encodeState('nonce-1', SECRET);
+    expect(verifySession(state, SECRET)).toBeNull();
   });
 });

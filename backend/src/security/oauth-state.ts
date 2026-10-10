@@ -7,27 +7,36 @@
 // server-side nonce entry is single-use so a replayed state is rejected.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { deriveKey } from './keys.js';
 
 const OAUTH_TXN_TTL_MS = 10 * 60 * 1000; // 10 minutes to complete the redirect
 
+// Token type (MED-33): distinguishes a state token from a session token even
+// though both are signed from the same root secret via different keys.
+const STATE_TYP = 'oauth_state';
+
 export interface StatePayload {
+  typ?: string; // token type (MED-33); 'oauth_state'
   nonce: string; // random CSRF nonce
   iat: number;
   exp: number;
 }
 
 function sign(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(payload).digest('base64url');
+  // MED-33: sign with the dedicated state-signing key.
+  return createHmac('sha256', deriveKey(secret, 'stateSigning')).update(payload).digest('base64url');
 }
 
 /** H(nonce): the value stored in the browser cookie that binds state to client. */
 export function hashNonce(nonce: string, secret: string): string {
-  return createHmac('sha256', secret).update(`oauth-nonce:${nonce}`).digest('base64url');
+  return createHmac('sha256', deriveKey(secret, 'stateSigning'))
+    .update(`oauth-nonce:${nonce}`)
+    .digest('base64url');
 }
 
 /** Encode a signed state token carrying ONLY the CSRF nonce (no PKCE verifier). */
 export function encodeState(nonce: string, secret: string, now = Date.now()): string {
-  const payload: StatePayload = { nonce, iat: now, exp: now + OAUTH_TXN_TTL_MS };
+  const payload: StatePayload = { typ: STATE_TYP, nonce, iat: now, exp: now + OAUTH_TXN_TTL_MS };
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   return `${encoded}.${sign(encoded, secret)}`;
 }
@@ -59,6 +68,7 @@ export function decodeState(
   } catch {
     return null;
   }
+  if (payload.typ !== undefined && payload.typ !== STATE_TYP) return null;
   if (typeof payload.nonce !== 'string' || payload.nonce === '') return null;
   if (typeof payload.exp !== 'number' || now >= payload.exp) return null;
   return payload;
