@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
 import { decodeState } from '../../src/security/oauth-state.js';
-import { deriveResidentSub } from '../../src/routes/oauth.js';
+import { fixtureResidentSub } from '../../src/services/fixtures/fixture-ring.js';
 import { SESSION_COOKIE, verifySession } from '../../src/security/session.js';
 
 let app: FastifyInstance | undefined;
@@ -110,31 +110,35 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
     expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toBeDefined();
   });
 
-  it('derives distinct residentSubs for distinct accounts (no collision, P2-2)', () => {
-    // The fixture access token is `access-<code>`. Two accounts whose codes are
-    // `account-42` and `refresh-account-42` must never collapse to one sub.
-    const subA = deriveResidentSub('access-account-42');
-    const subB = deriveResidentSub('access-refresh-account-42');
-    expect(subA).not.toBe(subB);
-    expect(subA).toBe('resident-account-42');
-    expect(subB).toBe('resident-refresh-account-42');
-  });
+  async function login(code: string, secret: string, instance: FastifyInstance): Promise<string> {
+    const start = await instance.inject({ method: 'GET', url: '/oauth/start' });
+    const state = new URL(start.headers.location as string).searchParams.get('state')!;
+    const res = await instance.inject({
+      method: 'GET',
+      url: `/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+    });
+    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
+    return verifySession(cookie.value, secret)!.sub;
+  }
 
-  it('two distinct accounts logging in never collapse to the same session sub (P2-2)', async () => {
+  it('a crafted code cannot select an arbitrary resident sub (CRIT-03, LOW-41)', async () => {
     const t = await buildTestApp();
     app = t.app;
-    async function login(code: string): Promise<string> {
-      const start = await app!.inject({ method: 'GET', url: '/oauth/start' });
-      const state = new URL(start.headers.location as string).searchParams.get('state')!;
-      const res = await app!.inject({
-        method: 'GET',
-        url: `/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
-      });
-      const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE)!;
-      return verifySession(cookie.value, t.config.sessionSecret)!.sub;
-    }
-    const subA = await login('account-42');
-    const subB = await login('refresh-account-42');
+    // The attacker tries to log in with a code shaped to look like a victim's
+    // sub. The derived identity is a one-way function of the account seed, so
+    // it is NOT `resident-<code>` and cannot be aimed at a chosen resident.
+    const sub = await login('resident-account-1', t.config.sessionSecret, app);
+    expect(sub).not.toBe('resident-account-1');
+    expect(sub).not.toContain('resident-account-1');
+    // Identity is never the raw token text or the code.
+    expect(sub).toBe(fixtureResidentSub('resident-account-1'));
+  });
+
+  it('two distinct accounts logging in never collapse to the same session sub', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const subA = await login('account-42', t.config.sessionSecret, app);
+    const subB = await login('refresh-account-42', t.config.sessionSecret, app);
     expect(subA).not.toBe(subB);
   });
 
@@ -142,14 +146,7 @@ describe('OAuth routes (Task 3, AT-1, AT-12)', () => {
     const t = await buildTestApp();
     app = t.app;
     // Log in and capture the derived sub.
-    const start = await app.inject({ method: 'GET', url: '/oauth/start' });
-    const state = new URL(start.headers.location as string).searchParams.get('state')!;
-    const login = await app.inject({
-      method: 'GET',
-      url: `/oauth/callback?code=account-42&state=${encodeURIComponent(state)}`,
-    });
-    const loginCookie = login.cookies.find((c) => c.name === SESSION_COOKIE)!;
-    const loginSub = verifySession(loginCookie.value, t.config.sessionSecret)!.sub;
+    const loginSub = await login('account-42', t.config.sessionSecret, app);
 
     // Refresh using that session; the rolled-forward session must carry the
     // same sub (refresh never re-derives identity from the token string).

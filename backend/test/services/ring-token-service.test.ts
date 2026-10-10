@@ -48,7 +48,9 @@ describe('RingTokenService', () => {
       expiresAt: new Date(Date.now() + 60_000).toISOString(), // within skew
     });
     const token = await svc.getAccessToken('resident-a');
-    expect(token).toContain('access-refreshed');
+    // A refresh issues a fresh, opaque access token distinct from the old one.
+    expect(token).toMatch(/^access-/);
+    expect(token).not.toBe('plain-access');
     expect(ring.refreshInvocations).toBe(1);
   });
 

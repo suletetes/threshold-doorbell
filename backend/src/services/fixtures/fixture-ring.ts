@@ -2,10 +2,30 @@
 // payloads through the same schema layer the real adapter uses, so contract
 // validation (FR-17) is exercised identically in tests and in local/demo.
 
+import { createHmac } from 'node:crypto';
 import { errors } from '../../domain/errors.js';
 import type { Device } from '../../domain/types.js';
-import type { OAuthTokens, RingPort } from '../ring.js';
+import type { RingAuthResult, RingPort } from '../ring.js';
 import { parseDevicesDocument, parseTokenResponse } from '../ring-schema.js';
+
+// A fixed secret used ONLY to mint opaque fixture identities. It is not a real
+// credential; it exists so the fixture's resident identity is a one-way,
+// account-bound value rather than the raw authorization code. The real adapter
+// takes residentSub from the Ring identity/userinfo response instead.
+const FIXTURE_IDENTITY_SECRET = 'threshold-fixture-identity';
+
+/**
+ * Mint an opaque, account-bound resident identity from a stable account seed.
+ * The result is a one-way function of the seed, so a crafted authorization code
+ * cannot be shaped into a chosen existing resident's sub (CRIT-03, LOW-41).
+ */
+export function fixtureResidentSub(accountSeed: string): string {
+  const digest = createHmac('sha256', FIXTURE_IDENTITY_SECRET)
+    .update(accountSeed)
+    .digest('base64url')
+    .slice(0, 24);
+  return `resident-${digest}`;
+}
 
 // A golden, well-formed devices document (JSON:API).
 export const GOLDEN_DEVICES_DOC = {
@@ -104,28 +124,42 @@ export class FixtureRing implements RingPort {
     code: string,
     _codeVerifier: string,
     _redirectUri: string,
-  ): Promise<OAuthTokens> {
+  ): Promise<RingAuthResult> {
     if (this.exchangeShouldFail || code === '') {
       // Route the fixture through the same schema parser as the real adapter.
-      return parseTokenResponse({});
+      const parsed = parseTokenResponse({});
+      return { ...parsed, residentSub: fixtureResidentSub('') };
     }
-    return parseTokenResponse({
-      access_token: `access-${code}`,
-      refresh_token: `refresh-${code}`,
+    // The authorization code carries the account seed. The identity is derived
+    // from that seed via a one-way function and returned explicitly, modelling
+    // the userinfo lookup the real adapter performs. The token strings are
+    // opaque to the route (CRIT-03, LOW-41).
+    const parsed = parseTokenResponse({
+      access_token: `access-${randomOpaque()}`,
+      refresh_token: encodeRefreshToken(code),
       expires_in: 3600,
     });
+    return { ...parsed, residentSub: fixtureResidentSub(code) };
   }
 
-  async refresh(refreshToken: string): Promise<OAuthTokens> {
+  async refresh(refreshToken: string): Promise<RingAuthResult> {
     if (this.refreshShouldFail || refreshToken === '') {
       throw errors.refreshFailed();
     }
+    // Recover the account seed. Tokens minted by exchangeCode/refresh carry an
+    // encoded seed; a plain token (used by service-level unit tests) is treated
+    // as the seed itself so the identity is still stable across refresh.
+    const seed = decodeRefreshToken(refreshToken) ?? refreshToken;
     this.refreshCount += 1;
-    return parseTokenResponse({
-      access_token: `access-refreshed-${refreshToken}`,
-      refresh_token: `refresh-rotated-${refreshToken}`,
+    // Rotate the opaque access/refresh strings but keep the SAME account seed so
+    // the derived identity is stable across refresh (a refresh never re-derives
+    // identity from the token text).
+    const parsed = parseTokenResponse({
+      access_token: `access-${randomOpaque()}`,
+      refresh_token: encodeRefreshToken(seed),
       expires_in: 3600,
     });
+    return { ...parsed, residentSub: fixtureResidentSub(seed) };
   }
 
   async listDevices(accessToken: string): Promise<Device[]> {
@@ -138,12 +172,37 @@ export class FixtureRing implements RingPort {
         ? errors.rateLimited()
         : errors.ringUnavailable();
     }
-    // Simulate a token that is rejected as 401 until refreshed.
-    if (this.unauthorizedUntilRefresh && !accessToken.includes('refreshed')) {
+    // Simulate a token that is rejected as 401 until a refresh has happened.
+    if (this.unauthorizedUntilRefresh && this.refreshCount === 0) {
       throw errors.unauthorized();
     }
     // Always through the schema layer so malformed fixtures raise
     // ring_contract_invalid exactly as the real adapter would.
     return parseDevicesDocument(this.devicesDoc);
+  }
+}
+
+/** An opaque random token component so token strings carry no identity. */
+function randomOpaque(): string {
+  return createHmac('sha256', FIXTURE_IDENTITY_SECRET)
+    .update(`${Date.now()}:${Math.random()}`)
+    .digest('base64url')
+    .slice(0, 16);
+}
+
+// The fixture refresh token embeds the account seed so a refresh can keep the
+// same identity, but it is opaque to the route: only the fixture decodes it.
+const REFRESH_PREFIX = 'refresh.';
+
+function encodeRefreshToken(seed: string): string {
+  return `${REFRESH_PREFIX}${Buffer.from(seed, 'utf8').toString('base64url')}`;
+}
+
+function decodeRefreshToken(token: string): string | null {
+  if (!token.startsWith(REFRESH_PREFIX)) return null;
+  try {
+    return Buffer.from(token.slice(REFRESH_PREFIX.length), 'base64url').toString('utf8');
+  } catch {
+    return null;
   }
 }

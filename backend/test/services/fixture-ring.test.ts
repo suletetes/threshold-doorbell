@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FixtureRing } from '../../src/services/fixtures/fixture-ring.js';
+import { FixtureRing, fixtureResidentSub } from '../../src/services/fixtures/fixture-ring.js';
 import { AppError } from '../../src/domain/errors.js';
 
 describe('FixtureRing (schema-validating adapter, FR-17)', () => {
@@ -27,13 +27,33 @@ describe('FixtureRing (schema-validating adapter, FR-17)', () => {
     });
   });
 
-  it('exchanges a code for tokens and refreshes them (FR-1.2, FR-1.4)', async () => {
+  it('exchanges a code for tokens with an opaque identity (FR-1.2, CRIT-03, LOW-41)', async () => {
     const ring = new FixtureRing();
     const tokens = await ring.exchangeCode('auth-code', 'verifier', 'redirect');
-    expect(tokens.accessToken).toBe('access-auth-code');
-    expect(tokens.refreshToken).toBe('refresh-auth-code');
+    // Identity is a one-way function of the account seed, never `resident-<code>`.
+    expect(tokens.residentSub).toBe(fixtureResidentSub('auth-code'));
+    expect(tokens.residentSub).not.toBe('resident-auth-code');
+    // The access/refresh token strings do NOT carry the raw code, so identity
+    // cannot be reconstructed from the token text.
+    expect(tokens.accessToken).not.toContain('auth-code');
+    expect(tokens.refreshToken).not.toContain('auth-code');
+  });
+
+  it('keeps the same identity across a refresh (CRIT-03)', async () => {
+    const ring = new FixtureRing();
+    const tokens = await ring.exchangeCode('auth-code', 'verifier', 'redirect');
     const refreshed = await ring.refresh(tokens.refreshToken);
-    expect(refreshed.accessToken).toContain('access-refreshed');
+    expect(refreshed.residentSub).toBe(tokens.residentSub);
+    // A fresh, opaque access token is issued; it is not the previous one.
+    expect(refreshed.accessToken).not.toBe(tokens.accessToken);
+    expect(refreshed.accessToken).toMatch(/^access-/);
+  });
+
+  it('mints distinct identities for distinct accounts (no collision, P2-2)', async () => {
+    const ring = new FixtureRing();
+    const a = await ring.exchangeCode('account-42', 'v', 'r');
+    const b = await ring.exchangeCode('refresh-account-42', 'v', 'r');
+    expect(a.residentSub).not.toBe(b.residentSub);
   });
 
   it('fails exchange and refresh when configured to (FR-1.5)', async () => {

@@ -66,10 +66,11 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
         throw errors.codeExchangeFailed();
       }
 
-      // residentSub is derived server-side. For the fixture flow it is a stable
-      // function of the account behind the code; the real adapter derives it
-      // from the Ring identity response. It is never taken from client input.
-      const residentSub = deriveResidentSub(tokens.accessToken);
+      // residentSub comes from the provider's identity response carried on the
+      // exchanged tokens (fixture: a one-way function of the account; real
+      // adapter: the Ring userinfo response). It is NEVER parsed from the access
+      // token string and NEVER taken from client input (CRIT-03, LOW-41, FR-8.7).
+      const residentSub = tokens.residentSub;
       await app.container.ringTokens.persist(residentSub, tokens);
 
       // Issue the app-to-backend session credential (the ONLY credential on the
@@ -119,19 +120,4 @@ export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
   );
 }
 
-/**
- * Derive a stable residentSub 1:1 with the Ring account. The fixture mints an
- * access token of the form `access-<code>` on a fresh login and
- * `access-refreshed-<refreshToken>` on a refresh, so we strip ONLY that leading
- * `access-`/`access-refreshed-` grant marker to recover the underlying account
- * seed. We must NOT strip any further (e.g. a `refresh-` that is part of the
- * account seed itself), or two distinct accounts would collapse to one sub:
- * previously `account-42` and `refresh-account-42` both mapped to
- * `resident-account-42`. The real adapter derives this from the Ring identity
- * response, not the token string; either way the value is server-derived and
- * never taken from client input (FR-8.7).
- */
-export function deriveResidentSub(accessToken: string): string {
-  const seed = accessToken.replace(/^access-(refreshed-)?/, '');
-  return `resident-${seed}`;
-}
+
