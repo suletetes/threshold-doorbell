@@ -16,22 +16,28 @@ void main() {
 
   // 2. Turn segmentation: accumulate engine results into labeled turns.
   final accumulator = TurnAccumulator()
-    ..apply(const CaptionResult(
-      speaker: CaptionSpeaker.visitor,
-      text: 'delivery',
-      isFinal: false,
-      timestampMs: 0,
-    ))
-    ..apply(const CaptionResult(
-      speaker: CaptionSpeaker.visitor,
-      text: 'delivery for you',
-      isFinal: true,
-      timestampMs: 300,
-      confidence: 0.92,
-    ));
+    ..apply(
+      const CaptionResult(
+        speaker: CaptionSpeaker.visitor,
+        text: 'delivery',
+        isFinal: false,
+        timestampMs: 0,
+      ),
+    )
+    ..apply(
+      const CaptionResult(
+        speaker: CaptionSpeaker.visitor,
+        text: 'delivery for you',
+        isFinal: true,
+        timestampMs: 300,
+        confidence: 0.92,
+      ),
+    );
   for (final turn in accumulator.turns) {
-    print('turn: ${turn.speaker.name} says "${turn.text}" '
-        '(final: ${turn.isFinal}, confidence: ${turn.confidence})');
+    print(
+      'turn: ${turn.speaker.name} says "${turn.text}" '
+      '(final: ${turn.isFinal}, confidence: ${turn.confidence})',
+    );
   }
 
   // 3. Reply bar: never empty, never shows a forbidden dash.

@@ -14,8 +14,10 @@ Widget _host(Widget child) => MaterialApp(
 
 void main() {
   group('SectionHeader rendering', () {
-    testWidgets('renders the title from the type scale, not a raw size', (tester) async {
-      await tester.pumpWidget(_host(const SectionHeader(title: 'Privacy and data')));
+    testWidgets('renders the title from the type scale, not a raw size',
+        (tester) async {
+      await tester
+          .pumpWidget(_host(const SectionHeader(title: 'Privacy and data')));
       expect(find.text('Privacy and data'), findsOneWidget);
       final context = tester.element(find.byType(SectionHeader));
       final expected = Theme.of(context).textTheme.titleSmall!;
@@ -33,11 +35,14 @@ void main() {
           ),
         ),
       );
-      expect(find.text('How your phone tells you someone is there.'), findsOneWidget);
+      expect(find.text('How your phone tells you someone is there.'),
+          findsOneWidget);
     });
 
-    testWidgets('the title is sentence case, never transformed to caps', (tester) async {
-      await tester.pumpWidget(_host(const SectionHeader(title: 'Privacy and data')));
+    testWidgets('the title is sentence case, never transformed to caps',
+        (tester) async {
+      await tester
+          .pumpWidget(_host(const SectionHeader(title: 'Privacy and data')));
       // All caps defeats word-shape recognition; this product cannot afford it.
       expect(find.text('PRIVACY AND DATA'), findsNothing);
       expect(find.text('Privacy and data'), findsOneWidget);
@@ -47,16 +52,20 @@ void main() {
   group('SectionHeader density', () {
     testWidgets('a dense header drops the accent rule and steps down the scale',
         (tester) async {
-      await tester.pumpWidget(_host(const SectionHeader(title: 'Haptic reference', dense: true)));
+      await tester.pumpWidget(
+          _host(const SectionHeader(title: 'Haptic reference', dense: true)));
       final context = tester.element(find.byType(SectionHeader));
       final theme = Theme.of(context).textTheme;
       final rendered = tester.widget<Text>(find.text('Haptic reference'));
       expect(rendered.style?.fontSize, theme.labelMedium!.fontSize);
       expect(rendered.style?.fontSize, lessThan(theme.titleSmall!.fontSize!));
-      expect(rendered.style?.color, Theme.of(context).colorScheme.onSurfaceVariant);
+      expect(rendered.style?.color,
+          Theme.of(context).colorScheme.onSurfaceVariant);
       // The accent rule is the only DecoratedBox a header draws.
       expect(
-        find.descendant(of: find.byType(SectionHeader), matching: find.byType(DecoratedBox)),
+        find.descendant(
+            of: find.byType(SectionHeader),
+            matching: find.byType(DecoratedBox)),
         findsNothing,
       );
     });
@@ -64,15 +73,19 @@ void main() {
     testWidgets('a normal header draws the accent rule', (tester) async {
       await tester.pumpWidget(_host(const SectionHeader(title: 'Captions')));
       expect(
-        find.descendant(of: find.byType(SectionHeader), matching: find.byType(DecoratedBox)),
+        find.descendant(
+            of: find.byType(SectionHeader),
+            matching: find.byType(DecoratedBox)),
         findsOneWidget,
       );
     });
 
-    testWidgets('a dense header sits tighter than a normal one', (tester) async {
+    testWidgets('a dense header sits tighter than a normal one',
+        (tester) async {
       await tester.pumpWidget(_host(const SectionHeader(title: 'Alerts')));
       final normal = tester.getSize(find.byType(SectionHeader)).height;
-      await tester.pumpWidget(_host(const SectionHeader(title: 'Alerts', dense: true)));
+      await tester
+          .pumpWidget(_host(const SectionHeader(title: 'Alerts', dense: true)));
       final dense = tester.getSize(find.byType(SectionHeader)).height;
       expect(dense, lessThan(normal));
     });
@@ -89,10 +102,12 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('the supporting line does not add a second node', (tester) async {
+    testWidgets('the supporting line does not add a second node',
+        (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _host(const SectionHeader(title: 'Alerts', supportingText: 'Supporting')),
+        _host(
+            const SectionHeader(title: 'Alerts', supportingText: 'Supporting')),
       );
       expect(find.bySemanticsLabel('Alerts'), findsOneWidget);
       expect(find.bySemanticsLabel('Supporting'), findsNothing);

@@ -7,11 +7,13 @@ import 'package:threshold/session/session_port.dart';
 import 'package:threshold/session/session_state.dart';
 import 'package:threshold/session/watermark_safe_area.dart';
 
-Widget _wrap(SessionController c) => MaterialApp(home: ConversationScreen(controller: c));
+Widget _wrap(SessionController c) =>
+    MaterialApp(home: ConversationScreen(controller: c));
 
 void main() {
   group('ConversationScreen states (Task 12; AT-3, AT-12, AT-25)', () {
-    testWidgets('renders the live overlay with caption region and end control', (tester) async {
+    testWidgets('renders the live overlay with caption region and end control',
+        (tester) async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -54,7 +56,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('backgrounded state shows the paused panel (AT-25)', (tester) async {
+    testWidgets('backgrounded state shows the paused panel (AT-25)',
+        (tester) async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -66,19 +69,22 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('the auth-recovery modal blocks semantics behind it (MED-05)', (tester) async {
+    testWidgets('the auth-recovery modal blocks semantics behind it (MED-05)',
+        (tester) async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
       c.beginAuthRecovery();
       await tester.pumpWidget(
-        MaterialApp(home: ConversationScreen(controller: c, authPort: FakeAuthPort())),
+        MaterialApp(
+            home: ConversationScreen(controller: c, authPort: FakeAuthPort())),
       );
       await tester.pump();
       // A BlockSemantics wraps the modal so a screen reader cannot reach the
       // End / Reply controls underneath it (MED-05). The auth-recovery prompt
       // card is a descendant of a BlockSemantics.
-      expect(find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
       expect(
         find.ancestor(
           of: find.byKey(const ValueKey('auth-recovery-prompt')),
@@ -90,7 +96,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('sign in resumes only after a verified token (AT-12, HIGH-09)', (tester) async {
+    testWidgets('sign in resumes only after a verified token (AT-12, HIGH-09)',
+        (tester) async {
       final port = FakeSessionPort();
       final auth = FakeAuthPort(plan: <AuthResult>[AuthResult.verified]);
       final c = SessionController(port: port);
@@ -100,7 +107,8 @@ void main() {
         MaterialApp(home: ConversationScreen(controller: c, authPort: auth)),
       );
       await tester.pump();
-      expect(find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('auth-recovery-signin')));
       await tester.pumpAndSettle();
       // The real auth port was consulted and only a verified token resumed.
@@ -111,7 +119,9 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('a failed re-authentication does NOT resume the session (HIGH-09)', (tester) async {
+    testWidgets(
+        'a failed re-authentication does NOT resume the session (HIGH-09)',
+        (tester) async {
       final port = FakeSessionPort();
       final auth = FakeAuthPort(plan: <AuthResult>[AuthResult.failed]);
       final c = SessionController(port: port);
@@ -143,7 +153,9 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('live status region and video surface carry Semantics labels (G4)', (tester) async {
+    testWidgets(
+        'live status region and video surface carry Semantics labels (G4)',
+        (tester) async {
       final handle = tester.ensureSemantics();
       final port = FakeSessionPort();
       final c = SessionController(port: port);

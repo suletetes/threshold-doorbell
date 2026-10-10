@@ -28,8 +28,10 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Replies are unavailable on this device.'), findsOneWidget);
-      expect(find.byIcon(StatusBanner.iconFor(StatusVariant.warning)), findsOneWidget);
+      expect(
+          find.text('Replies are unavailable on this device.'), findsOneWidget);
+      expect(find.byIcon(StatusBanner.iconFor(StatusVariant.warning)),
+          findsOneWidget);
     });
 
     testWidgets('every variant has a distinct default icon', (tester) async {
@@ -37,26 +39,32 @@ void main() {
       expect(icons.length, StatusVariant.values.length);
     });
 
-    testWidgets('an explicit icon overrides the variant default', (tester) async {
+    testWidgets('an explicit icon overrides the variant default',
+        (tester) async {
       await tester.pumpWidget(
         _host(
           const StatusBanner(message: 'Offline', icon: Icons.wifi_off),
         ),
       );
       expect(find.byIcon(Icons.wifi_off), findsOneWidget);
-      expect(find.byIcon(StatusBanner.iconFor(StatusVariant.info)), findsNothing);
+      expect(
+          find.byIcon(StatusBanner.iconFor(StatusVariant.info)), findsNothing);
     });
 
-    testWidgets('each variant maps to its semantic role in both schemes', (tester) async {
+    testWidgets('each variant maps to its semantic role in both schemes',
+        (tester) async {
       for (final dark in <bool>[false, true]) {
         await tester.pumpWidget(
           _host(const StatusBanner(message: 'x'), dark: dark),
         );
         final context = tester.element(find.byType(StatusBanner));
         final semantic = ThresholdSemanticColors.of(context);
-        expect(StatusBanner.colorFor(context, StatusVariant.warning), semantic.warning);
-        expect(StatusBanner.colorFor(context, StatusVariant.danger), semantic.danger);
-        expect(StatusBanner.colorFor(context, StatusVariant.success), semantic.success);
+        expect(StatusBanner.colorFor(context, StatusVariant.warning),
+            semantic.warning);
+        expect(StatusBanner.colorFor(context, StatusVariant.danger),
+            semantic.danger);
+        expect(StatusBanner.colorFor(context, StatusVariant.success),
+            semantic.success);
         expect(
           StatusBanner.colorFor(context, StatusVariant.info),
           Theme.of(context).colorScheme.primary,
@@ -66,7 +74,8 @@ void main() {
   });
 
   group('StatusBanner legibility', () {
-    testWidgets('the message keeps at least 4.5:1 on every variant, both schemes',
+    testWidgets(
+        'the message keeps at least 4.5:1 on every variant, both schemes',
         (tester) async {
       for (final dark in <bool>[false, true]) {
         for (final variant in StatusVariant.values) {
@@ -83,24 +92,32 @@ void main() {
               StatusBanner.backgroundFor(context, variant),
             ),
             isTrue,
-            reason: 'variant $variant in ${dark ? 'dark' : 'light'} must clear 4.5:1',
+            reason:
+                'variant $variant in ${dark ? 'dark' : 'light'} must clear 4.5:1',
           );
         }
       }
     });
 
-    testWidgets('the banner fill is opaque so it is legible over video', (tester) async {
+    testWidgets('the banner fill is opaque so it is legible over video',
+        (tester) async {
       await tester.pumpWidget(_host(const StatusBanner(message: 'x')));
       final box = tester.widget<DecoratedBox>(
-        find.descendant(of: find.byType(StatusBanner), matching: find.byType(DecoratedBox)).first,
+        find
+            .descendant(
+                of: find.byType(StatusBanner),
+                matching: find.byType(DecoratedBox))
+            .first,
       );
       final decoration = box.decoration as BoxDecoration;
       expect(decoration.color!.a, 1.0);
     });
   });
 
-  group('StatusBanner action (audit section 5: icon and proper button weight)', () {
-    testWidgets('renders a filled button with an icon and fires onPressed', (tester) async {
+  group('StatusBanner action (audit section 5: icon and proper button weight)',
+      () {
+    testWidgets('renders a filled button with an icon and fires onPressed',
+        (tester) async {
       var taps = 0;
       await tester.pumpWidget(
         _host(
@@ -123,7 +140,8 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('the action meets the 48dp minimum target (audit section 4)', (tester) async {
+    testWidgets('the action meets the 48dp minimum target (audit section 4)',
+        (tester) async {
       await tester.pumpWidget(
         _host(
           StatusBanner(
@@ -142,7 +160,8 @@ void main() {
 
     testWidgets('no action means no button', (tester) async {
       await tester.pumpWidget(_host(const StatusBanner(message: 'x')));
-      expect(find.byWidgetPredicate((w) => w is ButtonStyleButton), findsNothing);
+      expect(
+          find.byWidgetPredicate((w) => w is ButtonStyleButton), findsNothing);
     });
   });
 
@@ -150,7 +169,8 @@ void main() {
     testWidgets('the message is a live region announced once', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _host(const StatusBanner(message: 'Captions are unavailable right now.')),
+        _host(
+            const StatusBanner(message: 'Captions are unavailable right now.')),
       );
       expect(
         find.bySemanticsLabel('Captions are unavailable right now.'),
@@ -171,13 +191,15 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('an explicit semanticsLabel overrides the visible message', (tester) async {
+    testWidgets('an explicit semanticsLabel overrides the visible message',
+        (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         _host(
           const StatusBanner(
             message: 'Privacy Mode unavailable',
-            semanticsLabel: 'Privacy Mode is unavailable until the model finishes downloading.',
+            semanticsLabel:
+                'Privacy Mode is unavailable until the model finishes downloading.',
           ),
         ),
       );
@@ -213,7 +235,9 @@ void main() {
         ),
       );
       expect(find.byKey(const ValueKey('the-message')), findsOneWidget);
-      expect(tester.widget<Text>(find.byKey(const ValueKey('the-message'))).data, 'x');
+      expect(
+          tester.widget<Text>(find.byKey(const ValueKey('the-message'))).data,
+          'x');
     });
   });
 }

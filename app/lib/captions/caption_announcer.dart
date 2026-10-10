@@ -42,7 +42,9 @@ class CaptionAnnouncer {
     final finalized = turns.where((t) => t.isFinal).toList();
     if (finalized.length <= _announcedCount) {
       // No new finalized turns (or turns were reset for a new session).
-      if (finalized.length < _announcedCount) _announcedCount = finalized.length;
+      if (finalized.length < _announcedCount) {
+        _announcedCount = finalized.length;
+      }
       return null;
     }
     final now = _nowMs();

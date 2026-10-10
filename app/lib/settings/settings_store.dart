@@ -80,8 +80,7 @@ Map<String, Object> settingsToMap(ThresholdSettings s) {
 ThresholdSettings settingsFromLookup(Object? Function(String key) get) {
   final defaults = ThresholdSettings.defaults();
   double scale(Object? v) => v is num ? v.toDouble() : defaults.captionScale;
-  Color color(Object? v, Color fallback) =>
-      v is int ? Color(v) : fallback;
+  Color color(Object? v, Color fallback) => v is int ? Color(v) : fallback;
   bool flag(Object? v, bool fallback) => v is bool ? v : fallback;
 
   final haptics = <HapticEvent, bool>{};
@@ -91,11 +90,15 @@ ThresholdSettings settingsFromLookup(Object? Function(String key) get) {
   }
 
   return ThresholdSettings(
-    activeMode: _modeFromString(get(_Keys.activeMode) as String?, defaults.activeMode),
-    pendingMode: _modeFromString(get(_Keys.pendingMode) as String?, defaults.pendingMode),
+    activeMode:
+        _modeFromString(get(_Keys.activeMode) as String?, defaults.activeMode),
+    pendingMode: _modeFromString(
+        get(_Keys.pendingMode) as String?, defaults.pendingMode),
     captionScale: scale(get(_Keys.captionScale)),
-    captionForeground: color(get(_Keys.captionForeground), defaults.captionForeground),
-    captionBackground: color(get(_Keys.captionBackground), defaults.captionBackground),
+    captionForeground:
+        color(get(_Keys.captionForeground), defaults.captionForeground),
+    captionBackground:
+        color(get(_Keys.captionBackground), defaults.captionBackground),
     hapticEnabled: haptics,
     strobeEnabled: flag(get(_Keys.strobeEnabled), defaults.strobeEnabled),
     language: (get(_Keys.language) as String?) ?? defaults.language,

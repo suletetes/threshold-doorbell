@@ -49,7 +49,8 @@ void main() {
       expect(find.byType(Icon), findsNothing);
     });
 
-    testWidgets('is fully rounded and uses the label type role', (tester) async {
+    testWidgets('is fully rounded and uses the label type role',
+        (tester) async {
       await tester.pumpWidget(
         _host(
           Builder(
@@ -70,7 +71,8 @@ void main() {
 
       final context = tester.element(find.byType(Pill));
       final expected = Theme.of(context).textTheme.labelMedium!;
-      expect(tester.widget<Text>(find.text('Live')).style?.fontSize, expected.fontSize);
+      expect(tester.widget<Text>(find.text('Live')).style?.fontSize,
+          expected.fontSize);
     });
   });
 
@@ -145,7 +147,8 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('a richer semanticsLabel replaces the visible label', (tester) async {
+    testWidgets('a richer semanticsLabel replaces the visible label',
+        (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         _host(
@@ -158,7 +161,8 @@ void main() {
           ),
         ),
       );
-      expect(find.bySemanticsLabel('Active caption mode: Clarity Mode'), findsOneWidget);
+      expect(find.bySemanticsLabel('Active caption mode: Clarity Mode'),
+          findsOneWidget);
       expect(find.bySemanticsLabel('Clarity Mode'), findsNothing);
       handle.dispose();
     });

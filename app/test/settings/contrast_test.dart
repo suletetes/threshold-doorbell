@@ -16,9 +16,13 @@ void main() {
 
     test('meetsContrastFloor is true at or above 4.5:1, false below', () {
       // A mid grey on white is below the floor.
-      expect(meetsContrastFloor(const Color(0xFF999999), const Color(0xFFFFFFFF)), isFalse);
+      expect(
+          meetsContrastFloor(const Color(0xFF999999), const Color(0xFFFFFFFF)),
+          isFalse);
       // Dark grey on white is above.
-      expect(meetsContrastFloor(const Color(0xFF595959), const Color(0xFFFFFFFF)), isTrue);
+      expect(
+          meetsContrastFloor(const Color(0xFF595959), const Color(0xFFFFFFFF)),
+          isTrue);
     });
 
     test('enforceContrastFloor keeps a compliant color unchanged', () {
@@ -27,7 +31,8 @@ void main() {
       expect(enforceContrastFloor(fg, bg), fg);
     });
 
-    test('enforceContrastFloor raises a non-compliant color to meet the floor', () {
+    test('enforceContrastFloor raises a non-compliant color to meet the floor',
+        () {
       // Light grey on white breaches the floor; enforcement must fix it.
       const fg = Color(0xFFBBBBBB);
       const bg = Color(0xFFFFFFFF);
@@ -35,7 +40,8 @@ void main() {
       expect(meetsContrastFloor(fixed, bg), isTrue);
     });
 
-    test('enforcement works against a dark background too (nudges to white)', () {
+    test('enforcement works against a dark background too (nudges to white)',
+        () {
       const fg = Color(0xFF333333); // dark grey on near-black: too low
       const bg = Color(0xFF000000);
       final fixed = enforceContrastFloor(fg, bg);

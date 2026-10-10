@@ -39,7 +39,8 @@ void main() {
     });
   });
 
-  group('De-emphasized caption color meets the floor at every emphasis (HIGH-07, P4)',
+  group(
+      'De-emphasized caption color meets the floor at every emphasis (HIGH-07, P4)',
       () {
     // Reproduce the probe P4 foreground: a mid-grey that passes at full alpha
     // but failed at 0.6 alpha before the fix.
@@ -51,7 +52,8 @@ void main() {
     const Color background = Color(0xFF000000);
 
     for (final fg in foregrounds) {
-      test('fg ${fg.toARGB32().toRadixString(16)}: emphasized AND de-emphasized meet 4.5:1',
+      test(
+          'fg ${fg.toARGB32().toRadixString(16)}: emphasized AND de-emphasized meet 4.5:1',
           () {
         // The enforced foreground (emphasized / normal) meets the floor.
         final enforced = enforceContrastFloor(fg, background);
@@ -68,7 +70,8 @@ void main() {
       });
     }
 
-    test('the de-emphasized color stays softer than full alpha when it can', () {
+    test('the de-emphasized color stays softer than full alpha when it can',
+        () {
       // White on black: 0.6 alpha already clears the floor, so the softer alpha
       // is preserved (AT-4 keeps provisional text visibly de-emphasized).
       final deEmph = deEmphasizedCaptionColor(
@@ -85,7 +88,8 @@ void main() {
         const Color(0xFF111111),
         const Color(0xFF000000),
       );
-      expect(meetsContrastFloorComposited(deEmph, const Color(0xFF000000)), isTrue);
+      expect(meetsContrastFloorComposited(deEmph, const Color(0xFF000000)),
+          isTrue);
     });
   });
 }

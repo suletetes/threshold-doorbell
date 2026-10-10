@@ -15,7 +15,9 @@ const double kContrastFloor = 4.5;
 double relativeLuminance(Color color) {
   double channel(double c) {
     final s = c; // already 0..1
-    return s <= 0.03928 ? s / 12.92 : math.pow((s + 0.055) / 1.055, 2.4).toDouble();
+    return s <= 0.03928
+        ? s / 12.92
+        : math.pow((s + 0.055) / 1.055, 2.4).toDouble();
   }
 
   final r = channel(_component(color.r));

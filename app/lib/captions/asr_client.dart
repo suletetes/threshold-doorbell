@@ -137,7 +137,8 @@ class FakeAsrStreamClient implements AsrStreamClient {
   Stream<CaptionResult> get captions => _out.stream;
 
   @override
-  Future<void> start({required String deviceId, required String language}) async {
+  Future<void> start(
+      {required String deviceId, required String language}) async {
     started = true;
     startedDeviceId = deviceId;
     startedLanguage = language;

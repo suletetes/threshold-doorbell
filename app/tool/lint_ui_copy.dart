@@ -22,7 +22,8 @@ void main(List<String> args) {
     exit(0);
   }
 
-  stderr.writeln('lint_ui_copy: ${violations.length} forbidden dash violation(s):');
+  stderr.writeln(
+      'lint_ui_copy: ${violations.length} forbidden dash violation(s):');
   for (final v in violations) {
     stderr.writeln('  $v');
   }

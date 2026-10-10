@@ -25,7 +25,8 @@ class ConnectivityController extends ChangeNotifier {
 
   bool get isOnline => _state == ConnectivityState.online;
   bool get isOffline => _state == ConnectivityState.offline;
-  bool get isBackendUnreachable => _state == ConnectivityState.backendUnreachableOnline;
+  bool get isBackendUnreachable =>
+      _state == ConnectivityState.backendUnreachableOnline;
 
   /// Whether cached transcript history is usable. True in every state
   /// (FR-15.1, 15.4): history never depends on the network.
@@ -35,10 +36,12 @@ class ConnectivityController extends ChangeNotifier {
   /// Whether a live session can be opened right now (FR-15.4). Requires the
   /// backend for signaling, so it is blocked offline and when the backend is
   /// unreachable.
-  bool get canOpenSession => availabilityOf(NetworkAction.openSession, _state).allowed;
+  bool get canOpenSession =>
+      availabilityOf(NetworkAction.openSession, _state).allowed;
 
   /// Availability of an arbitrary network action, with a reason when blocked.
-  ActionAvailability availability(NetworkAction action) => availabilityOf(action, _state);
+  ActionAvailability availability(NetworkAction action) =>
+      availabilityOf(action, _state);
 
   void _onSignal(ConnectivitySignal signal) {
     final next = stateFromSignal(signal);

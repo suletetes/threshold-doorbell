@@ -22,7 +22,8 @@ ProviderContainer _container(FakeSessionPort port) {
       sessionPortProvider.overrideWithValue(port),
       replyPortProvider.overrideWithValue(FakeReplyPort()),
       ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-      bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+      bedrockSuggestionPortProvider
+          .overrideWithValue(FakeBedrockSuggestionPort()),
       dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
     ],
   );

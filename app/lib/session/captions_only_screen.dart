@@ -100,7 +100,8 @@ class CaptionsOnlyScreen extends StatelessWidget {
   Widget _liveBuild(BuildContext context, SessionSnapshot snap) {
     final builder = videoSurfaceBuilder ?? defaultVideoSurface;
     final semantic = ThresholdSemanticColors.of(context);
-    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -286,7 +287,8 @@ class _CaptionsOnlyRegionState extends State<_CaptionsOnlyRegion> {
 
     // Announce each newly finalized turn once, throttled, rather than marking
     // the whole container as a live region (LOW-09).
-    final announcement = _announcer.announcementFor(widget.controller.captionTurns);
+    final announcement =
+        _announcer.announcementFor(widget.controller.captionTurns);
     if (announcement != null) {
       final view = View.of(context);
       final direction = Directionality.of(context);
@@ -304,7 +306,8 @@ class _CaptionsOnlyRegionState extends State<_CaptionsOnlyRegion> {
             : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
         padding: const EdgeInsets.all(Spacing.space4),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(widget.settings.captionBackground, semantic.captionSurface),
+          color: Color.alphaBlend(
+              widget.settings.captionBackground, semantic.captionSurface),
           borderRadius: Radii.roundedLarge,
           border: Border.all(
             color: semantic.captionOnSurface.withValues(alpha: 0.12),

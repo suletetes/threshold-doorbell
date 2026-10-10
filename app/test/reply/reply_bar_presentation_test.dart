@@ -20,7 +20,8 @@ import 'package:threshold/reply/reply_bar.dart';
 import 'package:threshold/reply/reply_controller.dart';
 import 'package:threshold/reply/reply_port.dart';
 
-OutboundModeMachine _twoWay() => OutboundModeMachine()..applyProbe(ProbeResult.success);
+OutboundModeMachine _twoWay() =>
+    OutboundModeMachine()..applyProbe(ProbeResult.success);
 
 /// A port that holds the reply in flight until the test releases it. FakeReplyPort
 /// resolves in a microtask, so the speaking state is gone before the first pump
@@ -39,7 +40,8 @@ class _BlockingReplyPort implements ReplyPort {
   }
 }
 
-Widget _host(ReplyController c, {List<String> suggestions = const <String>[]}) =>
+Widget _host(ReplyController c,
+        {List<String> suggestions = const <String>[]}) =>
     MaterialApp(
       theme: ThresholdTheme.dark(),
       home: Scaffold(
@@ -49,14 +51,16 @@ Widget _host(ReplyController c, {List<String> suggestions = const <String>[]}) =
 
 void main() {
   group('A completed reply is confirmed visually (audit section 4)', () {
-    testWidgets('sending a free-text reply shows the completion cue naming the reply',
+    testWidgets(
+        'sending a free-text reply shows the completion cue naming the reply',
         (tester) async {
       final c = ReplyController(port: FakeReplyPort(), outbound: _twoWay());
       await tester.pumpWidget(_host(c));
       await tester.pump();
       expect(find.byKey(const ValueKey('reply-played')), findsNothing);
 
-      await tester.enterText(find.byKey(const ValueKey('reply-freetext')), 'On my way');
+      await tester.enterText(
+          find.byKey(const ValueKey('reply-freetext')), 'On my way');
       await tester.tap(find.byKey(const ValueKey('reply-send')));
       await tester.pumpAndSettle();
 
@@ -78,16 +82,19 @@ void main() {
       c.dispose();
     });
 
-    testWidgets('the cue uses the success role with a sound icon', (tester) async {
+    testWidgets('the cue uses the success role with a sound icon',
+        (tester) async {
       final c = ReplyController(port: FakeReplyPort(), outbound: _twoWay());
       await tester.pumpWidget(_host(c));
       await tester.pump();
       await tester.tap(find.text('Please come back later'));
       await tester.pumpAndSettle();
-      final banner = tester.widget<StatusBanner>(find.byKey(const ValueKey('reply-played')));
+      final banner = tester
+          .widget<StatusBanner>(find.byKey(const ValueKey('reply-played')));
       expect(banner.variant, StatusVariant.success);
       expect(banner.icon, Icons.volume_up_outlined);
-      final context = tester.element(find.byKey(const ValueKey('reply-played')));
+      final context =
+          tester.element(find.byKey(const ValueKey('reply-played')));
       expect(
         StatusBanner.colorFor(context, StatusVariant.success),
         ThresholdSemanticColors.of(context).success,
@@ -105,14 +112,17 @@ void main() {
       final label = replyPlayedConfirmation('Please come back later');
       expect(find.bySemanticsLabel(label), findsOneWidget);
       expect(
-        tester.widget<StatusBanner>(find.byKey(const ValueKey('reply-played'))).liveRegion,
+        tester
+            .widget<StatusBanner>(find.byKey(const ValueKey('reply-played')))
+            .liveRegion,
         isTrue,
       );
       handle.dispose();
       c.dispose();
     });
 
-    testWidgets('it persists rather than expiring, then retires when composing resumes',
+    testWidgets(
+        'it persists rather than expiring, then retires when composing resumes',
         (tester) async {
       final c = ReplyController(port: FakeReplyPort(), outbound: _twoWay());
       await tester.pumpWidget(_host(c));
@@ -124,7 +134,8 @@ void main() {
       expect(find.byKey(const ValueKey('reply-played')), findsOneWidget);
 
       // Typing the next reply retires it.
-      await tester.enterText(find.byKey(const ValueKey('reply-freetext')), 'Th');
+      await tester.enterText(
+          find.byKey(const ValueKey('reply-freetext')), 'Th');
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('reply-played')), findsNothing);
       c.dispose();
@@ -153,7 +164,8 @@ void main() {
             builder: (context) => MediaQuery(
               data: MediaQuery.of(context).copyWith(disableAnimations: true),
               child: Scaffold(
-                body: ReplyBar(controller: c, contextualSuggestions: const <String>[]),
+                body: ReplyBar(
+                    controller: c, contextualSuggestions: const <String>[]),
               ),
             ),
           ),
@@ -169,7 +181,8 @@ void main() {
   });
 
   group('The Speaking at your door state is preserved (FR-6.3)', () {
-    testWidgets('it renders with the live role and no controls to resubmit with',
+    testWidgets(
+        'it renders with the live role and no controls to resubmit with',
         (tester) async {
       final port = _BlockingReplyPort();
       final c = ReplyController(port: port, outbound: _twoWay());
@@ -184,7 +197,8 @@ void main() {
       expect(find.byKey(const ValueKey('reply-send')), findsNothing);
       expect(find.byKey(const ValueKey('reply-freetext')), findsNothing);
 
-      final context = tester.element(find.byKey(const ValueKey('speaking-banner')));
+      final context =
+          tester.element(find.byKey(const ValueKey('speaking-banner')));
       final live = ThresholdSemanticColors.of(context).live;
       final decoration = tester
           .widget<DecoratedBox>(
@@ -205,7 +219,8 @@ void main() {
       c.dispose();
     });
 
-    testWidgets('the speaking label keeps its live region (G4)', (tester) async {
+    testWidgets('the speaking label keeps its live region (G4)',
+        (tester) async {
       final handle = tester.ensureSemantics();
       final port = _BlockingReplyPort();
       final c = ReplyController(port: port, outbound: _twoWay());
@@ -223,7 +238,8 @@ void main() {
   });
 
   group('Errors use the danger role (audit C2)', () {
-    testWidgets('a TTS failure renders a danger banner, not pink text', (tester) async {
+    testWidgets('a TTS failure renders a danger banner, not pink text',
+        (tester) async {
       final port = FakeReplyPort(
         plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.ttsFailed],
       );
@@ -234,7 +250,8 @@ void main() {
       await c.send('Coming now', source: ReplySource.template);
       await tester.pump();
       expect(find.byKey(const ValueKey('reply-error')), findsOneWidget);
-      final banner = tester.widget<StatusBanner>(find.byKey(const ValueKey('reply-error')));
+      final banner = tester
+          .widget<StatusBanner>(find.byKey(const ValueKey('reply-error')));
       expect(banner.variant, StatusVariant.danger);
       expect(banner.message, c.errorMessage);
       c.dispose();
@@ -245,7 +262,8 @@ void main() {
     testWidgets('every suggestion and the send control are at least 48dp tall',
         (tester) async {
       final c = ReplyController(port: FakeReplyPort(), outbound: _twoWay());
-      await tester.pumpWidget(_host(c, suggestions: const <String>['Coming now']));
+      await tester
+          .pumpWidget(_host(c, suggestions: const <String>['Coming now']));
       await tester.pump();
       final sizes = tester
           .widgetList<FilledButton>(find.byType(FilledButton))
@@ -286,21 +304,22 @@ void main() {
   });
 }
 
-
 /// Reduced motion (audit design principle 3: "every animation must check reduced
 /// motion"). A CircularProgressIndicator is the one animation Flutter does not
 /// stop on its own, so the speaking state substitutes a static marker. Nothing is
 /// lost: the live region already announces the state in words.
 void _reducedMotionGroup() {
   group('The speaking spinner respects reduced motion', () {
-    Widget host(ReplyController c, {required bool disableAnimations}) => MaterialApp(
+    Widget host(ReplyController c, {required bool disableAnimations}) =>
+        MaterialApp(
           theme: ThresholdTheme.dark(),
           home: Builder(
             builder: (context) => MediaQuery(
               data: MediaQuery.of(context)
                   .copyWith(disableAnimations: disableAnimations),
               child: Scaffold(
-                body: ReplyBar(controller: c, contextualSuggestions: const <String>[]),
+                body: ReplyBar(
+                    controller: c, contextualSuggestions: const <String>[]),
               ),
             ),
           ),

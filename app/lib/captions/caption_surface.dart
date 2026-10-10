@@ -60,7 +60,8 @@ import 'turn_segmentation.dart';
 /// section 8.2): it is the type scale's largest title role, which is the optical
 /// size the scale reserves for text that has to be read at a glance. Derived
 /// rather than restated so captions cannot drift off the scale (audit C3).
-final double kBaseCaptionFontSize = ThresholdTypography.base.titleLarge!.fontSize!;
+final double kBaseCaptionFontSize =
+    ThresholdTypography.base.titleLarge!.fontSize!;
 
 /// The maximum OS text scale applied on the caption subtree (NFR-2): 200%.
 const double kMaxCaptionTextScale = 2.0;
@@ -160,8 +161,9 @@ class CaptionSurface extends StatelessWidget {
     // kMaxCaptionTextScale, so the text can grow to the ceiling but no further.
     final MediaQueryData mq = MediaQuery.of(context);
     final double captionScale = settings.captionScale;
-    final double maxOsScale =
-        captionScale <= 0 ? kMaxCaptionTextScale : kMaxCaptionTextScale / captionScale;
+    final double maxOsScale = captionScale <= 0
+        ? kMaxCaptionTextScale
+        : kMaxCaptionTextScale / captionScale;
     final TextScaler clamped = mq.textScaler.clamp(
       minScaleFactor: 1.0,
       maxScaleFactor: maxOsScale < 1.0 ? 1.0 : maxOsScale,
@@ -239,7 +241,8 @@ class _SpeakerAttribution extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = CaptionSurface.speakerLabel(turn.speaker);
-    final style = Theme.of(context).textTheme.labelMedium?.copyWith(color: color);
+    final style =
+        Theme.of(context).textTheme.labelMedium?.copyWith(color: color);
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.space1),
       child: Row(
@@ -259,10 +262,8 @@ class _SpeakerAttribution extends StatelessWidget {
             Text(
               kProvisionalTurnMarker,
               key: const ValueKey('caption-provisional-marker'),
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(color: provisionalColor, fontStyle: FontStyle.italic),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: provisionalColor, fontStyle: FontStyle.italic),
             ),
           ],
         ],

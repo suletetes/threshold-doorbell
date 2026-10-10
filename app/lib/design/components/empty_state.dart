@@ -56,8 +56,8 @@ class EmptyState extends StatelessWidget {
     final Widget? actionWidget = action;
 
     return Semantics(
-      label: semanticsLabel ??
-          (supporting == null ? title : '$title $supporting'),
+      label:
+          semanticsLabel ?? (supporting == null ? title : '$title $supporting'),
       excludeSemantics: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -74,7 +74,8 @@ class EmptyState extends StatelessWidget {
             const SizedBox(height: Spacing.space1),
             Text(
               supporting,
-              style: theme.textTheme.bodyMedium?.copyWith(color: supportingColor),
+              style:
+                  theme.textTheme.bodyMedium?.copyWith(color: supportingColor),
             ),
           ],
           if (actionWidget != null) ...<Widget>[

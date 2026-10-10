@@ -54,7 +54,8 @@ void main() {
       expect(m.withinBudget, isTrue);
     });
 
-    test('a full run of all four goals within budget reports allWithinBudget', () {
+    test('a full run of all four goals within budget reports allWithinBudget',
+        () {
       final h = LatencyHarness();
       h.start(LatencyGoal.g1a, 0);
       h.stop(LatencyGoal.g1a, 1400);

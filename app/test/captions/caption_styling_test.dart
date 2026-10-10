@@ -20,7 +20,8 @@ void main() {
 
     test('the 0.6 boundary is inclusive of normal', () {
       // Exactly at the threshold renders normal, not de-emphasized.
-      expect(emphasisForFinalToken(kConfidenceThreshold), CaptionEmphasis.normal);
+      expect(
+          emphasisForFinalToken(kConfidenceThreshold), CaptionEmphasis.normal);
     });
 
     test('a finalized token with null confidence is provisional (FR-5.7)', () {
@@ -29,8 +30,10 @@ void main() {
 
     test('emphasisForToken branches on isFinal', () {
       const token = CaptionToken(text: 'hi', confidence: 0.3);
-      expect(emphasisForToken(token, isFinal: false), CaptionEmphasis.provisional);
-      expect(emphasisForToken(token, isFinal: true), CaptionEmphasis.lowConfidence);
+      expect(
+          emphasisForToken(token, isFinal: false), CaptionEmphasis.provisional);
+      expect(emphasisForToken(token, isFinal: true),
+          CaptionEmphasis.lowConfidence);
     });
 
     test('isDeEmphasized covers provisional and low confidence', () {

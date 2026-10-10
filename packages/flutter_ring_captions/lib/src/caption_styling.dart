@@ -75,4 +75,5 @@ CaptionEmphasis emphasisForToken(CaptionToken token, {required bool isFinal}) {
 
 /// True when a fragment should be visually de-emphasized.
 bool isDeEmphasized(CaptionEmphasis emphasis) =>
-    emphasis == CaptionEmphasis.provisional || emphasis == CaptionEmphasis.lowConfidence;
+    emphasis == CaptionEmphasis.provisional ||
+    emphasis == CaptionEmphasis.lowConfidence;

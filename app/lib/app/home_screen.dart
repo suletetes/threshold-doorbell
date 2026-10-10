@@ -49,7 +49,8 @@ import 'providers.dart';
 const String kDefaultDeviceId = 'front-door';
 
 /// What the hero action does, in one line under the label. Dash-free (NFR-10).
-const String kHomeHeroSupportingLine = 'Captions appear as your visitor speaks.';
+const String kHomeHeroSupportingLine =
+    'Captions appear as your visitor speaks.';
 
 /// The orienting copy, secondary to the action (recognition over recall: the
 /// action comes first, the explanation second). Dash-free (NFR-10).
@@ -365,7 +366,9 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
       }
     }
     if (latest == null || latest.isEmpty) return;
-    if (latest == _suggestionsForText) return; // already requested for this text
+    if (latest == _suggestionsForText) {
+      return; // already requested for this text
+    }
     _suggestionsForText = latest;
     final provider = ref.read(suggestionProvider);
     final reply = ref.read(replyControllerProvider.notifier);

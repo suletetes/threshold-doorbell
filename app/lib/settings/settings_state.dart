@@ -42,13 +42,13 @@ class ThresholdSettings {
         captionBackground = forceOpaque(captionBackground),
         // The floor is enforced in code so no setting can breach NFR-2 (FR-10.2),
         // against the now-opaque background.
-        captionForeground =
-            enforceContrastFloor(captionForeground, forceOpaque(captionBackground)),
+        captionForeground = enforceContrastFloor(
+            captionForeground, forceOpaque(captionBackground)),
         // Store an unmodifiable copy so the value type cannot be mutated in
         // place after construction (LOW-06): the map was previously held by
         // reference, letting a caller mutate "immutable" settings.
-        hapticEnabled =
-            Map<HapticEvent, bool>.unmodifiable(Map<HapticEvent, bool>.from(hapticEnabled));
+        hapticEnabled = Map<HapticEvent, bool>.unmodifiable(
+            Map<HapticEvent, bool>.from(hapticEnabled));
 
   /// The mode the current/next session uses. The switch applies to the NEXT
   /// session (FR-10.1); [pendingMode] holds a queued change until then.
@@ -80,11 +80,11 @@ class ThresholdSettings {
       contrastRatio(captionForeground, captionBackground);
 
   /// Whether the caption contrast meets the floor (always true by construction).
-  bool get meetsContrastFloor =>
-      captionContrastRatio >= kContrastFloor - 1e-9;
+  bool get meetsContrastFloor => captionContrastRatio >= kContrastFloor - 1e-9;
 
   /// The retention period text (FR-8.5). Dash-free (NFR-10).
-  String get retentionLabel => 'Transcripts are kept for $kRetentionDays days, then deleted.';
+  String get retentionLabel =>
+      'Transcripts are kept for $kRetentionDays days, then deleted.';
 
   /// Value equality (LOW-06): two settings with the same fields are equal, so a
   /// provider can skip a no-op rebuild and tests can assert settings round-trip
@@ -98,7 +98,8 @@ class ThresholdSettings {
         other.captionScale == captionScale &&
         other.captionForeground == captionForeground &&
         other.captionBackground == captionBackground &&
-        const MapEquality<HapticEvent, bool>().equals(other.hapticEnabled, hapticEnabled) &&
+        const MapEquality<HapticEvent, bool>()
+            .equals(other.hapticEnabled, hapticEnabled) &&
         other.strobeEnabled == strobeEnabled &&
         other.language == language &&
         other.audibleNoticeEnabled == audibleNoticeEnabled;

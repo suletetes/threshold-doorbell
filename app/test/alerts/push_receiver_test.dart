@@ -18,19 +18,23 @@ void main() {
     });
 
     test('maps motion_detected to the motion haptic', () {
-      final alert = PushAlert.fromMap(const {'type': 'motion_detected', 'deviceId': 'd1'});
+      final alert = PushAlert.fromMap(
+          const {'type': 'motion_detected', 'deviceId': 'd1'});
       expect(dispatchForAlert(alert).haptic, HapticEvent.motion);
     });
 
-    test('an unknown event type yields a null haptic without crashing (drift)', () {
-      final alert = PushAlert.fromMap(const {'type': 'nonsense', 'deviceId': 'd1'});
+    test('an unknown event type yields a null haptic without crashing (drift)',
+        () {
+      final alert =
+          PushAlert.fromMap(const {'type': 'nonsense', 'deviceId': 'd1'});
       final dispatch = dispatchForAlert(alert);
       expect(dispatch.haptic, isNull);
       expect(dispatch.isKnownEvent, isFalse);
     });
 
     test('handles a missing thumbnail gracefully', () {
-      final alert = PushAlert.fromMap(const {'type': 'person_detected', 'deviceId': 'd1'});
+      final alert = PushAlert.fromMap(
+          const {'type': 'person_detected', 'deviceId': 'd1'});
       expect(dispatchForAlert(alert).thumbnailUrl, isNull);
     });
   });
@@ -39,7 +43,11 @@ void main() {
     test('delivers when push is available', () {
       final receiver = FixturePushReceiver();
       final ok = receiver.deliver(
-        const PushAlert(type: 'person_detected', timestamp: '', deviceId: 'd1', thumbnailUrl: null),
+        const PushAlert(
+            type: 'person_detected',
+            timestamp: '',
+            deviceId: 'd1',
+            thumbnailUrl: null),
       );
       expect(ok, isTrue);
       expect(receiver.delivered, hasLength(1));
@@ -48,7 +56,11 @@ void main() {
     test('returns false (not a silent drop) when push is unavailable', () {
       final receiver = FixturePushReceiver(pushAvailable: false);
       final ok = receiver.deliver(
-        const PushAlert(type: 'motion_detected', timestamp: '', deviceId: 'd1', thumbnailUrl: null),
+        const PushAlert(
+            type: 'motion_detected',
+            timestamp: '',
+            deviceId: 'd1',
+            thumbnailUrl: null),
       );
       // Caller must fall back to the foreground poll (FR-3.5).
       expect(ok, isFalse);

@@ -57,16 +57,17 @@ class CaptionResult {
 
   @override
   int get hashCode => Object.hash(
-        speaker,
-        text,
-        isFinal,
-        timestampMs,
-        segmentBoundary,
-        confidence,
-      );
+    speaker,
+    text,
+    isFinal,
+    timestampMs,
+    segmentBoundary,
+    confidence,
+  );
 
   @override
-  String toString() => 'CaptionResult(speaker: $speaker, text: $text, '
+  String toString() =>
+      'CaptionResult(speaker: $speaker, text: $text, '
       'isFinal: $isFinal, timestampMs: $timestampMs, '
       'segmentBoundary: $segmentBoundary, confidence: $confidence)';
 }
@@ -131,17 +132,18 @@ class CaptionTurn {
 
   @override
   int get hashCode => Object.hash(
-        speaker,
-        text,
-        isFinal,
-        startedAtMs,
-        lastUpdatedMs,
-        confidence,
-        provisional,
-      );
+    speaker,
+    text,
+    isFinal,
+    startedAtMs,
+    lastUpdatedMs,
+    confidence,
+    provisional,
+  );
 
   @override
-  String toString() => 'CaptionTurn(speaker: $speaker, text: $text, '
+  String toString() =>
+      'CaptionTurn(speaker: $speaker, text: $text, '
       'isFinal: $isFinal, startedAtMs: $startedAtMs, '
       'lastUpdatedMs: $lastUpdatedMs, confidence: $confidence, '
       'provisional: $provisional)';
@@ -153,7 +155,9 @@ bool startsNewTurn(CaptionTurn? current, CaptionResult result) {
   if (current.speaker != result.speaker) return true;
   if (current.isFinal) return true;
   if (result.segmentBoundary) return true;
-  if (result.timestampMs - current.lastUpdatedMs > kTurnPauseThresholdMs) return true;
+  if (result.timestampMs - current.lastUpdatedMs > kTurnPauseThresholdMs) {
+    return true;
+  }
   return false;
 }
 
@@ -223,7 +227,9 @@ class TurnAccumulator {
   List<CaptionTurn> finalizeForPersistence() {
     if (_turns.isNotEmpty && current!.provisional) {
       final CaptionTurn cur = _turns.removeLast();
-      _turns.add(cur.copyWith(clearConfidence: true, provisional: true, isFinal: false));
+      _turns.add(
+        cur.copyWith(clearConfidence: true, provisional: true, isFinal: false),
+      );
     }
     return turns;
   }

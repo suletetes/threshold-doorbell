@@ -84,7 +84,8 @@ void main() {
       final handle = tester.ensureSemantics();
       final controller = SessionController(port: FakeSessionPort());
       await controller.open(deviceId: 'front-door');
-      await tester.pumpWidget(_wrap(ConversationScreen(controller: controller)));
+      await tester
+          .pumpWidget(_wrap(ConversationScreen(controller: controller)));
       await tester.pumpAndSettle();
       expectHasTapAction(tester, find.byKey(const ValueKey('end-session')));
       handle.dispose();

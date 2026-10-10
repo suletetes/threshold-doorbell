@@ -165,7 +165,8 @@ class StatusBanner extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Icon(icon ?? iconFor(variant), color: role, size: Spacing.space6),
+                Icon(icon ?? iconFor(variant),
+                    color: role, size: Spacing.space6),
                 const SizedBox(width: Spacing.space3),
                 Expanded(
                   // container, so the message forms its OWN semantics node. A
@@ -182,7 +183,8 @@ class StatusBanner extends StatelessWidget {
                     child: Text(
                       message,
                       key: messageKey,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurface),
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: scheme.onSurface),
                     ),
                   ),
                 ),

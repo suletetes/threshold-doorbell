@@ -30,7 +30,8 @@ void main() {
     });
 
     test('ignores an em-dash in a line comment (comments are not UI copy)', () {
-      const src = '// This comment has an em-dash \u2014 and is fine\nconst x = 1;';
+      const src =
+          '// This comment has an em-dash \u2014 and is fine\nconst x = 1;';
       expect(scanSource(src), isEmpty);
     });
 
@@ -53,14 +54,17 @@ void main() {
       expect(v[1].line, 2);
     });
 
-    test('flags an em-dash inside a single-line triple-quoted string (P2-6)', () {
+    test('flags an em-dash inside a single-line triple-quoted string (P2-6)',
+        () {
       const src = "const s = '''Replies unavailable \u2014 try later''';";
       final v = scanSource(src, filePath: 'sample.dart');
       expect(v, hasLength(1));
       expect(v.single.character, '\u2014');
     });
 
-    test('flags an en-dash on a later line of a MULTI-LINE triple-quoted string (P2-6)', () {
+    test(
+        'flags an en-dash on a later line of a MULTI-LINE triple-quoted string (P2-6)',
+        () {
       // The old line-by-line scanner reset string tracking at each newline and
       // missed a dash on line 2+ of a triple-quoted body.
       const src = "const s = '''\nOpen hours\n9\u20135 daily\n''';";
@@ -77,14 +81,16 @@ void main() {
       expect(v.single.character, '\u2014');
     });
 
-    test('flags a dash inside a raw string (raw copy is still UI copy, P2-6)', () {
+    test('flags a dash inside a raw string (raw copy is still UI copy, P2-6)',
+        () {
       const src = "const s = r'path \u2014 raw';";
       final v = scanSource(src, filePath: 'sample.dart');
       expect(v, hasLength(1));
       expect(v.single.character, '\u2014');
     });
 
-    test('a backslash in a raw string does not swallow a following dash (P2-6)', () {
+    test('a backslash in a raw string does not swallow a following dash (P2-6)',
+        () {
       // In a raw string the backslash is literal, so the dash after it must
       // still be flagged (the non-raw escape logic must not apply here).
       const src = "const s = r'a\\\u2014b';";
@@ -123,7 +129,8 @@ void main() {
     test('the real lib/ tree contains no forbidden dashes (AT-24)', () {
       // Resolve lib/ relative to the package root regardless of the test CWD.
       final libDir = Directory('lib');
-      expect(libDir.existsSync(), isTrue, reason: 'run from the app package root');
+      expect(libDir.existsSync(), isTrue,
+          reason: 'run from the app package root');
       final violations = scanDirectory(libDir);
       expect(
         violations,

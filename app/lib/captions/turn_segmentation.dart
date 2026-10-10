@@ -99,8 +99,9 @@ class CaptionTurn {
       lastUpdatedMs: lastUpdatedMs ?? this.lastUpdatedMs,
       confidence: clearConfidence ? null : (confidence ?? this.confidence),
       provisional: provisional ?? this.provisional,
-      wordConfidences:
-          clearWordConfidences ? null : (wordConfidences ?? this.wordConfidences),
+      wordConfidences: clearWordConfidences
+          ? null
+          : (wordConfidences ?? this.wordConfidences),
     );
   }
 }
@@ -114,7 +115,9 @@ bool startsNewTurn(CaptionTurn? current, CaptionResult result) {
   if (current.speaker != result.speaker) return true;
   if (current.isFinal) return true;
   if (result.segmentBoundary) return true;
-  if (result.timestampMs - current.lastUpdatedMs > kTurnPauseThresholdMs) return true;
+  if (result.timestampMs - current.lastUpdatedMs > kTurnPauseThresholdMs) {
+    return true;
+  }
   return false;
 }
 

@@ -3,12 +3,18 @@ import 'package:threshold/vision/privacy_zone_geometry.dart';
 import 'package:threshold/vision/vision_port.dart';
 
 void main() {
-  final zones = <Rect>[const Rect(x: 0.0, y: 0.0, width: 0.5, height: 1.0)]; // left half masked
+  final zones = <Rect>[
+    const Rect(x: 0.0, y: 0.0, width: 0.5, height: 1.0)
+  ]; // left half masked
 
-  VisionCue person(double x, {double conf = 0.9}) =>
-      VisionCue(kind: CueKind.person, box: Rect(x: x, y: 0.4, width: 0.15, height: 0.2), confidence: conf);
-  VisionCue pkg(double x, {double conf = 0.9}) =>
-      VisionCue(kind: CueKind.package, box: Rect(x: x, y: 0.4, width: 0.15, height: 0.2), confidence: conf);
+  VisionCue person(double x, {double conf = 0.9}) => VisionCue(
+      kind: CueKind.person,
+      box: Rect(x: x, y: 0.4, width: 0.15, height: 0.2),
+      confidence: conf);
+  VisionCue pkg(double x, {double conf = 0.9}) => VisionCue(
+      kind: CueKind.package,
+      box: Rect(x: x, y: 0.4, width: 0.15, height: 0.2),
+      confidence: conf);
 
   group('admittedCues (Task 19, FR-11.1)', () {
     test('drops detections centered in a privacy zone', () {
@@ -56,7 +62,8 @@ void main() {
       expect(v.pushed.length, 2);
     });
 
-    test('reports availability so presence can fall back to events (FR-5.4)', () {
+    test('reports availability so presence can fall back to events (FR-5.4)',
+        () {
       expect(FixtureVision().isAvailable, isTrue);
       expect(FixtureVision(available: false).isAvailable, isFalse);
     });

@@ -14,7 +14,9 @@ void main() {
       c.dispose();
     });
 
-    test('going offline blocks sessions but keeps cached history (FR-15.1, 15.2; AT-17)', () async {
+    test(
+        'going offline blocks sessions but keeps cached history (FR-15.1, 15.2; AT-17)',
+        () async {
       final port = FixtureConnectivity();
       final c = ConnectivityController(port);
       var notified = 0;
@@ -26,12 +28,14 @@ void main() {
       expect(c.isOffline, isTrue);
       expect(c.canOpenSession, isFalse);
       expect(c.canReadCachedHistory, isTrue);
-      expect(c.availability(NetworkAction.openSession).reason, UnavailableReason.offline);
+      expect(c.availability(NetworkAction.openSession).reason,
+          UnavailableReason.offline);
       expect(notified, 1);
       c.dispose();
     });
 
-    test('backend unreachable is distinct from offline (FR-15.4; AT-20)', () async {
+    test('backend unreachable is distinct from offline (FR-15.4; AT-20)',
+        () async {
       final port = FixtureConnectivity();
       final c = ConnectivityController(port);
       port.goBackendUnreachable();
@@ -48,9 +52,12 @@ void main() {
       c.dispose();
     });
 
-    test('auto-restores online when connectivity returns, no restart (FR-15.3; AT-17)', () async {
+    test(
+        'auto-restores online when connectivity returns, no restart (FR-15.3; AT-17)',
+        () async {
       final port = FixtureConnectivity(
-        initial: const ConnectivitySignal(hasNetwork: false, backendReachable: false),
+        initial: const ConnectivitySignal(
+            hasNetwork: false, backendReachable: false),
       );
       final c = ConnectivityController(port);
       expect(c.isOffline, isTrue);
@@ -63,9 +70,12 @@ void main() {
       c.dispose();
     });
 
-    test('transitions offline -> backend-unreachable -> online each notify once', () async {
+    test(
+        'transitions offline -> backend-unreachable -> online each notify once',
+        () async {
       final port = FixtureConnectivity(
-        initial: const ConnectivitySignal(hasNetwork: false, backendReachable: false),
+        initial: const ConnectivitySignal(
+            hasNetwork: false, backendReachable: false),
       );
       final c = ConnectivityController(port);
       final states = <ConnectivityState>[];

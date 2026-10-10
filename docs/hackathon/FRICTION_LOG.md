@@ -12,18 +12,19 @@ experience teams: real, specific things that got in the way of getting a working
 build and a working Ring integration, with what we expected, what actually
 happened, and a concrete suggestion. Severity is our own build-impact rating.
 
-### `flutter analyze` crashes with "Too many open files"
+### `flutter analyze` hit "Too many open files" until the ulimit was raised
 
 - **Task attempted:** Run `flutter analyze` as the static-analysis gate in the
   build sandbox.
-- **Expected vs actual:** Expected a clean analyzer pass. Actual: the Dart
-  analysis server hits the process file-descriptor limit and crashes before it
-  can finish, so the gate never completes.
-- **Severity:** Medium (blocks a standard gate, not the build itself).
-- **Workaround:** Raise the descriptor limit with `ulimit -n 65536` in the shell
-  preamble, and use `dart analyze` (which completes) instead of `flutter
-  analyze` (which still crashes here). We also keep `flutter test`, which
-  compiles all Dart, as a correctness gate.
+- **Expected vs actual:** Expected a clean analyzer pass. Initially the Dart
+  analysis server hit the process file-descriptor limit and crashed before it
+  could finish. After raising the descriptor limit it runs clean and reports
+  "No issues found!".
+- **Severity:** Medium (a one-time environment fix, not a build blocker).
+- **Resolution:** Raise the descriptor limit with `ulimit -n 65536` in the shell
+  preamble. With that in place `flutter analyze --fatal-infos` completes and is
+  now a hard CI gate for both the app and the package, alongside
+  `dart format --set-exit-if-changed .` and `flutter test`.
 - **Actionable suggestion:** The Flutter analysis server should cap or pool its
   open file descriptors, or fail with a clear "raise your ulimit" message
   instead of an opaque crash. A one-line note in the Flutter tooling docs about
@@ -113,13 +114,13 @@ happened, and a concrete suggestion. Severity is our own build-impact rating.
 
 ## Backend signaling, ASR, and infrastructure (this delegation)
 
-- **`flutter analyze` crashes in the build sandbox.** The Dart analysis server
-  hits a bug under the sandbox and cannot complete. Resolution: use
-  `flutter test` as the compile-and-correctness gate; it compiles all Dart and
-  runs the full unit suite. The CI workflow deliberately omits `flutter analyze`
-  for this reason and documents why inline. Implication: for reproducible CI,
-  `flutter test` is a sufficient and more reliable gate than `analyze` in
-  constrained environments.
+- **`flutter analyze` needs a raised file-descriptor limit in the sandbox.**
+  The Dart analysis server hit the process file-descriptor limit on its first
+  run and could not complete. Resolution: raise it with `ulimit -n 65536`; after
+  that `flutter analyze --fatal-infos` runs clean. CI now runs analyze and
+  `dart format --set-exit-if-changed .` as hard gates in both Dart jobs, on top
+  of `flutter test`. Implication: analyze is a reliable gate here once the
+  descriptor limit is raised, so it is no longer skipped.
 
 - **WebSocket close-code propagation over the in-process test transport.**
   `@fastify/websocket`'s `injectWS` uses paired in-memory streams. A client

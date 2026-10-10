@@ -23,11 +23,13 @@ void expectHasTapAction(
   Finder finder, {
   String? reason,
 }) {
-  expect(finder, findsOneWidget, reason: 'control not found: ${reason ?? finder}');
+  expect(finder, findsOneWidget,
+      reason: 'control not found: ${reason ?? finder}');
   final node = tester.getSemantics(finder);
   expect(
     nodeHasTap(node),
     isTrue,
-    reason: reason ?? 'control must expose SemanticsAction.tap (HIGH-06): $finder',
+    reason:
+        reason ?? 'control must expose SemanticsAction.tap (HIGH-06): $finder',
   );
 }

@@ -3,9 +3,12 @@ import 'package:threshold/captions/model_provisioning.dart';
 
 void main() {
   group('ModelProvisioningMachine (Task 18, FR-5.2a, FR-10.1; AT-21)', () {
-    ModelProvisioningMachine make() => ModelProvisioningMachine(modelSizeBytes: 40 * 1024 * 1024);
+    ModelProvisioningMachine make() =>
+        ModelProvisioningMachine(modelSizeBytes: 40 * 1024 * 1024);
 
-    test('starts notPresent with Privacy Mode unavailable and labelled (FR-5.2a, AT-21)', () {
+    test(
+        'starts notPresent with Privacy Mode unavailable and labelled (FR-5.2a, AT-21)',
+        () {
       final m = make();
       expect(m.state, ModelState.notPresent);
       expect(m.privacyModeAvailable, isFalse);
@@ -16,10 +19,13 @@ void main() {
       final m = make();
       expect(m.snapshot.sizeBytes, 40 * 1024 * 1024);
       m.optIn();
-      expect(m.snapshot.sizeBytes, 40 * 1024 * 1024); // still disclosed at opt-in
+      expect(
+          m.snapshot.sizeBytes, 40 * 1024 * 1024); // still disclosed at opt-in
     });
 
-    test('happy path: notPresent -> optIn -> downloading -> verifying -> verified enables Privacy Mode', () {
+    test(
+        'happy path: notPresent -> optIn -> downloading -> verifying -> verified enables Privacy Mode',
+        () {
       final m = make();
       m.optIn();
       expect(m.state, ModelState.optIn);
@@ -46,13 +52,16 @@ void main() {
       expect(m.privacyModeAvailable, isFalse);
     });
 
-    test('a download without a prior opt-in is refused (explicit opt-in required, FR-5.2a)', () {
+    test(
+        'a download without a prior opt-in is refused (explicit opt-in required, FR-5.2a)',
+        () {
       final m = make();
       expect(() => m.startDownload(liveSessionActive: false), throwsStateError);
       expect(m.state, ModelState.notPresent);
     });
 
-    test('Privacy Mode is unavailable in every non-verified state (FR-5.2a)', () {
+    test('Privacy Mode is unavailable in every non-verified state (FR-5.2a)',
+        () {
       final m = make();
       expect(m.privacyModeAvailable, isFalse); // notPresent
       m.optIn();
@@ -63,7 +72,8 @@ void main() {
       expect(m.privacyModeAvailable, isFalse); // verifying
     });
 
-    test('verification failure keeps Privacy Mode unavailable and allows retry', () {
+    test('verification failure keeps Privacy Mode unavailable and allows retry',
+        () {
       final m = make();
       m.optIn();
       m.startDownload(liveSessionActive: false);

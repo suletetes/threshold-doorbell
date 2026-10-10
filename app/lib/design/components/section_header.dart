@@ -73,11 +73,14 @@ class SectionHeader extends StatelessWidget {
               const SizedBox(height: Spacing.space1),
               Padding(
                 padding: EdgeInsets.only(
-                  left: dense ? Spacing.space0 : _AccentRule.width + Spacing.space3,
+                  left: dense
+                      ? Spacing.space0
+                      : _AccentRule.width + Spacing.space3,
                 ),
                 child: Text(
                   supporting,
-                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
             ],

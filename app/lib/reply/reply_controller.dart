@@ -46,7 +46,8 @@ enum ReplySource { template, freetext }
 /// A resident turn appended to the transcript (FR-6.5).
 @immutable
 class ResidentTurn {
-  const ResidentTurn({required this.text, required this.source, required this.atMs});
+  const ResidentTurn(
+      {required this.text, required this.source, required this.atMs});
   final String text;
   final ReplySource source;
   final int atMs;
@@ -81,7 +82,8 @@ class ReplyController extends ChangeNotifier {
   /// The transcript gaps recorded by the echo gate across this controller's
   /// replies (FR-5.6, AT-18). Exposed so the transcript/session can persist and
   /// tests can assert the gate marking actually fired in production.
-  List<TranscriptGap> get echoGaps => _echoGate?.gaps ?? const <TranscriptGap>[];
+  List<TranscriptGap> get echoGaps =>
+      _echoGate?.gaps ?? const <TranscriptGap>[];
 
   ReplyState _state = ReplyState.composing;
   String? _inFlightText; // the reply currently being spoken (FR-6.3)
@@ -98,7 +100,8 @@ class ReplyController extends ChangeNotifier {
   /// here so the reply bar (which already rebuilds on this controller) renders
   /// them, rather than being passed as a widget field that the conversation
   /// screen's state switcher would not propagate.
-  List<String> get contextualSuggestions => List.unmodifiable(_contextualSuggestions);
+  List<String> get contextualSuggestions =>
+      List.unmodifiable(_contextualSuggestions);
 
   /// Replace the contextual suggestions and notify so the reply bar repaints.
   void setContextualSuggestions(List<String> suggestions) {
@@ -124,7 +127,8 @@ class ReplyController extends ChangeNotifier {
   /// unavailable.
   bool canSend(String text) {
     if (!_outbound.outboundAvailable) return false;
-    if (_state == ReplyState.synthesizing || _state == ReplyState.speakingAtDoor) {
+    if (_state == ReplyState.synthesizing ||
+        _state == ReplyState.speakingAtDoor) {
       return false;
     }
     return text.trim().isNotEmpty;
@@ -155,7 +159,8 @@ class ReplyController extends ChangeNotifier {
       // failure, retry exactly once (design §5.3).
       outcome = await _port.speak(trimmed, onPlaybackStart: _onPlaybackStarted);
       if (outcome == SpeakOutcome.ttsFailed) {
-        outcome = await _port.speak(trimmed, onPlaybackStart: _onPlaybackStarted);
+        outcome =
+            await _port.speak(trimmed, onPlaybackStart: _onPlaybackStarted);
       }
     } catch (_) {
       // The binding threw (e.g. no device). Treat it as a reply that never
@@ -182,7 +187,8 @@ class ReplyController extends ChangeNotifier {
         _abandonGate();
         _outbound.recordInjection(success: false);
         _inFlightText = null;
-        _errorMessage = 'Spoken replies are no longer available in this session.';
+        _errorMessage =
+            'Spoken replies are no longer available in this session.';
         _set(ReplyState.error);
         return;
       case SpeakOutcome.spoken:

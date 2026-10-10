@@ -12,7 +12,10 @@ void main() {
     });
 
     test('leaves clean text unchanged', () {
-      expect(stripDashes('please leave it at the door'), 'please leave it at the door');
+      expect(
+        stripDashes('please leave it at the door'),
+        'please leave it at the door',
+      );
     });
 
     test('collapses whitespace introduced by replacement', () {
@@ -37,7 +40,15 @@ void main() {
 
   group('sanitizeSuggestions', () {
     test('drops non-strings, empties, and dedupes, capping at 3', () {
-      final out = sanitizeSuggestions(<Object?>['ok', 42, '', 'ok', 'sure', 'later', 'extra']);
+      final out = sanitizeSuggestions(<Object?>[
+        'ok',
+        42,
+        '',
+        'ok',
+        'sure',
+        'later',
+        'extra',
+      ]);
       expect(out, ['ok', 'sure', 'later']);
     });
 
@@ -47,8 +58,10 @@ void main() {
     });
 
     test('dedupes case- and punctuation-insensitively (LOW-22)', () {
-      final out = sanitizeSuggestions(
-          <Object?>['Please come back later', 'please come back later.']);
+      final out = sanitizeSuggestions(<Object?>[
+        'Please come back later',
+        'please come back later.',
+      ]);
       expect(out, <String>['Please come back later']);
     });
 
@@ -76,7 +89,10 @@ void main() {
     });
 
     test('no forbidden dash ever appears in the final bar', () {
-      final out = replyBarSuggestions(<Object?>['hold\u2014on', 'wait\u2013here']);
+      final out = replyBarSuggestions(<Object?>[
+        'hold\u2014on',
+        'wait\u2013here',
+      ]);
       for (final s in out) {
         expect(s.contains('\u2014'), isFalse);
         expect(s.contains('\u2013'), isFalse);

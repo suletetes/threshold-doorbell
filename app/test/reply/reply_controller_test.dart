@@ -6,13 +6,16 @@ import 'package:threshold/reply/reply_port.dart';
 import 'package:threshold/reply/reply_suggestions.dart';
 import 'package:threshold/reply/ondevice_suggestions.dart';
 
-OutboundModeMachine _twoWay() => OutboundModeMachine()..applyProbe(ProbeResult.success);
+OutboundModeMachine _twoWay() =>
+    OutboundModeMachine()..applyProbe(ProbeResult.success);
 
 void main() {
   group('ReplyController lifecycle (Task 15, FR-6.1, 6.3, 6.5, G3; AT-5)', () {
-    test('a successful reply speaks, appends a resident turn, and reaches SENT', () async {
+    test('a successful reply speaks, appends a resident turn, and reaches SENT',
+        () async {
       final port = FakeReplyPort();
-      final c = ReplyController(port: port, outbound: _twoWay(), nowMs: () => 42);
+      final c =
+          ReplyController(port: port, outbound: _twoWay(), nowMs: () => 42);
       await c.send('Please leave it at the door', source: ReplySource.template);
       expect(port.speakCalls, 1);
       expect(port.spokenTexts.single, 'Please leave it at the door');
@@ -23,11 +26,14 @@ void main() {
       expect(c.turns.single.atMs, 42);
     });
 
-    test('the echo gate closes while speaking and records a gap (FR-5.6 wiring)', () async {
+    test(
+        'the echo gate closes while speaking and records a gap (FR-5.6 wiring)',
+        () async {
       var now = 0;
       final gate = EchoGate(nowMs: () => now);
       final port = FakeReplyPort();
-      final c = ReplyController(port: port, outbound: _twoWay(), echoGate: gate, nowMs: () => now);
+      final c = ReplyController(
+          port: port, outbound: _twoWay(), echoGate: gate, nowMs: () => now);
       await c.send('Hello', source: ReplySource.freetext);
       // Playback started+ended during send; advance past the 300 ms tail.
       now += kEchoTail.inMilliseconds;
@@ -36,7 +42,9 @@ void main() {
       expect(gate.gaps.length, 1);
     });
 
-    test('the controller drives the 300 ms echo tail and records the gap itself (P2-3, FR-5.6, AT-18)', () async {
+    test(
+        'the controller drives the 300 ms echo tail and records the gap itself (P2-3, FR-5.6, AT-18)',
+        () async {
       var now = 0;
       final gate = EchoGate(nowMs: () => now);
       final port = FakeReplyPort();
@@ -59,7 +67,9 @@ void main() {
       expect(gate.gaps.single.durationMs >= kEchoTail.inMilliseconds, isTrue);
     });
 
-    test('the gate stays CLOSED for the whole tail window and only reopens after 300 ms (P2-3)', () async {
+    test(
+        'the gate stays CLOSED for the whole tail window and only reopens after 300 ms (P2-3)',
+        () async {
       var now = 0;
       final gate = EchoGate(nowMs: () => now);
       final port = FakeReplyPort();
@@ -83,10 +93,13 @@ void main() {
       expect(gate.shouldTranscribe, isTrue);
     });
 
-    test('a TTS failure reopens the gate without recording a gap (no playback occurred, P2-3)', () async {
+    test(
+        'a TTS failure reopens the gate without recording a gap (no playback occurred, P2-3)',
+        () async {
       var now = 0;
       final gate = EchoGate(nowMs: () => now);
-      final port = FakeReplyPort(plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.ttsFailed]);
+      final port = FakeReplyPort(
+          plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.ttsFailed]);
       final c = ReplyController(
         port: port,
         outbound: _twoWay(),
@@ -103,7 +116,8 @@ void main() {
       expect(gate.shouldTranscribe, isTrue);
     });
 
-    test('duplicate send is disabled while a reply is in flight (FR-6.3)', () async {
+    test('duplicate send is disabled while a reply is in flight (FR-6.3)',
+        () async {
       // A never-completing speak keeps the controller in synthesizing.
       final port = _BlockingReplyPort();
       final c = ReplyController(port: port, outbound: _twoWay());
@@ -118,7 +132,8 @@ void main() {
     });
 
     test('TTS failure retries exactly once then succeeds', () async {
-      final port = FakeReplyPort(plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.spoken]);
+      final port = FakeReplyPort(
+          plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.spoken]);
       final c = ReplyController(port: port, outbound: _twoWay());
       await c.send('Hi', source: ReplySource.freetext);
       expect(port.speakCalls, 2);
@@ -126,7 +141,8 @@ void main() {
     });
 
     test('TTS failure twice ends in error with a dash-free message', () async {
-      final port = FakeReplyPort(plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.ttsFailed]);
+      final port = FakeReplyPort(
+          plan: <SpeakOutcome>[SpeakOutcome.ttsFailed, SpeakOutcome.ttsFailed]);
       final c = ReplyController(port: port, outbound: _twoWay());
       await c.send('Hi', source: ReplySource.freetext);
       expect(port.speakCalls, 2);
@@ -136,9 +152,11 @@ void main() {
       expect(c.errorMessage!.contains('\u2013'), isFalse);
     });
 
-    test('injection failure degrades the session to Captions-Only (FR-6.4b)', () async {
+    test('injection failure degrades the session to Captions-Only (FR-6.4b)',
+        () async {
       final outbound = _twoWay();
-      final port = FakeReplyPort(plan: <SpeakOutcome>[SpeakOutcome.injectionFailed]);
+      final port =
+          FakeReplyPort(plan: <SpeakOutcome>[SpeakOutcome.injectionFailed]);
       final c = ReplyController(port: port, outbound: outbound);
       await c.send('Hi', source: ReplySource.freetext);
       expect(c.state, ReplyState.error);
@@ -148,7 +166,9 @@ void main() {
       expect(c.replyBarVisible, isFalse);
     });
 
-    test('reply bar hidden and send blocked when outbound is unavailable (FR-6.4)', () async {
+    test(
+        'reply bar hidden and send blocked when outbound is unavailable (FR-6.4)',
+        () async {
       final outbound = OutboundModeMachine()..applyProbe(ProbeResult.failure);
       final port = FakeReplyPort();
       final c = ReplyController(port: port, outbound: outbound);
@@ -166,10 +186,12 @@ void main() {
       expect(c.canSend(''), isFalse);
     });
 
-    test('a thrown speak() does not block replies forever (HIGH-05, probe P2)', () async {
+    test('a thrown speak() does not block replies forever (HIGH-05, probe P2)',
+        () async {
       final gate = EchoGate();
       final port = _ThrowingReplyPort();
-      final c = ReplyController(port: port, outbound: _twoWay(), echoGate: gate);
+      final c =
+          ReplyController(port: port, outbound: _twoWay(), echoGate: gate);
       await c.send('Hello', source: ReplySource.freetext);
       // Before the fix this threw out of send(), leaving the gate closed and the
       // bar stuck at speakingAtDoor with canSend false forever.
@@ -179,7 +201,8 @@ void main() {
       expect(c.canSend('Hello again'), isTrue); // replies are not blocked
     });
 
-    test('enters SPEAKING_AT_DOOR only after playback starts (HIGH-05)', () async {
+    test('enters SPEAKING_AT_DOOR only after playback starts (HIGH-05)',
+        () async {
       final states = <ReplyState>[];
       final port = FakeReplyPort();
       final c = ReplyController(port: port, outbound: _twoWay());
@@ -204,7 +227,8 @@ void main() {
     });
 
     test('caps contextual suggestions at 3 (FR-7.1)', () {
-      final buttons = composeReplyButtons(const <String>['a', 'b', 'c', 'd', 'e']);
+      final buttons =
+          composeReplyButtons(const <String>['a', 'b', 'c', 'd', 'e']);
       // First three are the contextual ones, then the safe set.
       expect(buttons.take(3).toList(), <String>['a', 'b', 'c']);
       for (final safe in kFixedSafeReplies) {
@@ -226,7 +250,8 @@ class _BlockingReplyPort implements ReplyPort {
   SpeakOutcome? _pending;
 
   @override
-  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
+  Future<SpeakOutcome> speak(String text,
+      {void Function()? onPlaybackStart}) async {
     speakCalls++;
     // Return a future that resolves when complete() is called.
     while (_pending == null) {
@@ -246,7 +271,8 @@ class _ThrowingReplyPort implements ReplyPort {
   int speakCalls = 0;
 
   @override
-  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
+  Future<SpeakOutcome> speak(String text,
+      {void Function()? onPlaybackStart}) async {
     speakCalls++;
     throw StateError('no device');
   }

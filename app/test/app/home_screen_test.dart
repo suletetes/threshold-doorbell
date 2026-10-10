@@ -57,15 +57,16 @@ List<Override> _overrides({
       bedrockSuggestionPortProvider
           .overrideWithValue(bedrock ?? FakeBedrockSuggestionPort()),
       dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-      consentStoreProvider
-          .overrideWithValue(FakeConsentStore(acknowledged: consentAcknowledged)),
+      consentStoreProvider.overrideWithValue(
+          FakeConsentStore(acknowledged: consentAcknowledged)),
       if (provisioning != null)
         modelProvisioningProvider.overrideWithValue(provisioning),
     ];
 
 Widget _host({ModelProvisioningMachine? provisioning}) => ProviderScope(
       overrides: _overrides(provisioning: provisioning),
-      child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+      child:
+          MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
     );
 
 void main() {
@@ -86,25 +87,31 @@ void main() {
       await tester.pumpWidget(_host());
       await tester.pump();
       final hero = tester.getSize(find.byKey(const ValueKey('home-answer')));
-      final settings = tester.getSize(find.byKey(const ValueKey('home-settings')));
-      expect(hero.height, greaterThanOrEqualTo(PrimaryActionCard.minimumHeight));
+      final settings =
+          tester.getSize(find.byKey(const ValueKey('home-settings')));
+      expect(
+          hero.height, greaterThanOrEqualTo(PrimaryActionCard.minimumHeight));
       expect(hero.height, greaterThan(settings.height));
       // It is also the widest thing: it stretches the content column.
       expect(hero.width, greaterThan(settings.width));
     });
 
-    testWidgets('the hero is the first thing below the app bar', (tester) async {
+    testWidgets('the hero is the first thing below the app bar',
+        (tester) async {
       await tester.pumpWidget(_host());
       await tester.pump();
-      final heroTop = tester.getTopLeft(find.byKey(const ValueKey('home-answer'))).dy;
-      final explanationTop = tester.getTopLeft(find.text(kHomeReadyExplanation)).dy;
+      final heroTop =
+          tester.getTopLeft(find.byKey(const ValueKey('home-answer'))).dy;
+      final explanationTop =
+          tester.getTopLeft(find.text(kHomeReadyExplanation)).dy;
       // The paragraph used to come first. Recognition over recall: action first.
       expect(heroTop, lessThan(explanationTop));
     });
   });
 
   group('Settings is an app bar destination (audit C5)', () {
-    testWidgets('it lives in the AppBar actions, not in the body', (tester) async {
+    testWidgets('it lives in the AppBar actions, not in the body',
+        (tester) async {
       await tester.pumpWidget(_host());
       await tester.pump();
       expect(
@@ -139,13 +146,16 @@ void main() {
   });
 
   group('Privacy Mode notice (audit section 4, information architecture)', () {
-    testWidgets('renders as a StatusBanner below the hero, not between the actions',
+    testWidgets(
+        'renders as a StatusBanner below the hero, not between the actions',
         (tester) async {
       await tester.pumpWidget(_host());
       await tester.pump();
-      expect(find.byKey(const ValueKey('home-privacy-unavailable')), findsOneWidget);
+      expect(find.byKey(const ValueKey('home-privacy-unavailable')),
+          findsOneWidget);
       expect(find.byType(StatusBanner), findsOneWidget);
-      final heroBottom = tester.getBottomLeft(find.byKey(const ValueKey('home-answer'))).dy;
+      final heroBottom =
+          tester.getBottomLeft(find.byKey(const ValueKey('home-answer'))).dy;
       final bannerTop = tester.getTopLeft(find.byType(StatusBanner)).dy;
       expect(bannerTop, greaterThanOrEqualTo(heroBottom));
     });
@@ -157,7 +167,8 @@ void main() {
       final banner = tester.widget<StatusBanner>(find.byType(StatusBanner));
       expect(banner.variant, StatusVariant.warning);
       expect(banner.message, contains('Privacy Mode'));
-      expect(find.byIcon(StatusBanner.iconFor(StatusVariant.warning)), findsOneWidget);
+      expect(find.byIcon(StatusBanner.iconFor(StatusVariant.warning)),
+          findsOneWidget);
     });
 
     testWidgets('it disappears once the on device model is verified (FR-5.2a)',
@@ -165,7 +176,8 @@ void main() {
       await tester.pumpWidget(_host(provisioning: _verifiedProvisioning()));
       await tester.pump();
       expect(find.byType(StatusBanner), findsNothing);
-      expect(find.byKey(const ValueKey('home-privacy-unavailable')), findsNothing);
+      expect(
+          find.byKey(const ValueKey('home-privacy-unavailable')), findsNothing);
     });
 
     testWidgets('it announces itself as a live region (G4)', (tester) async {
@@ -178,13 +190,16 @@ void main() {
   });
 
   group('Session lifecycle from the host (CRIT-05, probe P8)', () {
-    testWidgets('system back ends the session and returns to home, not a blank screen',
+    testWidgets(
+        'system back ends the session and returns to home, not a blank screen',
         (tester) async {
       final port = FakeSessionPort();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _overrides(session: port, provisioning: _verifiedProvisioning()),
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          overrides:
+              _overrides(session: port, provisioning: _verifiedProvisioning()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pump();
@@ -205,13 +220,16 @@ void main() {
       expect(find.byKey(const ValueKey('home-answer')), findsOneWidget);
     });
 
-    testWidgets('tapping End returns to home instead of a blank screen (CRIT-05)',
+    testWidgets(
+        'tapping End returns to home instead of a blank screen (CRIT-05)',
         (tester) async {
       final port = FakeSessionPort();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _overrides(session: port, provisioning: _verifiedProvisioning()),
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          overrides:
+              _overrides(session: port, provisioning: _verifiedProvisioning()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pump();
@@ -269,7 +287,8 @@ void main() {
       // and its suggestions are pushed onto the reply controller, which the
       // reply bar reads (FR-7.1a against the fake Bedrock port). Asserted on the
       // controller because that is the single source the reply bar renders from.
-      expect(bedrock.callCount, 1, reason: 'suggestion provider must be consulted');
+      expect(bedrock.callCount, 1,
+          reason: 'suggestion provider must be consulted');
       final reply = capturedRef.read(replyControllerProvider.notifier);
       expect(reply.contextualSuggestions, contains('Thanks, one moment'));
       expect(reply.contextualSuggestions, contains('Leave it there please'));
@@ -277,7 +296,8 @@ void main() {
   });
 
   group('Session start mode and refusal (MED-14)', () {
-    testWidgets('a refused Privacy Mode request surfaces a notice and runs Clarity',
+    testWidgets(
+        'a refused Privacy Mode request surfaces a notice and runs Clarity',
         (tester) async {
       final port = FakeSessionPort();
       late WidgetRef capturedRef;
@@ -298,12 +318,15 @@ void main() {
       await tester.pump();
 
       // Request Privacy Mode for the next session, then answer the door.
-      capturedRef.read(settingsControllerProvider).requestModeChange(CaptionMode.privacy);
+      capturedRef
+          .read(settingsControllerProvider)
+          .requestModeChange(CaptionMode.privacy);
       await tester.tap(find.byKey(const ValueKey('home-answer')));
       await tester.pump();
 
       // The refusal is surfaced, not silent (MED-14).
-      expect(find.byKey(const ValueKey('privacy-refused-notice')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('privacy-refused-notice')), findsOneWidget);
       await tester.pumpAndSettle();
 
       // The session runs in Clarity, not Privacy (plan.mode was used).
@@ -314,14 +337,16 @@ void main() {
   });
 
   group('First-run recording-consent gate (CRIT-06, FR-14.1, AT-14)', () {
-    testWidgets('on first run answering shows the notice and blocks the session',
+    testWidgets(
+        'on first run answering shows the notice and blocks the session',
         (tester) async {
       final port = FakeSessionPort();
       await tester.pumpWidget(
         ProviderScope(
           // Not acknowledged: the gate must block live use.
           overrides: _overrides(session: port, consentAcknowledged: false),
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pump();
@@ -342,7 +367,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: _overrides(session: port, consentAcknowledged: false),
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pump();
@@ -368,7 +394,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: _overrides(session: port, consentAcknowledged: true),
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pump();
@@ -392,13 +419,17 @@ void main() {
 
   group('Home copy (NFR-10)', () {
     test('no dashes in any home string', () {
-      for (final copy in <String>[kHomeHeroSupportingLine, kHomeReadyExplanation]) {
+      for (final copy in <String>[
+        kHomeHeroSupportingLine,
+        kHomeReadyExplanation
+      ]) {
         expect(copy.contains('\u2014'), isFalse);
         expect(copy.contains('\u2013'), isFalse);
       }
     });
 
-    test('the orienting explanation is preserved verbatim from the old screen', () {
+    test('the orienting explanation is preserved verbatim from the old screen',
+        () {
       // The redesign demoted this copy; it did not delete it.
       expect(
         kHomeReadyExplanation,

@@ -101,7 +101,8 @@ class DownloadDuringSessionError extends StateError {
 /// is active so the machine can refuse a download mid-session (FR-5.2a).
 class ModelProvisioningMachine {
   ModelProvisioningMachine({required int modelSizeBytes})
-      : _p = ModelProvisioning(state: ModelState.notPresent, sizeBytes: modelSizeBytes);
+      : _p = ModelProvisioning(
+            state: ModelState.notPresent, sizeBytes: modelSizeBytes);
 
   ModelProvisioning _p;
   ModelProvisioning get snapshot => _p;
@@ -140,7 +141,8 @@ class ModelProvisioningMachine {
   /// Download finished; move to verification.
   void onDownloadComplete() {
     if (_p.state != ModelState.downloading) return;
-    _p = _p.copyWith(state: ModelState.verifying, downloadedBytes: _p.sizeBytes);
+    _p =
+        _p.copyWith(state: ModelState.verifying, downloadedBytes: _p.sizeBytes);
   }
 
   /// Verification result. Success enables Privacy Mode (FR-5.2a); failure keeps
@@ -152,7 +154,8 @@ class ModelProvisioningMachine {
 
   /// Any download/verify error transitions to failed (retryable via optIn).
   void onError() {
-    if (_p.state == ModelState.downloading || _p.state == ModelState.verifying) {
+    if (_p.state == ModelState.downloading ||
+        _p.state == ModelState.verifying) {
       _p = _p.copyWith(state: ModelState.failed);
     }
   }

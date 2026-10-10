@@ -18,7 +18,9 @@ void main() {
       expect(m.isCaptionsOnly, isFalse);
     });
 
-    test('probe failure at start is Captions-Only for the whole session (FR-6.4a, AT-6)', () {
+    test(
+        'probe failure at start is Captions-Only for the whole session (FR-6.4a, AT-6)',
+        () {
       final m = OutboundModeMachine()..applyProbe(ProbeResult.failure);
       expect(m.state, OutboundState.captionsOnlyFromProbe);
       expect(m.outboundAvailable, isFalse);
@@ -39,7 +41,9 @@ void main() {
       expect(m.state, OutboundState.twoWay);
     });
 
-    test('injection failure mid-session degrades to Captions-Only, no auto-recovery (FR-6.4b, AT-6)', () {
+    test(
+        'injection failure mid-session degrades to Captions-Only, no auto-recovery (FR-6.4b, AT-6)',
+        () {
       final m = OutboundModeMachine()..applyProbe(ProbeResult.success);
       m.recordInjection(success: true); // works once
       expect(m.state, OutboundState.twoWay);
@@ -53,7 +57,9 @@ void main() {
       expect(m.outboundAvailable, isFalse);
     });
 
-    test('injection failure while already Captions-Only (from probe) is a no-op', () {
+    test(
+        'injection failure while already Captions-Only (from probe) is a no-op',
+        () {
       final m = OutboundModeMachine()..applyProbe(ProbeResult.failure);
       m.recordInjection(success: false);
       expect(m.state, OutboundState.captionsOnlyFromProbe);

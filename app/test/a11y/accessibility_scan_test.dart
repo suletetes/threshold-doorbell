@@ -42,7 +42,8 @@ Future<void> scanAccessibility(WidgetTester tester) async {
 }
 
 Future<SessionController> _liveController({bool probeSucceeds = true}) async {
-  final c = SessionController(port: FakeSessionPort(probeSucceeds: probeSucceeds));
+  final c =
+      SessionController(port: FakeSessionPort(probeSucceeds: probeSucceeds));
   await c.open(deviceId: 'front-door');
   return c;
 }
@@ -57,11 +58,14 @@ void main() {
             sessionPortProvider.overrideWithValue(FakeSessionPort()),
             replyPortProvider.overrideWithValue(FakeReplyPort()),
             ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+            bedrockSuggestionPortProvider
+                .overrideWithValue(FakeBedrockSuggestionPort()),
             dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-            consentStoreProvider.overrideWithValue(FakeConsentStore(acknowledged: true)),
+            consentStoreProvider
+                .overrideWithValue(FakeConsentStore(acknowledged: true)),
           ],
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pumpAndSettle();
@@ -73,7 +77,8 @@ void main() {
       final handle = tester.ensureSemantics();
       final c = SettingsController(erasure: FakeDataErasurePort());
       await tester.pumpWidget(
-        MaterialApp(theme: ThresholdTheme.light(), home: SettingsScreen(controller: c)),
+        MaterialApp(
+            theme: ThresholdTheme.light(), home: SettingsScreen(controller: c)),
       );
       await tester.pumpAndSettle();
       await scanAccessibility(tester);
@@ -85,7 +90,9 @@ void main() {
       final c = RecordingNoticeController(FakeConsentStore());
       await c.load();
       await tester.pumpWidget(
-        MaterialApp(theme: ThresholdTheme.light(), home: RecordingNoticeScreen(controller: c)),
+        MaterialApp(
+            theme: ThresholdTheme.light(),
+            home: RecordingNoticeScreen(controller: c)),
       );
       await tester.pumpAndSettle();
       await scanAccessibility(tester);

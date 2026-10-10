@@ -138,7 +138,8 @@ class LanguageSelection {
 /// locale when supported, otherwise `en-US` [R-13]. If neither the device
 /// locale nor en-US is supported in the mode (only possible with a custom set),
 /// the first supported language is used so the caller always gets a usable value.
-String defaultLanguageFor(CaptionMode mode, LocaleSource locale, SupportedLanguages supported) {
+String defaultLanguageFor(
+    CaptionMode mode, LocaleSource locale, SupportedLanguages supported) {
   final device = normalizeLanguageTag(locale.deviceLocale);
   final set = supported.forMode(mode);
   if (set.contains(device)) return device;
@@ -164,5 +165,6 @@ LanguageSelection validateSelection(
   }
   // Offer the mode default as the alternative (FR-16.3).
   final alt = defaultLanguageFor(mode, locale, supported);
-  return LanguageSelection(language: normalized, supported: false, alternative: alt);
+  return LanguageSelection(
+      language: normalized, supported: false, alternative: alt);
 }

@@ -44,7 +44,8 @@ String latencyGoalName(LatencyGoal goal) {
 /// A single measurement of a goal.
 @immutable
 class LatencyMeasurement {
-  const LatencyMeasurement({required this.goal, required this.startMs, required this.endMs});
+  const LatencyMeasurement(
+      {required this.goal, required this.startMs, required this.endMs});
 
   final LatencyGoal goal;
   final int startMs;

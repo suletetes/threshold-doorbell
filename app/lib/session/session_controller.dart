@@ -181,7 +181,8 @@ class SessionController extends ChangeNotifier {
     _media = null;
     _outbound = OutboundModeMachine(); // fresh: re-probe from scratch (FR-6.4b)
     _captions = TurnAccumulator(); // fresh caption turns for the new session
-    _transcriptionAllowed = true; // re-evaluate the FR-14.3a fallback per session
+    _transcriptionAllowed =
+        true; // re-evaluate the FR-14.3a fallback per session
     _queued.clear();
     _sameDeviceHapticReplays = 0;
 

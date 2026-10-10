@@ -78,7 +78,9 @@ class _SkeletonBlockState extends State<SkeletonBlock>
       duration: SkeletonBlock.totalPulse,
     );
     _opacity = TweenSequence<double>(<TweenSequenceItem<double>>[
-      for (var i = 0; i < SkeletonBlock.pulseCycles; i++) ...<TweenSequenceItem<double>>[
+      for (var i = 0;
+          i < SkeletonBlock.pulseCycles;
+          i++) ...<TweenSequenceItem<double>>[
         TweenSequenceItem<double>(
           tween: Tween<double>(
             begin: SkeletonBlock.restOpacity,

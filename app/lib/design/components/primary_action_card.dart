@@ -93,7 +93,8 @@ class _PrimaryActionCardState extends State<PrimaryActionCard> {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: Radii.roundedExtraLarge,
-            side: BorderSide(color: scheme.primary.withValues(alpha: 0.35), width: 1.5),
+            side: BorderSide(
+                color: scheme.primary.withValues(alpha: 0.35), width: 1.5),
           ),
           child: InkWell(
             onTap: widget.onPressed,
@@ -102,7 +103,8 @@ class _PrimaryActionCardState extends State<PrimaryActionCard> {
             onTapCancel: () => _setPressed(false),
             borderRadius: Radii.roundedExtraLarge,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: PrimaryActionCard.minimumHeight),
+              constraints: const BoxConstraints(
+                  minHeight: PrimaryActionCard.minimumHeight),
               child: Padding(
                 padding: const EdgeInsets.all(Spacing.space5),
                 child: Row(
@@ -124,7 +126,8 @@ class _PrimaryActionCardState extends State<PrimaryActionCard> {
                             Text(
                               supporting,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: scheme.onPrimaryContainer.withValues(alpha: 0.85),
+                                color: scheme.onPrimaryContainer
+                                    .withValues(alpha: 0.85),
                               ),
                             ),
                           ],

@@ -85,29 +85,37 @@ void main() {
       expect(find.byKey(const ValueKey('caption-speaker-1')), findsOneWidget);
       expect(find.text('Visitor'), findsOneWidget);
       expect(find.text('You'), findsOneWidget);
-      expect(find.byIcon(CaptionSurface.speakerIcon(CaptionSpeaker.visitor)), findsOneWidget);
-      expect(find.byIcon(CaptionSurface.speakerIcon(CaptionSpeaker.resident)), findsOneWidget);
+      expect(find.byIcon(CaptionSurface.speakerIcon(CaptionSpeaker.visitor)),
+          findsOneWidget);
+      expect(find.byIcon(CaptionSurface.speakerIcon(CaptionSpeaker.resident)),
+          findsOneWidget);
     });
 
     testWidgets('both speakers have a distinct label and icon', (tester) async {
-      final labels = CaptionSpeaker.values.map(CaptionSurface.speakerLabel).toSet();
-      final icons = CaptionSpeaker.values.map(CaptionSurface.speakerIcon).toSet();
+      final labels =
+          CaptionSpeaker.values.map(CaptionSurface.speakerLabel).toSet();
+      final icons =
+          CaptionSpeaker.values.map(CaptionSurface.speakerIcon).toSet();
       expect(labels.length, CaptionSpeaker.values.length);
       expect(icons.length, CaptionSpeaker.values.length);
     });
 
     testWidgets('attribution sits above its caption text', (tester) async {
       await tester.pumpWidget(_host(<CaptionTurn>[_turn()]));
-      final speakerTop = tester.getTopLeft(find.byKey(const ValueKey('caption-speaker-0'))).dy;
-      final textTop = tester.getTopLeft(find.byKey(const ValueKey('caption-turn-0'))).dy;
+      final speakerTop =
+          tester.getTopLeft(find.byKey(const ValueKey('caption-speaker-0'))).dy;
+      final textTop =
+          tester.getTopLeft(find.byKey(const ValueKey('caption-turn-0'))).dy;
       expect(speakerTop, lessThan(textTop));
     });
 
-    testWidgets('attribution does not add a second Text inside the caption node',
+    testWidgets(
+        'attribution does not add a second Text inside the caption node',
         (tester) async {
       // The caption text node stays exactly one Text per turn: the emphasis
       // assertions in AT-4 read that node directly.
-      await tester.pumpWidget(_host(<CaptionTurn>[_turn(), _turn(text: 'second')]));
+      await tester
+          .pumpWidget(_host(<CaptionTurn>[_turn(), _turn(text: 'second')]));
       for (var i = 0; i < 2; i++) {
         expect(
           find.descendant(
@@ -136,18 +144,24 @@ void main() {
       await tester.pumpWidget(
         _host(<CaptionTurn>[_turn(isFinal: false, text: 'hello the')]),
       );
-      expect(find.byKey(const ValueKey('caption-provisional-marker')), findsOneWidget);
+      expect(find.byKey(const ValueKey('caption-provisional-marker')),
+          findsOneWidget);
       expect(find.text(kProvisionalTurnMarker), findsOneWidget);
     });
 
-    testWidgets('a finalized turn carries no provisional marker', (tester) async {
-      await tester.pumpWidget(_host(<CaptionTurn>[_turn(isFinal: true, confidence: 0.9)]));
-      expect(find.byKey(const ValueKey('caption-provisional-marker')), findsNothing);
+    testWidgets('a finalized turn carries no provisional marker',
+        (tester) async {
+      await tester.pumpWidget(
+          _host(<CaptionTurn>[_turn(isFinal: true, confidence: 0.9)]));
+      expect(find.byKey(const ValueKey('caption-provisional-marker')),
+          findsNothing);
     });
 
-    testWidgets('provisional text gets a dotted underline on top of the alpha and italic',
+    testWidgets(
+        'provisional text gets a dotted underline on top of the alpha and italic',
         (tester) async {
-      await tester.pumpWidget(_host(<CaptionTurn>[_turn(isFinal: false, text: 'hello the')]));
+      await tester.pumpWidget(
+          _host(<CaptionTurn>[_turn(isFinal: false, text: 'hello the')]));
       final spans = _spans(tester, 0);
       expect(spans, isNotEmpty);
       for (final span in spans) {
@@ -160,14 +174,16 @@ void main() {
       }
     });
 
-    testWidgets('a low-confidence finalized turn is de-emphasized but NOT marked provisional',
+    testWidgets(
+        'a low-confidence finalized turn is de-emphasized but NOT marked provisional',
         (tester) async {
       // FR-5.3a and FR-5.3 are different states and must stay distinguishable.
       await tester.pumpWidget(_host(<CaptionTurn>[_turn(confidence: 0.4)]));
       final spans = _spans(tester, 0);
       expect(spans.every((s) => s.style!.color!.a < 1.0), isTrue);
       expect(spans.every((s) => s.style?.decoration == null), isTrue);
-      expect(find.byKey(const ValueKey('caption-provisional-marker')), findsNothing);
+      expect(find.byKey(const ValueKey('caption-provisional-marker')),
+          findsNothing);
     });
   });
 
@@ -183,7 +199,8 @@ void main() {
       await tester.pumpWidget(_host(<CaptionTurn>[_turn()], settings: hostile));
       final attribution = tester.widget<Text>(find.text('Visitor'));
       expect(
-        meetsContrastFloor(attribution.style!.color!, hostile.captionBackground),
+        meetsContrastFloor(
+            attribution.style!.color!, hostile.captionBackground),
         isTrue,
         reason: 'the speaker label must be legible on any chosen background',
       );
@@ -205,7 +222,8 @@ void main() {
       );
     });
 
-    testWidgets('on the designed dark background the roles pass through unchanged',
+    testWidgets(
+        'on the designed dark background the roles pass through unchanged',
         (tester) async {
       // Enforcement only intervenes when a role would fail, so the designed
       // pairing keeps the designed color.
@@ -215,19 +233,23 @@ void main() {
       final defaults = ThresholdSettings.defaults();
       expect(
         tester.widget<Text>(find.text('Visitor')).style?.color,
-        enforceContrastFloor(semantic.captionOnSurface, defaults.captionBackground),
+        enforceContrastFloor(
+            semantic.captionOnSurface, defaults.captionBackground),
       );
     });
   });
 
   group('Caption metrics come from the type scale (audit C3)', () {
-    testWidgets('the base caption size is the largest title role, not a raw number',
+    testWidgets(
+        'the base caption size is the largest title role, not a raw number',
         (tester) async {
-      expect(kBaseCaptionFontSize, ThresholdTypography.base.titleLarge!.fontSize);
+      expect(
+          kBaseCaptionFontSize, ThresholdTypography.base.titleLarge!.fontSize);
       expect(kCaptionLineHeight, ThresholdTypography.base.titleLarge!.height);
     });
 
-    testWidgets('the caption text still scales with the resident caption scale (FR-10.2)',
+    testWidgets(
+        'the caption text still scales with the resident caption scale (FR-10.2)',
         (tester) async {
       final big = ThresholdSettings.defaults().copyWith(captionScale: 2.0);
       await tester.pumpWidget(_host(<CaptionTurn>[_turn()], settings: big));
@@ -247,29 +269,35 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_host(const <CaptionTurn>[]));
       expect(find.byKey(const ValueKey('caption-empty')), findsOneWidget);
-      expect(find.text('Captions appear here as your visitor speaks.'), findsOneWidget);
+      expect(find.text('Captions appear here as your visitor speaks.'),
+          findsOneWidget);
       expect(find.byIcon(Icons.closed_caption_off_outlined), findsOneWidget);
     });
 
-    testWidgets('the empty state uses the enforced caption foreground', (tester) async {
+    testWidgets('the empty state uses the enforced caption foreground',
+        (tester) async {
       final hostile = ThresholdSettings.defaults().copyWith(
         captionForeground: const Color(0xFF050505),
         captionBackground: const Color(0xFF000000),
       );
       await tester.pumpWidget(_host(const <CaptionTurn>[], settings: hostile));
-      final title = tester.widget<Text>(find.byKey(const ValueKey('caption-empty')));
+      final title =
+          tester.widget<Text>(find.byKey(const ValueKey('caption-empty')));
       expect(title.style?.color, hostile.captionForeground);
-      expect(meetsContrastFloor(title.style!.color!, hostile.captionBackground), isTrue);
+      expect(meetsContrastFloor(title.style!.color!, hostile.captionBackground),
+          isTrue);
     });
 
-    testWidgets('the empty state disappears as soon as a turn arrives', (tester) async {
+    testWidgets('the empty state disappears as soon as a turn arrives',
+        (tester) async {
       await tester.pumpWidget(_host(<CaptionTurn>[_turn()]));
       expect(find.byKey(const ValueKey('caption-empty')), findsNothing);
     });
   });
 
   group('The 200% clamp survives the redesign (NFR-2)', () {
-    testWidgets('a hostile OS scale is clamped on the caption subtree', (tester) async {
+    testWidgets('a hostile OS scale is clamped on the caption subtree',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThresholdTheme.dark(),
@@ -286,10 +314,13 @@ void main() {
       );
       final mq = tester.widget<MediaQuery>(
         find
-            .descendant(of: find.byType(CaptionSurface), matching: find.byType(MediaQuery))
+            .descendant(
+                of: find.byType(CaptionSurface),
+                matching: find.byType(MediaQuery))
             .first,
       );
-      expect(mq.data.textScaler.scale(10), lessThanOrEqualTo(10 * kMaxCaptionTextScale));
+      expect(mq.data.textScaler.scale(10),
+          lessThanOrEqualTo(10 * kMaxCaptionTextScale));
     });
   });
 }

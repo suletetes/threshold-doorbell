@@ -19,7 +19,8 @@ void main() {
       expect(gate.shouldTranscribe, isFalse); // our own reply not transcribed
     });
 
-    test('gate stays closed for the 300 ms tail after playback ends (AT-18)', () {
+    test('gate stays closed for the 300 ms tail after playback ends (AT-18)',
+        () {
       var now = 1000;
       final gate = EchoGate(nowMs: () => now);
       gate.onReplyPlaybackStart();
@@ -34,7 +35,8 @@ void main() {
       expect(gate.shouldTranscribe, isTrue);
     });
 
-    test('the gate reopens within 300 ms and records a non-visitor gap (AT-18)', () {
+    test('the gate reopens within 300 ms and records a non-visitor gap (AT-18)',
+        () {
       var now = 0;
       final gate = EchoGate(nowMs: () => now);
       gate.onReplyPlaybackStart(); // opened at 0
@@ -102,7 +104,8 @@ void main() {
       expect(gate.gaps[1].startMs, 2000);
     });
 
-    test('WebRTC echo cancellation is enabled on the inbound track (FR-5.6)', () {
+    test('WebRTC echo cancellation is enabled on the inbound track (FR-5.6)',
+        () {
       // The documented device-bound constraint complements the software gate.
       expect(kInboundAudioConstraints['echoCancellation'], isTrue);
     });

@@ -31,7 +31,8 @@ import 'package:threshold/settings/settings_controller.dart';
 
 void main() {
   group('OnDeviceCaptionSource (Privacy Mode, FR-5.2, NFR-4)', () {
-    test('reshapes engine results into visitor caption results, no egress', () async {
+    test('reshapes engine results into visitor caption results, no egress',
+        () async {
       final engine = FixtureAsrEngine();
       final source = OnDeviceCaptionSource(engine, nowMs: () => 0);
       final got = <CaptionResult>[];
@@ -74,7 +75,8 @@ void main() {
       controller.dispose();
     });
 
-    test('respects the echo gate: a gated result is dropped (FR-5.6)', () async {
+    test('respects the echo gate: a gated result is dropped (FR-5.6)',
+        () async {
       final controller = SessionController(port: FakeSessionPort());
       // Echo gate closed: nothing should be transcribed.
       controller.shouldTranscribe = () => false;
@@ -109,7 +111,8 @@ void main() {
   });
 
   group('Captions render on the conversation screen (CRIT-07)', () {
-    testWidgets('a fake engine feed renders a non-empty caption on the live screen',
+    testWidgets(
+        'a fake engine feed renders a non-empty caption on the live screen',
         (tester) async {
       final port = FakeSessionPort();
       final fakeAsr = FakeAsrStreamClient(script: const <CaptionResult>[
@@ -128,13 +131,16 @@ void main() {
             sessionPortProvider.overrideWithValue(port),
             replyPortProvider.overrideWithValue(FakeReplyPort()),
             ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-            bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+            bedrockSuggestionPortProvider
+                .overrideWithValue(FakeBedrockSuggestionPort()),
             dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
-            consentStoreProvider.overrideWithValue(FakeConsentStore(acknowledged: true)),
+            consentStoreProvider
+                .overrideWithValue(FakeConsentStore(acknowledged: true)),
             // The scripted fake stands in for the deferred cloud ASR client.
             captionSourceProvider.overrideWithValue(fakeAsr),
           ],
-          child: MaterialApp(theme: ThresholdTheme.light(), home: const HomeScreen()),
+          child: MaterialApp(
+              theme: ThresholdTheme.light(), home: const HomeScreen()),
         ),
       );
       await tester.pump();

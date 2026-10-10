@@ -12,10 +12,12 @@ void main() {
       await c.load();
       var acked = false;
       await tester.pumpWidget(MaterialApp(
-        home: RecordingNoticeScreen(controller: c, onAcknowledged: () => acked = true),
+        home: RecordingNoticeScreen(
+            controller: c, onAcknowledged: () => acked = true),
       ));
       await tester.pump();
-      expect(find.textContaining('turns what your visitor says into text'), findsOneWidget);
+      expect(find.textContaining('turns what your visitor says into text'),
+          findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('recording-notice-ack')));
       await tester.pumpAndSettle();
       expect(c.isAcknowledged, isTrue);
@@ -24,8 +26,10 @@ void main() {
   });
 
   group('ComplianceFallbackDialog (Task 21, FR-14.3a; AT-14)', () {
-    testWidgets('continue keeps captions on, honored for the session', (tester) async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    testWidgets('continue keeps captions on, honored for the session',
+        (tester) async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await tester.pumpWidget(MaterialApp(
@@ -40,15 +44,18 @@ void main() {
       );
     });
 
-    testWidgets('disable turns off transcription for the session', (tester) async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    testWidgets('disable turns off transcription for the session',
+        (tester) async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(body: ComplianceFallbackDialog(controller: c)),
       ));
       await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('compliance-disable-transcription')));
+      await tester
+          .tap(find.byKey(const ValueKey('compliance-disable-transcription')));
       await tester.pump();
       expect(
         c.resolveSessionStart(outboundAvailable: false),
@@ -56,9 +63,11 @@ void main() {
       );
     });
 
-    testWidgets('it does NOT remember the choice as default by default (MED-06)',
+    testWidgets(
+        'it does NOT remember the choice as default by default (MED-06)',
         (tester) async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await tester.pumpWidget(MaterialApp(
@@ -66,7 +75,8 @@ void main() {
       ));
       await tester.pump();
       // Choose WITHOUT ticking the remember checkbox.
-      await tester.tap(find.byKey(const ValueKey('compliance-disable-transcription')));
+      await tester
+          .tap(find.byKey(const ValueKey('compliance-disable-transcription')));
       await tester.pump();
       // The session choice is honored, but the persisted default is untouched:
       // a one-time choice must not silently become the legal default (MED-06).
@@ -75,7 +85,8 @@ void main() {
 
     testWidgets('ticking remember persists the choice as the default (MED-06)',
         (tester) async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await tester.pumpWidget(MaterialApp(
@@ -90,7 +101,8 @@ void main() {
     });
 
     testWidgets('it pops with the chosen result (MED-06)', (tester) async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       ComplianceChoice? popped;

@@ -22,7 +22,8 @@ void main() {
       expect(s.length, 3);
     });
 
-    test('deduplicates so a template that equals a safe reply appears once', () {
+    test('deduplicates so a template that equals a safe reply appears once',
+        () {
       final s = onDeviceSuggestions('sign for the parcel');
       final counts = <String, int>{};
       for (final x in s) {

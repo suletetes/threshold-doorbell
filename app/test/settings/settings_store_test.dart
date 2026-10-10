@@ -91,7 +91,8 @@ void main() {
     test('clear() removes persisted settings', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final store = await SharedPreferencesSettingsStore.open();
-      await store.save(ThresholdSettings.defaults().copyWith(captionScale: 2.0));
+      await store
+          .save(ThresholdSettings.defaults().copyWith(captionScale: 2.0));
       expect(await store.load(), isNotNull);
       await store.clear();
       expect(await store.load(), isNull);
@@ -155,7 +156,8 @@ void main() {
 
       await store.setAcknowledged(true);
       await store.setAudibleNoticeEnabled(true);
-      await store.setDefaultComplianceChoice(ComplianceChoice.disableTranscription);
+      await store
+          .setDefaultComplianceChoice(ComplianceChoice.disableTranscription);
 
       // Relaunch: a new store over the same backing values.
       final relaunched = await ProductionConsentStore.open();

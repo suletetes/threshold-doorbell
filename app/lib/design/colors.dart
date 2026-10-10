@@ -215,12 +215,15 @@ class ThresholdSemanticColors extends ThemeExtension<ThresholdSemanticColors> {
   }
 
   @override
-  ThresholdSemanticColors lerp(ThemeExtension<ThresholdSemanticColors>? other, double t) {
+  ThresholdSemanticColors lerp(
+      ThemeExtension<ThresholdSemanticColors>? other, double t) {
     if (other is! ThresholdSemanticColors) return this;
     return ThresholdSemanticColors(
       captionSurface: Color.lerp(captionSurface, other.captionSurface, t)!,
-      captionOnSurface: Color.lerp(captionOnSurface, other.captionOnSurface, t)!,
-      captionProvisional: Color.lerp(captionProvisional, other.captionProvisional, t)!,
+      captionOnSurface:
+          Color.lerp(captionOnSurface, other.captionOnSurface, t)!,
+      captionProvisional:
+          Color.lerp(captionProvisional, other.captionProvisional, t)!,
       live: Color.lerp(live, other.live, t)!,
       recording: Color.lerp(recording, other.recording, t)!,
       success: Color.lerp(success, other.success, t)!,

@@ -21,7 +21,9 @@ const double kAaNormalText = 4.5;
 
 double _linearize(double channel) {
   final c = channel.clamp(0.0, 1.0);
-  return c <= 0.03928 ? c / 12.92 : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+  return c <= 0.03928
+      ? c / 12.92
+      : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
 }
 
 /// WCAG relative luminance of [color], 0.0 for black and 1.0 for white.

@@ -22,7 +22,8 @@ Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
 
 BoxDecoration _decoration(WidgetTester tester) => tester
     .widget<DecoratedBox>(
-      find.descendant(of: find.byType(SkeletonBlock), matching: find.byType(DecoratedBox)),
+      find.descendant(
+          of: find.byType(SkeletonBlock), matching: find.byType(DecoratedBox)),
     )
     .decoration as BoxDecoration;
 
@@ -30,24 +31,28 @@ void main() {
   group('SkeletonBlock geometry', () {
     testWidgets('honors the requested height and width', (tester) async {
       await tester.pumpWidget(
-        _host(const SkeletonBlock(height: Spacing.space6, width: Spacing.space10)),
+        _host(const SkeletonBlock(
+            height: Spacing.space6, width: Spacing.space10)),
       );
       final size = tester.getSize(find.byType(SkeletonBlock));
       expect(size.height, Spacing.space6);
       expect(size.width, Spacing.space10);
     });
 
-    testWidgets('fills the available width when no width is given', (tester) async {
+    testWidgets('fills the available width when no width is given',
+        (tester) async {
       await tester.pumpWidget(
         _host(
-          const SizedBox(width: 300, child: SkeletonBlock(height: Spacing.space5)),
+          const SizedBox(
+              width: 300, child: SkeletonBlock(height: Spacing.space5)),
         ),
       );
       expect(tester.getSize(find.byType(SkeletonBlock)).width, 300);
     });
 
     testWidgets('uses a radius token', (tester) async {
-      await tester.pumpWidget(const MaterialApp(home: SkeletonBlock(height: Spacing.space5)));
+      await tester.pumpWidget(
+          const MaterialApp(home: SkeletonBlock(height: Spacing.space5)));
       await tester.pump();
       final decoration = tester
           .widget<DecoratedBox>(
@@ -64,8 +69,10 @@ void main() {
 
   group('SkeletonBlock pulse', () {
     testWidgets('pulses between the rest and peak opacities', (tester) async {
-      await tester.pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
-      expect(_decoration(tester).color!.a, closeTo(SkeletonBlock.restOpacity, 1e-6));
+      await tester
+          .pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
+      expect(_decoration(tester).color!.a,
+          closeTo(SkeletonBlock.restOpacity, 1e-6));
       // Half a cycle in, the fill has risen toward the peak.
       await tester.pump(Motion.slow ~/ 2);
       final mid = _decoration(tester).color!.a;
@@ -74,14 +81,18 @@ void main() {
     });
 
     testWidgets('the pulse is finite, so the tree settles', (tester) async {
-      await tester.pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
+      await tester
+          .pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
       // An infinite shimmer would hang here forever.
       await tester.pumpAndSettle();
-      expect(_decoration(tester).color!.a, closeTo(SkeletonBlock.restOpacity, 1e-6));
+      expect(_decoration(tester).color!.a,
+          closeTo(SkeletonBlock.restOpacity, 1e-6));
     });
 
-    testWidgets('it rests at the resting opacity, not invisible', (tester) async {
-      await tester.pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
+    testWidgets('it rests at the resting opacity, not invisible',
+        (tester) async {
+      await tester
+          .pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
       await tester.pumpAndSettle();
       expect(_decoration(tester).color!.a, greaterThan(0));
     });
@@ -91,7 +102,8 @@ void main() {
     testWidgets('lands on the resting value in the first frame and never moves',
         (tester) async {
       await tester.pumpWidget(
-        _host(const SkeletonBlock(height: Spacing.space6), disableAnimations: true),
+        _host(const SkeletonBlock(height: Spacing.space6),
+            disableAnimations: true),
       );
       final first = _decoration(tester).color!.a;
       expect(first, closeTo(SkeletonBlock.restOpacity, 1e-6));
@@ -103,7 +115,8 @@ void main() {
   group('SkeletonBlock semantics (G4)', () {
     testWidgets('is hidden from the semantics tree by default', (tester) async {
       final handle = tester.ensureSemantics();
-      await tester.pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
+      await tester
+          .pumpWidget(_host(const SkeletonBlock(height: Spacing.space6)));
       // A drawing of content that does not exist yet must not be announced.
       expect(
         find.descendant(
@@ -119,7 +132,8 @@ void main() {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         _host(
-          const SkeletonBlock(height: Spacing.space6, semanticsLabel: 'Loading captions'),
+          const SkeletonBlock(
+              height: Spacing.space6, semanticsLabel: 'Loading captions'),
         ),
       );
       expect(find.bySemanticsLabel('Loading captions'), findsOneWidget);

@@ -84,7 +84,8 @@ class FakeConsentStore implements ConsentStore {
   Future<bool> audibleNoticeEnabled() async => _audibleNotice;
 
   @override
-  Future<void> setAudibleNoticeEnabled(bool value) async => _audibleNotice = value;
+  Future<void> setAudibleNoticeEnabled(bool value) async =>
+      _audibleNotice = value;
 
   @override
   Future<ComplianceChoice?> defaultComplianceChoice() async => _defaultChoice;

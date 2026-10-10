@@ -83,14 +83,16 @@ final dataErasurePortProvider =
 /// with the hydrated controller; the fallback here builds an unpersisted
 /// controller so widget tests that only override the store or supply their own
 /// controller still work.
-final settingsControllerProvider = ChangeNotifierProvider<SettingsController>((ref) {
+final settingsControllerProvider =
+    ChangeNotifierProvider<SettingsController>((ref) {
   return SettingsController(
     erasure: ref.watch(dataErasurePortProvider),
     store: ref.watch(settingsStoreProvider),
   );
 });
 
-final sessionControllerProvider = ChangeNotifierProvider<SessionController>((ref) {
+final sessionControllerProvider =
+    ChangeNotifierProvider<SessionController>((ref) {
   return SessionController(port: ref.watch(sessionPortProvider));
 });
 
@@ -113,7 +115,8 @@ final suggestionProvider = Provider<SuggestionProvider>((ref) {
 
 /// The pre-session coordinator that consults model provisioning + the recording
 /// notice fallback (FR-5.2a, FR-14.3a).
-final sessionStartCoordinatorProvider = Provider<SessionStartCoordinator>((ref) {
+final sessionStartCoordinatorProvider =
+    Provider<SessionStartCoordinator>((ref) {
   return SessionStartCoordinator(
     provisioning: ref.watch(modelProvisioningProvider),
     recordingNotice: ref.watch(recordingNoticeControllerProvider),

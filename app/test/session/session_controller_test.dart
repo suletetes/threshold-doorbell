@@ -8,7 +8,8 @@ import 'package:threshold/session/session_state.dart';
 
 void main() {
   group('SessionController lifecycle (Task 12, FR-4.1..4.4; AT-3)', () {
-    test('open goes CONNECTING -> PROBING -> LIVE and negotiates ARCH-1 media', () async {
+    test('open goes CONNECTING -> PROBING -> LIVE and negotiates ARCH-1 media',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -24,7 +25,9 @@ void main() {
       await port.dispose();
     });
 
-    test('probe success enables two-way; probe failure yields Captions-Only (AT-6 wiring)', () async {
+    test(
+        'probe success enables two-way; probe failure yields Captions-Only (AT-6 wiring)',
+        () async {
       final okPort = FakeSessionPort(probeSucceeds: true);
       final okC = SessionController(port: okPort);
       await okC.open(deviceId: 'dev-1');
@@ -42,7 +45,9 @@ void main() {
       await failPort.dispose();
     });
 
-    test('one failed attempt then success stays under the retry budget (FR-4.4)', () async {
+    test(
+        'one failed attempt then success stays under the retry budget (FR-4.4)',
+        () async {
       final port = FakeSessionPort(
         connectPlan: <ConnectPlan>[ConnectPlan.fail, ConnectPlan.succeed],
       );
@@ -54,7 +59,8 @@ void main() {
       await port.dispose();
     });
 
-    test('two failed attempts go to ERROR with a dash-free message (FR-4.4)', () async {
+    test('two failed attempts go to ERROR with a dash-free message (FR-4.4)',
+        () async {
       final port = FakeSessionPort(
         connectPlan: <ConnectPlan>[ConnectPlan.fail, ConnectPlan.fail],
       );
@@ -95,7 +101,8 @@ void main() {
       await port.dispose();
     });
 
-    test('opening while active throws (exactly one live session, FR-4.6/4.7)', () async {
+    test('opening while active throws (exactly one live session, FR-4.6/4.7)',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -112,11 +119,14 @@ void main() {
       expect(d.replayHaptic, isFalse);
     });
 
-    test('same device updates context and replays haptic, no second session (FR-4.6)', () async {
+    test(
+        'same device updates context and replays haptic, no second session (FR-4.6)',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
-      final d = c.onIncomingEvent(eventDeviceId: 'dev-1', eventType: 'person_detected');
+      final d = c.onIncomingEvent(
+          eventDeviceId: 'dev-1', eventType: 'person_detected');
       expect(d.action, ConcurrencyAction.updateContextSameDevice);
       expect(d.replayHaptic, isTrue);
       expect(c.sameDeviceHapticReplays, 1);
@@ -126,11 +136,14 @@ void main() {
       await port.dispose();
     });
 
-    test('different device queues as a notification, does not interrupt (FR-4.7)', () async {
+    test(
+        'different device queues as a notification, does not interrupt (FR-4.7)',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
-      final d = c.onIncomingEvent(eventDeviceId: 'dev-2', eventType: 'motion_detected');
+      final d = c.onIncomingEvent(
+          eventDeviceId: 'dev-2', eventType: 'motion_detected');
       expect(d.action, ConcurrencyAction.queueDifferentDevice);
       expect(d.replayHaptic, isFalse);
       expect(c.queuedEvents.length, 1);
@@ -142,7 +155,8 @@ void main() {
   });
 
   group('Background survival (Task 12, FR-4.3a; AT-25)', () {
-    test('backgrounding under 5 minutes preserves and resumes the session', () async {
+    test('backgrounding under 5 minutes preserves and resumes the session',
+        () async {
       var now = 0;
       final port = FakeSessionPort();
       final c = SessionController(port: port, nowMs: () => now);
@@ -159,13 +173,15 @@ void main() {
       await port.dispose();
     });
 
-    test('background beyond 5 minutes closes and releases the session URL', () async {
+    test('background beyond 5 minutes closes and releases the session URL',
+        () async {
       var now = 0;
       final port = FakeSessionPort();
       final c = SessionController(port: port, nowMs: () => now);
       await c.open(deviceId: 'dev-1');
       c.onBackgrounded();
-      now += const Duration(minutes: 5, seconds: 1).inMilliseconds; // beyond window
+      now += const Duration(minutes: 5, seconds: 1)
+          .inMilliseconds; // beyond window
       c.tickBackground();
       // Close is fire-and-forget; allow the microtask to run.
       await Future<void>.delayed(Duration.zero);
@@ -225,7 +241,8 @@ void main() {
   });
 
   group('Unified auth recovery (Task 12, FR-1.5, FR-4.8; AT-12)', () {
-    test('session expiry enters authRecovering, preserving the prior state', () async {
+    test('session expiry enters authRecovering, preserving the prior state',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -237,7 +254,8 @@ void main() {
       await port.dispose();
     });
 
-    test('exactly one recovery prompt: a second expiry does not stack (AT-12)', () async {
+    test('exactly one recovery prompt: a second expiry does not stack (AT-12)',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -253,7 +271,8 @@ void main() {
       await port.dispose();
     });
 
-    test('successful recovery resumes the preserved state and the action', () async {
+    test('successful recovery resumes the preserved state and the action',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -277,7 +296,8 @@ void main() {
       await port.dispose();
     });
 
-    test('auth recovery is refused from idle, connecting or error (HIGH-04)', () async {
+    test('auth recovery is refused from idle, connecting or error (HIGH-04)',
+        () async {
       final port = FakeSessionPort();
       final c = SessionController(port: port);
       // Idle: no session to recover.
@@ -289,7 +309,8 @@ void main() {
   });
 
   group('Unhandled exceptions and races (HIGH-04)', () {
-    test('a connect that throws a non-connect error surfaces ERROR, not an endless spinner',
+    test(
+        'a connect that throws a non-connect error surfaces ERROR, not an endless spinner',
         () async {
       final port = _ThrowingSessionPort(throwOnConnect: true);
       final c = SessionController(port: port);
@@ -303,7 +324,8 @@ void main() {
       await port.dispose();
     });
 
-    test('a probe that throws degrades to Captions-Only, not a stuck PROBING', () async {
+    test('a probe that throws degrades to Captions-Only, not a stuck PROBING',
+        () async {
       final port = _ThrowingSessionPort(throwOnProbe: true);
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
@@ -313,7 +335,8 @@ void main() {
       await port.dispose();
     });
 
-    test('end() during an in-flight open() cancels it; the session does not revive',
+    test(
+        'end() during an in-flight open() cancels it; the session does not revive',
         () async {
       final port = _SlowSessionPort();
       final c = SessionController(port: port);

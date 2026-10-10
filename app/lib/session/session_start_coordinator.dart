@@ -76,7 +76,8 @@ class SessionStartCoordinator {
   bool get privacyModeAvailable => _provisioning.privacyModeAvailable;
 
   /// The label to show when Privacy Mode is not yet usable (FR-5.2a).
-  String get privacyUnavailableLabel => _provisioning.snapshot.unavailabilityLabel;
+  String get privacyUnavailableLabel =>
+      _provisioning.snapshot.unavailabilityLabel;
 
   /// Resolve how to start a session in the requested [mode] given the sticky
   /// [outboundAvailable] probe result. Consults the model-provisioning machine
@@ -93,7 +94,8 @@ class SessionStartCoordinator {
     var mode = requestedMode;
     var privacyRefused = false;
     var label = '';
-    if (requestedMode == SessionCaptionMode.privacy && !_provisioning.privacyModeAvailable) {
+    if (requestedMode == SessionCaptionMode.privacy &&
+        !_provisioning.privacyModeAvailable) {
       mode = SessionCaptionMode.clarity;
       privacyRefused = true;
       label = _provisioning.snapshot.unavailabilityLabel;

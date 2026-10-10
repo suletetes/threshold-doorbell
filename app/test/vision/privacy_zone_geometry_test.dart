@@ -45,21 +45,26 @@ void main() {
   });
 
   group('admitDetection (Task 19, FR-11.1 masked pixels never emitted)', () {
-    final zones = <Rect>[const Rect(x: 0.0, y: 0.0, width: 0.5, height: 1.0)]; // left half masked
+    final zones = <Rect>[
+      const Rect(x: 0.0, y: 0.0, width: 0.5, height: 1.0)
+    ]; // left half masked
 
     test('a detection whose center is in a zone is discarded', () {
-      const det = Rect(x: 0.1, y: 0.4, width: 0.2, height: 0.2); // center 0.2,0.5 masked
+      const det = Rect(
+          x: 0.1, y: 0.4, width: 0.2, height: 0.2); // center 0.2,0.5 masked
       expect(admitDetection(det, zones), isNull);
     });
 
     test('a detection outside all zones is admitted unchanged', () {
-      const det = Rect(x: 0.7, y: 0.4, width: 0.2, height: 0.2); // center 0.8 unmasked
+      const det =
+          Rect(x: 0.7, y: 0.4, width: 0.2, height: 0.2); // center 0.8 unmasked
       final admitted = admitDetection(det, zones);
       expect(admitted, isNotNull);
       expect(admitted!.x, 0.7);
     });
 
-    test('a 44% masked detection with its center out is admitted at the default threshold',
+    test(
+        'a 44% masked detection with its center out is admitted at the default threshold',
         () {
       // Center at x=0.52 (just outside), with about 44% of its area inside the
       // left half. The test name now matches the assertion (MED-08): at the
@@ -95,7 +100,8 @@ void main() {
       for (final r in regions) {
         for (final z in zones) {
           expect(r.intersection(z), isNull,
-              reason: 'remaining region must not overlap a masked zone (MED-08)');
+              reason:
+                  'remaining region must not overlap a masked zone (MED-08)');
         }
       }
       // The total remaining area is the unmasked right half.
@@ -103,9 +109,12 @@ void main() {
       expect(totalArea, closeTo(0.5, 1e-9));
     });
 
-    test('a center zone leaves a frame-minus-hole decomposition with no masked pixels',
+    test(
+        'a center zone leaves a frame-minus-hole decomposition with no masked pixels',
         () {
-      final zones = <Rect>[const Rect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)];
+      final zones = <Rect>[
+        const Rect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
+      ];
       final regions = maskBeforeDetection(frame, zones);
       for (final r in regions) {
         expect(r.intersection(zones.single), isNull);

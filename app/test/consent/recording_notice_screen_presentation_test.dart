@@ -13,8 +13,10 @@ import 'package:threshold/design/components/components.dart';
 import 'package:threshold/design/theme.dart';
 import 'package:threshold/design/tokens.dart';
 
-Future<RecordingNoticeController> _controller({bool audibleNotice = false}) async {
-  final c = RecordingNoticeController(FakeConsentStore(audibleNotice: audibleNotice));
+Future<RecordingNoticeController> _controller(
+    {bool audibleNotice = false}) async {
+  final c =
+      RecordingNoticeController(FakeConsentStore(audibleNotice: audibleNotice));
   await c.load();
   return c;
 }
@@ -41,19 +43,23 @@ void main() {
       );
     });
 
-    testWidgets('acknowledging is the hero action, not a stock button', (tester) async {
+    testWidgets('acknowledging is the hero action, not a stock button',
+        (tester) async {
       final c = await _controller();
       await tester.pumpWidget(_host(c));
       await tester.pump();
       expect(find.byType(PrimaryActionCard), findsOneWidget);
       expect(
-        tester.getSize(find.byKey(const ValueKey('recording-notice-ack'))).height,
+        tester
+            .getSize(find.byKey(const ValueKey('recording-notice-ack')))
+            .height,
         greaterThanOrEqualTo(PrimaryActionCard.minimumHeight),
       );
       expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
     });
 
-    testWidgets('it still acknowledges on tap (FR-14.1, AT-14)', (tester) async {
+    testWidgets('it still acknowledges on tap (FR-14.1, AT-14)',
+        (tester) async {
       final c = await _controller();
       var acked = false;
       await tester.pumpWidget(_host(c, onAck: () => acked = true));
@@ -64,7 +70,8 @@ void main() {
       expect(acked, isTrue);
     });
 
-    testWidgets('the notice keeps its live region and label (G4)', (tester) async {
+    testWidgets('the notice keeps its live region and label (G4)',
+        (tester) async {
       final handle = tester.ensureSemantics();
       final c = await _controller();
       await tester.pumpWidget(_host(c));
@@ -123,10 +130,14 @@ void main() {
       );
     });
 
-    testWidgets('both choices still resolve the session the same way', (tester) async {
+    testWidgets('both choices still resolve the session the same way',
+        (tester) async {
       for (final choice in <(String, SessionNoticeAction)>[
         ('compliance-continue', SessionNoticeAction.continueWithoutNotice),
-        ('compliance-disable-transcription', SessionNoticeAction.disableTranscription),
+        (
+          'compliance-disable-transcription',
+          SessionNoticeAction.disableTranscription
+        ),
       ]) {
         final c = await _controller(audibleNotice: true);
         c.beginSession();

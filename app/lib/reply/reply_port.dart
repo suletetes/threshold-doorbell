@@ -41,7 +41,8 @@ abstract class ReplyPort {
 /// failure then success to exercise the retry-once rule of design §5.3).
 class FakeReplyPort implements ReplyPort {
   FakeReplyPort({List<SpeakOutcome>? plan})
-      : _plan = List<SpeakOutcome>.from(plan ?? const <SpeakOutcome>[SpeakOutcome.spoken]);
+      : _plan = List<SpeakOutcome>.from(
+            plan ?? const <SpeakOutcome>[SpeakOutcome.spoken]);
 
   final List<SpeakOutcome> _plan;
 
@@ -50,7 +51,8 @@ class FakeReplyPort implements ReplyPort {
   int speakCalls = 0;
 
   @override
-  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
+  Future<SpeakOutcome> speak(String text,
+      {void Function()? onPlaybackStart}) async {
     speakCalls++;
     spokenTexts.add(text);
     final outcome = _plan.isEmpty ? SpeakOutcome.spoken : _plan.removeAt(0);

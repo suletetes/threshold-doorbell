@@ -20,15 +20,18 @@ import 'package:threshold/settings/settings_controller.dart';
 
 List<Override> _fakeDeviceOverrides({bool probeSucceeds = true}) {
   return <Override>[
-    sessionPortProvider.overrideWithValue(FakeSessionPort(probeSucceeds: probeSucceeds)),
+    sessionPortProvider
+        .overrideWithValue(FakeSessionPort(probeSucceeds: probeSucceeds)),
     replyPortProvider.overrideWithValue(FakeReplyPort()),
     ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-    bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+    bedrockSuggestionPortProvider
+        .overrideWithValue(FakeBedrockSuggestionPort()),
     dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
     // Pre-acknowledged consent so these navigation tests exercise the session,
     // not the first-run recording-notice gate (CRIT-06). The gate itself is
     // covered in home_screen_test.
-    consentStoreProvider.overrideWithValue(FakeConsentStore(acknowledged: true)),
+    consentStoreProvider
+        .overrideWithValue(FakeConsentStore(acknowledged: true)),
   ];
 }
 
@@ -36,7 +39,8 @@ void main() {
   group('Composition root (P2-1)', () {
     testWidgets('the root app builds without throwing', (tester) async {
       await tester.pumpWidget(
-        ProviderScope(overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
+        ProviderScope(
+            overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
       );
       await tester.pump();
       expect(find.byType(HomeScreen), findsOneWidget);
@@ -45,7 +49,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('answering the door navigates to the two-way Conversation screen', (tester) async {
+    testWidgets(
+        'answering the door navigates to the two-way Conversation screen',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: _fakeDeviceOverrides(probeSucceeds: true),
@@ -59,7 +65,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a failed probe routes to the Captions-Only screen', (tester) async {
+    testWidgets('a failed probe routes to the Captions-Only screen',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: _fakeDeviceOverrides(probeSucceeds: false),
@@ -73,9 +80,11 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('opening settings navigates to the Settings screen', (tester) async {
+    testWidgets('opening settings navigates to the Settings screen',
+        (tester) async {
       await tester.pumpWidget(
-        ProviderScope(overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
+        ProviderScope(
+            overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
       );
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('home-settings')));

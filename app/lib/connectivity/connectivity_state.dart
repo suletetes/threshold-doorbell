@@ -71,7 +71,8 @@ class ActionAvailability {
 }
 
 /// Pure decision: is [action] allowed in [state], and if not, why (FR-15.2, 15.4).
-ActionAvailability availabilityOf(NetworkAction action, ConnectivityState state) {
+ActionAvailability availabilityOf(
+    NetworkAction action, ConnectivityState state) {
   // Reading cached history is always allowed, in every state (FR-15.1, 15.4).
   if (action == NetworkAction.readCachedHistory) {
     return ActionAvailability.ok;
@@ -80,7 +81,8 @@ ActionAvailability availabilityOf(NetworkAction action, ConnectivityState state)
     case ConnectivityState.online:
       return ActionAvailability.ok;
     case ConnectivityState.offline:
-      return const ActionAvailability(allowed: false, reason: UnavailableReason.offline);
+      return const ActionAvailability(
+          allowed: false, reason: UnavailableReason.offline);
     case ConnectivityState.backendUnreachableOnline:
       // Every remote action needs the backend, which is unreachable (FR-15.4).
       return const ActionAvailability(
@@ -93,7 +95,8 @@ ActionAvailability availabilityOf(NetworkAction action, ConnectivityState state)
 /// Raw signal from the connectivity source and the backend reachability probe.
 @immutable
 class ConnectivitySignal {
-  const ConnectivitySignal({required this.hasNetwork, required this.backendReachable});
+  const ConnectivitySignal(
+      {required this.hasNetwork, required this.backendReachable});
 
   /// Whether the device reports any network (wifi/cellular).
   final bool hasNetwork;

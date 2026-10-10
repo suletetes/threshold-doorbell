@@ -13,7 +13,9 @@ void main() {
       expect(second.single.confidence, 0.88);
     });
 
-    test('transmits zero bytes: audio and transcript never leave the device (NFR-4, AT-8)', () {
+    test(
+        'transmits zero bytes: audio and transcript never leave the device (NFR-4, AT-8)',
+        () {
       final e = FixtureAsrEngine();
       e.feed(<int>[1, 2, 3, 4]);
       e.feed(<int>[5, 6, 7, 8]);
@@ -21,7 +23,9 @@ void main() {
       expect(e.bytesProcessed, 8); // processed locally only
     });
 
-    test('an unready engine reports not ready (Privacy Mode gated until verified)', () {
+    test(
+        'an unready engine reports not ready (Privacy Mode gated until verified)',
+        () {
       final e = FixtureAsrEngine(ready: false);
       expect(e.isReady, isFalse);
     });

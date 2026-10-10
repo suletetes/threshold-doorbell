@@ -99,7 +99,8 @@ class ComplianceFallbackDialog extends StatefulWidget {
   final RecordingNoticeController controller;
 
   @override
-  State<ComplianceFallbackDialog> createState() => _ComplianceFallbackDialogState();
+  State<ComplianceFallbackDialog> createState() =>
+      _ComplianceFallbackDialogState();
 }
 
 class _ComplianceFallbackDialogState extends State<ComplianceFallbackDialog> {

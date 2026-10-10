@@ -6,7 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/captions/caption_announcer.dart';
 import 'package:threshold/captions/turn_segmentation.dart';
 
-CaptionTurn turn(String text, {bool isFinal = true, CaptionSpeaker speaker = CaptionSpeaker.visitor}) =>
+CaptionTurn turn(String text,
+        {bool isFinal = true,
+        CaptionSpeaker speaker = CaptionSpeaker.visitor}) =>
     CaptionTurn(
       speaker: speaker,
       text: text,
@@ -30,25 +32,30 @@ void main() {
 
     test('does not announce a provisional turn', () {
       final a = CaptionAnnouncer(nowMs: () => 0);
-      expect(a.announcementFor(<CaptionTurn>[turn('typing', isFinal: false)]), isNull);
+      expect(a.announcementFor(<CaptionTurn>[turn('typing', isFinal: false)]),
+          isNull);
     });
 
     test('throttles a burst: within the gap nothing new is announced', () {
       var now = 0;
       final a = CaptionAnnouncer(nowMs: () => now, minGapMs: 500);
-      expect(a.announcementFor(<CaptionTurn>[turn('one')]), 'Visitor said: one');
+      expect(
+          a.announcementFor(<CaptionTurn>[turn('one')]), 'Visitor said: one');
       now += 100; // inside the throttle window
       // A second finalized turn arrives but is suppressed by the throttle.
-      expect(a.announcementFor(<CaptionTurn>[turn('one'), turn('two')]), isNull);
+      expect(
+          a.announcementFor(<CaptionTurn>[turn('one'), turn('two')]), isNull);
       now += 500; // window elapsed
       // Now the latest finalized turn is announced (only the newest).
-      expect(a.announcementFor(<CaptionTurn>[turn('one'), turn('two')]), 'Visitor said: two');
+      expect(a.announcementFor(<CaptionTurn>[turn('one'), turn('two')]),
+          'Visitor said: two');
     });
 
     test('labels the resident turn as "You"', () {
       final a = CaptionAnnouncer(nowMs: () => 0);
       expect(
-        a.announcementFor(<CaptionTurn>[turn('on my way', speaker: CaptionSpeaker.resident)]),
+        a.announcementFor(
+            <CaptionTurn>[turn('on my way', speaker: CaptionSpeaker.resident)]),
         'You said: on my way',
       );
     });

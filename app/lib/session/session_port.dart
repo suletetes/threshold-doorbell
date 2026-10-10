@@ -116,9 +116,8 @@ class FakeSessionPort implements SessionPort {
   @override
   Future<NegotiatedMedia> connect(String deviceId) async {
     connectCalls++;
-    final plan = _connectPlan.isEmpty
-        ? ConnectPlan.succeed
-        : _connectPlan.removeAt(0);
+    final plan =
+        _connectPlan.isEmpty ? ConnectPlan.succeed : _connectPlan.removeAt(0);
     if (plan == ConnectPlan.fail) {
       throw const SessionConnectException('connect failed');
     }

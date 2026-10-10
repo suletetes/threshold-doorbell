@@ -15,7 +15,8 @@ import 'privacy_zone_geometry.dart';
 enum CueKind { person, package }
 
 class VisionCue {
-  const VisionCue({required this.kind, required this.box, required this.confidence});
+  const VisionCue(
+      {required this.kind, required this.box, required this.confidence});
   final CueKind kind;
   final Rect box;
   final double confidence;
@@ -68,7 +69,8 @@ class FixtureVision implements VisionPort {
 /// Filter a frame's detections through the privacy zones (FR-11.1): a detection
 /// is kept only if it passes [admitDetection]. Masked detections are discarded
 /// so masked pixels never influence any downstream signal.
-List<VisionCue> admittedCues(VisionFrame frame, List<Rect> zones, {double threshold = 0.5}) {
+List<VisionCue> admittedCues(VisionFrame frame, List<Rect> zones,
+    {double threshold = 0.5}) {
   final out = <VisionCue>[];
   for (final cue in frame.detections) {
     final admitted = admitDetection(cue.box, zones, threshold: threshold);

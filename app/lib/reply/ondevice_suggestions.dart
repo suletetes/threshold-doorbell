@@ -22,8 +22,10 @@ class _KeywordTemplate {
 
 // Local, fixed templates. These never leave the device and never call a model.
 const List<_KeywordTemplate> _templates = <_KeywordTemplate>[
-  _KeywordTemplate(<String>['package', 'delivery', 'parcel', 'dropoff'], 'Please leave it at the door'),
-  _KeywordTemplate(<String>['sign', 'signature'], 'Please leave it at the door'),
+  _KeywordTemplate(<String>['package', 'delivery', 'parcel', 'dropoff'],
+      'Please leave it at the door'),
+  _KeywordTemplate(
+      <String>['sign', 'signature'], 'Please leave it at the door'),
   _KeywordTemplate(<String>['who', 'name'], 'Who is this please'),
   _KeywordTemplate(<String>['help', 'emergency'], 'Is everything okay'),
   _KeywordTemplate(<String>['later', 'busy', 'moment'], 'One moment please'),

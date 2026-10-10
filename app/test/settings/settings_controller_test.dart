@@ -25,7 +25,8 @@ void main() {
       expect(tooSmall.captionScale, kMinCaptionScale);
     });
 
-    test('a low-contrast caption color is raised to meet the floor (FR-10.2)', () {
+    test('a low-contrast caption color is raised to meet the floor (FR-10.2)',
+        () {
       final s = ThresholdSettings.defaults().copyWith(
         captionForeground: const Color(0xFFBBBBBB),
         captionBackground: const Color(0xFFFFFFFF),
@@ -43,7 +44,9 @@ void main() {
   });
 
   group('SettingsController (Task 24, FR-8.6, FR-10.1, FR-10.3; AT-9)', () {
-    test('mode switch applies to the NEXT session, not the active one (FR-10.1)', () {
+    test(
+        'mode switch applies to the NEXT session, not the active one (FR-10.1)',
+        () {
       final c = SettingsController(erasure: FakeDataErasurePort());
       c.requestModeChange(CaptionMode.privacy);
       expect(c.settings.activeMode, CaptionMode.clarity); // unchanged now
@@ -86,25 +89,34 @@ void main() {
       expect(port.deleteCalls, 1);
     });
 
-    test('a successful erasure records success and clears local settings (HIGH-08)', () async {
-      final c = SettingsController(erasure: FakeDataErasurePort(succeeds: true));
+    test(
+        'a successful erasure records success and clears local settings (HIGH-08)',
+        () async {
+      final c =
+          SettingsController(erasure: FakeDataErasurePort(succeeds: true));
       c.setCaptionScale(2.0); // dirty the local state
       expect(c.settings.captionScale, 2.0);
       await c.deleteAllMyData(confirmed: true);
       expect(c.erasureStatus, ErasureStatus.success);
       // Local state is reset so nothing survives the erasure.
-      expect(c.settings.captionScale, ThresholdSettings.defaults().captionScale);
+      expect(
+          c.settings.captionScale, ThresholdSettings.defaults().captionScale);
     });
 
-    test('a failed erasure records failure and does not reset local settings (HIGH-08)', () async {
-      final c = SettingsController(erasure: FakeDataErasurePort(succeeds: false));
+    test(
+        'a failed erasure records failure and does not reset local settings (HIGH-08)',
+        () async {
+      final c =
+          SettingsController(erasure: FakeDataErasurePort(succeeds: false));
       c.setCaptionScale(2.0);
       await c.deleteAllMyData(confirmed: true);
       expect(c.erasureStatus, ErasureStatus.failure);
       expect(c.settings.captionScale, 2.0); // local state untouched on failure
     });
 
-    test('a throwing erasure resolves to failure, never an unhandled throw (HIGH-08)', () async {
+    test(
+        'a throwing erasure resolves to failure, never an unhandled throw (HIGH-08)',
+        () async {
       final c = SettingsController(erasure: _ThrowingErasurePort());
       final ok = await c.deleteAllMyData(confirmed: true);
       expect(ok, isFalse);
@@ -112,7 +124,8 @@ void main() {
     });
 
     test('dismissing the erasure banner returns to idle (HIGH-08)', () async {
-      final c = SettingsController(erasure: FakeDataErasurePort(succeeds: true));
+      final c =
+          SettingsController(erasure: FakeDataErasurePort(succeeds: true));
       await c.deleteAllMyData(confirmed: true);
       expect(c.erasureStatus, ErasureStatus.success);
       c.dismissErasureStatus();
