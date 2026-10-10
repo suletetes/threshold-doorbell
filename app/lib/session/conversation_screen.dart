@@ -50,6 +50,7 @@ import '../design/components/components.dart';
 import '../design/theme.dart';
 import '../design/tokens.dart';
 import '../settings/settings_state.dart';
+import 'auth_port.dart';
 import 'session_controller.dart';
 import 'session_state.dart';
 import 'watermark_safe_area.dart';
@@ -99,9 +100,15 @@ class ConversationScreen extends StatelessWidget {
     this.settings,
     this.replyBar,
     this.videoSurfaceBuilder,
+    this.authPort,
   });
 
   final SessionController controller;
+
+  /// The re-authentication binding used by the auth-recovery prompt (HIGH-09).
+  /// When null (headless caption tests), the prompt resolves recovery directly
+  /// so those tests do not need to supply an auth port.
+  final AuthPort? authPort;
 
   /// The resident's accessibility settings driving caption scale + the enforced
   /// contrast foreground (FR-10.2, NFR-2). Defaults to accessible defaults.
@@ -153,7 +160,7 @@ class ConversationScreen extends StatelessWidget {
                 child: _ModeBadge(mode: snap.mode, state: snap.state),
               ),
               if (snap.state == SessionState.authRecovering)
-                _AuthRecoveryPrompt(controller: controller),
+                _AuthRecoveryPrompt(controller: controller, authPort: authPort),
             ],
           ),
         ),
@@ -730,14 +737,48 @@ class _ErrorPanel extends StatelessWidget {
 
 /// The single, non-destructive re-authentication prompt (FR-1.5, AT-12). There
 /// is exactly one recovery path; the controller enforces one prompt at a time.
-class _AuthRecoveryPrompt extends StatelessWidget {
-  const _AuthRecoveryPrompt({required this.controller});
+class _AuthRecoveryPrompt extends StatefulWidget {
+  const _AuthRecoveryPrompt({required this.controller, this.authPort});
   final SessionController controller;
+  final AuthPort? authPort;
+
+  @override
+  State<_AuthRecoveryPrompt> createState() => _AuthRecoveryPromptState();
+}
+
+class _AuthRecoveryPromptState extends State<_AuthRecoveryPrompt> {
+  bool _signingIn = false;
+
+  /// Run the real re-authentication flow (HIGH-09) and resume the session ONLY
+  /// when a fresh token is verified. The old stub called
+  /// completeAuthRecovery(success: true) unconditionally, resuming an expired
+  /// session without re-authenticating. When no auth port is wired (headless
+  /// caption tests) fall back to resolving recovery directly.
+  Future<void> _signIn() async {
+    if (_signingIn) return;
+    final port = widget.authPort;
+    if (port == null) {
+      widget.controller.completeAuthRecovery(success: true);
+      return;
+    }
+    setState(() => _signingIn = true);
+    AuthResult result;
+    try {
+      result = await port.reauthenticate();
+    } catch (_) {
+      // A thrown binding is a failed re-authentication: do not resume.
+      result = AuthResult.failed;
+    }
+    if (!mounted) return;
+    setState(() => _signingIn = false);
+    widget.controller.completeAuthRecovery(success: result == AuthResult.verified);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final controller = widget.controller;
     return Positioned.fill(
       child: ColoredBox(
         // The themed scrim, replacing the raw 0xB3000000 (audit C2).
@@ -779,15 +820,21 @@ class _AuthRecoveryPrompt extends StatelessWidget {
                       children: <Widget>[
                         TextButton(
                           key: const ValueKey('auth-recovery-cancel'),
-                          onPressed: () =>
-                              controller.completeAuthRecovery(success: false),
+                          onPressed: _signingIn
+                              ? null
+                              : () => controller.completeAuthRecovery(success: false),
                           child: const Text('Not now'),
                         ),
                         FilledButton(
                           key: const ValueKey('auth-recovery-signin'),
-                          onPressed: () =>
-                              controller.completeAuthRecovery(success: true),
-                          child: const Text('Sign in'),
+                          onPressed: _signingIn ? null : _signIn,
+                          child: _signingIn
+                              ? const SizedBox(
+                                  width: Spacing.space5,
+                                  height: Spacing.space5,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Sign in'),
                         ),
                       ],
                     ),

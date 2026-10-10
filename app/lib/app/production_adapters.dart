@@ -13,6 +13,7 @@ import '../consent/recording_notice.dart';
 import '../reply/echo_gate.dart';
 import '../reply/reply_port.dart';
 import '../reply/suggestion_provider.dart';
+import '../session/auth_port.dart';
 import '../session/ring_app_launcher.dart';
 import '../session/session_port.dart';
 import '../settings/settings_controller.dart';
@@ -103,6 +104,18 @@ class ProductionDataErasurePort implements DataErasurePort {
   @override
   Future<bool> deleteAllMyData() async {
     throw const DeviceBindingUnavailable('Erasing your data on the server');
+  }
+}
+
+/// Re-authentication after a mid-session expiry (FR-1.5, FR-4.8; HIGH-09). The
+/// real binding runs the OAuth / backend session exchange over HTTPS and
+/// verifies the returned token. That client is DEFERRED: it needs a device and
+/// live network, so here it fails closed rather than pretending a token was
+/// verified.
+class ProductionAuthPort implements AuthPort {
+  @override
+  Future<AuthResult> reauthenticate() async {
+    throw const DeviceBindingUnavailable('Signing in again');
   }
 }
 

@@ -261,6 +261,7 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
       screen = ConversationScreen(
         controller: controller,
         settings: settings,
+        authPort: ref.watch(authPortProvider),
         replyBar: ReplyBar(
           controller: replyController,
           contextualSuggestions: const <String>[],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:threshold/session/auth_port.dart';
 import 'package:threshold/session/conversation_screen.dart';
 import 'package:threshold/session/session_controller.dart';
 import 'package:threshold/session/session_port.dart';
@@ -65,18 +66,42 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('auth recovery shows exactly one prompt and resumes on sign in (AT-12)', (tester) async {
+    testWidgets('sign in resumes only after a verified token (AT-12, HIGH-09)', (tester) async {
       final port = FakeSessionPort();
+      final auth = FakeAuthPort(plan: <AuthResult>[AuthResult.verified]);
       final c = SessionController(port: port);
       await c.open(deviceId: 'dev-1');
       c.beginAuthRecovery();
-      await tester.pumpWidget(_wrap(c));
+      await tester.pumpWidget(
+        MaterialApp(home: ConversationScreen(controller: c, authPort: auth)),
+      );
       await tester.pump();
       expect(find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('auth-recovery-signin')));
-      await tester.pump();
+      await tester.pumpAndSettle();
+      // The real auth port was consulted and only a verified token resumed.
+      expect(auth.attempts, 1);
       expect(find.byKey(const ValueKey('auth-recovery-prompt')), findsNothing);
       expect(c.state, SessionState.live);
+      c.dispose();
+      await port.dispose();
+    });
+
+    testWidgets('a failed re-authentication does NOT resume the session (HIGH-09)', (tester) async {
+      final port = FakeSessionPort();
+      final auth = FakeAuthPort(plan: <AuthResult>[AuthResult.failed]);
+      final c = SessionController(port: port);
+      await c.open(deviceId: 'dev-1');
+      c.beginAuthRecovery();
+      await tester.pumpWidget(
+        MaterialApp(home: ConversationScreen(controller: c, authPort: auth)),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('auth-recovery-signin')));
+      await tester.pumpAndSettle();
+      // A failed token tears the session down rather than resuming it live.
+      expect(auth.attempts, 1);
+      expect(c.state, isNot(SessionState.live));
       c.dispose();
       await port.dispose();
     });
