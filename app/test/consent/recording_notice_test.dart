@@ -21,6 +21,21 @@ void main() {
       expect(kRecordingNoticeText.contains('\u2014'), isFalse);
       expect(kRecordingNoticeText.contains('\u2013'), isFalse);
     });
+
+    test('notice is informed consent: names cloud processing, retention and erase (HIGH-11)',
+        () {
+      final lower = kRecordingNoticeText.toLowerCase();
+      // Clarity Mode cloud ASR + cloud assistant are disclosed.
+      expect(lower, contains('clarity mode'));
+      expect(lower, contains('cloud'));
+      // Privacy Mode on device is disclosed.
+      expect(lower, contains('privacy mode'));
+      // 90 day retention is stated.
+      expect(kRecordingNoticeText, contains('90 days'));
+      // The erase path is named.
+      expect(lower, contains('erase'));
+      expect(lower, contains('settings'));
+    });
   });
 
   group('Audible door notice toggle (Task 21, FR-14.3; AT-14)', () {
