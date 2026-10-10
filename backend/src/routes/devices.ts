@@ -32,7 +32,7 @@ export async function registerDeviceRoutes(app: FastifyInstance): Promise<void> 
       // token-bucket throttle and 429/5xx backoff (FR-2.3). A schema drift
       // surfaces as ring_contract_invalid (FR-17) and is returned as 502.
       const devices = await app.container.ringTokens.withAccessToken(residentSub, (token) =>
-        app.container.ringGateway.listDevices(token),
+        app.container.ringGateway.listDevices(residentSub, token),
       );
 
       // Record the device->account mapping so inbound webhooks can be attributed
