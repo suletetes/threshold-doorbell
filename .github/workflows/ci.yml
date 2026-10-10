@@ -12,6 +12,8 @@
 #              em-dash / en-dash UI-copy lint (AT-24) which fails the build if a
 #              forbidden dash appears in any user-facing string.
 #   packages - flutter analyze, dart format check, and flutter test.
+#   android  - flutter build apk, then an aapt assertion that the merged
+#              manifest declares RECORD_AUDIO and INTERNET.
 #
 # Third-party and first-party actions are pinned to a full commit SHA with the
 # released tag in a trailing comment, and every job has a timeout. Versions are
@@ -140,6 +142,53 @@ jobs:
 
       - name: Test (flutter test)
         run: flutter test
+
+  android:
+    name: Android (build apk, assert permissions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Java 17
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter 3.38.10
+        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a40bde3801046 # v2.19.0
+        with:
+          flutter-version: "3.38.10"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      # Lock in CRIT-09, HIGH-12, MED-16, and MED-19: assert the merged manifest
+      # still declares the mandatory runtime permissions. If a later change drops
+      # RECORD_AUDIO or INTERNET from the manifest, this fails the build.
+      - name: Assert manifest permissions (RECORD_AUDIO, INTERNET)
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-debug.apk"
+          test -f "$apk"
+          build_tools_dir="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools"
+          aapt="$(find "$build_tools_dir" -name aapt -type f | sort -V | tail -n 1)"
+          test -n "$aapt"
+          echo "Using aapt at $aapt"
+          perms="$("$aapt" dump permissions "$apk")"
+          echo "$perms"
+          echo "$perms" | grep -q "android.permission.RECORD_AUDIO"
+          echo "$perms" | grep -q "android.permission.INTERNET"
 
   packages:
     name: Package flutter_ring_captions (test, lint)
