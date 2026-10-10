@@ -29,7 +29,12 @@ enum SpeakOutcome {
 abstract class ReplyPort {
   /// Synthesize [text] and inject it into the outbound audio track. Returns the
   /// outcome so the ReplyController can drive the design §5.3 lifecycle.
-  Future<SpeakOutcome> speak(String text);
+  ///
+  /// [onPlaybackStart] fires once, when reply audio actually begins playing at
+  /// the door, so the controller enters SPEAKING_AT_DOOR on real playback
+  /// rather than optimistically before synthesis (HIGH-05). It is not called
+  /// when synthesis fails before any audio plays.
+  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart});
 }
 
 /// Deterministic fake. Tests script the outcome (and can script a first TTS
@@ -45,10 +50,12 @@ class FakeReplyPort implements ReplyPort {
   int speakCalls = 0;
 
   @override
-  Future<SpeakOutcome> speak(String text) async {
+  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
     speakCalls++;
     spokenTexts.add(text);
     final outcome = _plan.isEmpty ? SpeakOutcome.spoken : _plan.removeAt(0);
+    // Playback only begins when synthesis succeeded (not a TTS failure).
+    if (outcome != SpeakOutcome.ttsFailed) onPlaybackStart?.call();
     return outcome;
   }
 }

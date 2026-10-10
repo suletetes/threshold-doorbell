@@ -100,9 +100,17 @@ final sessionStartCoordinatorProvider = Provider<SessionStartCoordinator>((ref) 
 /// session's fresh outbound-mode machine (FR-6.4b).
 final replyControllerProvider = ChangeNotifierProvider<ReplyController>((ref) {
   final session = ref.watch(sessionControllerProvider.notifier);
-  return ReplyController(
+  final reply = ReplyController(
     port: ref.watch(replyPortProvider),
     outbound: session.outbound,
     echoGate: ProductionEchoGate.build(),
   );
+  // Gate the caption pipeline on the reply's echo gate so our own reply audio
+  // returning on the doorbell mic is never captioned as the visitor (FR-5.6,
+  // HIGH-05). Cleared when this reply controller is disposed.
+  session.shouldTranscribe = () => reply.shouldTranscribe;
+  ref.onDispose(() {
+    if (session.shouldTranscribe != null) session.shouldTranscribe = null;
+  });
+  return reply;
 });

@@ -32,8 +32,9 @@ class _BlockingReplyPort implements ReplyPort {
   void finish(SpeakOutcome outcome) => _completer.complete(outcome);
 
   @override
-  Future<SpeakOutcome> speak(String text) {
+  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) {
     spokenTexts.add(text);
+    onPlaybackStart?.call();
     return _completer.future;
   }
 }

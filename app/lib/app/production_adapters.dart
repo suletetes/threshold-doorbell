@@ -55,7 +55,7 @@ class ProductionSessionPort implements SessionPort {
 /// The reply synthesis + outbound injection binding (FR-6.1, FR-6.2).
 class ProductionReplyPort implements ReplyPort {
   @override
-  Future<SpeakOutcome> speak(String text) async {
+  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
     throw const DeviceBindingUnavailable('Speaking a reply at the door');
   }
 }

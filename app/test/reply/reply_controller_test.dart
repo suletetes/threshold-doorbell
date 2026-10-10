@@ -165,6 +165,33 @@ void main() {
       expect(port.speakCalls, 0);
       expect(c.canSend(''), isFalse);
     });
+
+    test('a thrown speak() does not block replies forever (HIGH-05, probe P2)', () async {
+      final gate = EchoGate();
+      final port = _ThrowingReplyPort();
+      final c = ReplyController(port: port, outbound: _twoWay(), echoGate: gate);
+      await c.send('Hello', source: ReplySource.freetext);
+      // Before the fix this threw out of send(), leaving the gate closed and the
+      // bar stuck at speakingAtDoor with canSend false forever.
+      expect(c.state, ReplyState.error);
+      expect(c.inFlightText, isNull);
+      expect(gate.shouldTranscribe, isTrue); // gate reopened
+      expect(c.canSend('Hello again'), isTrue); // replies are not blocked
+    });
+
+    test('enters SPEAKING_AT_DOOR only after playback starts (HIGH-05)', () async {
+      final states = <ReplyState>[];
+      final port = FakeReplyPort();
+      final c = ReplyController(port: port, outbound: _twoWay());
+      c.addListener(() => states.add(c.state));
+      await c.send('Hi', source: ReplySource.template);
+      // SYNTHESIZING must appear before SPEAKING_AT_DOOR (not overwritten in the
+      // same tick), and speaking only after the port signalled playback start.
+      final synthIdx = states.indexOf(ReplyState.synthesizing);
+      final speakIdx = states.indexOf(ReplyState.speakingAtDoor);
+      expect(synthIdx, isNonNegative);
+      expect(speakIdx, greaterThan(synthIdx));
+    });
   });
 
   group('composeReplyButtons (Task 15, FR-7.2, FR-7.5; AT-7)', () {
@@ -199,7 +226,7 @@ class _BlockingReplyPort implements ReplyPort {
   SpeakOutcome? _pending;
 
   @override
-  Future<SpeakOutcome> speak(String text) async {
+  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
     speakCalls++;
     // Return a future that resolves when complete() is called.
     while (_pending == null) {
@@ -211,4 +238,16 @@ class _BlockingReplyPort implements ReplyPort {
   }
 
   void complete(SpeakOutcome outcome) => _pending = outcome;
+}
+
+/// A ReplyPort whose speak() always throws, modelling the production binding
+/// with no device (HIGH-05, probe P2).
+class _ThrowingReplyPort implements ReplyPort {
+  int speakCalls = 0;
+
+  @override
+  Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
+    speakCalls++;
+    throw StateError('no device');
+  }
 }

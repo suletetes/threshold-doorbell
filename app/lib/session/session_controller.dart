@@ -91,11 +91,24 @@ class SessionController extends ChangeNotifier {
   /// as results arrive via [ingestCaption].
   List<CaptionTurn> get captionTurns => _captions.turns;
 
+  /// An optional predicate consulted before a caption is accepted (FR-5.6). The
+  /// composition root wires this to the reply controller's EchoGate so inbound
+  /// audio is dropped from captioning while our own reply is playing at the door
+  /// (otherwise the resident sees their own reply captioned as the visitor).
+  /// When null, every caption is transcribed.
+  bool Function()? shouldTranscribe;
+
   /// Ingest a caption result from the ASR/on-device pipeline (Clarity via
-  /// /asr/stream, Privacy via the on-device engine). Extends or starts a turn
-  /// per the tested segmentation rules and notifies listeners so the caption
-  /// surface repaints (FR-5.5, FR-5.7; AT-4).
+  /// /asr/stream, Privacy via the on-device engine). Dropped while the echo gate
+  /// is closed (FR-5.6). Otherwise extends or starts a turn per the tested
+  /// segmentation rules and notifies listeners so the caption surface repaints
+  /// (FR-5.5, FR-5.7; AT-4).
   void ingestCaption(CaptionResult result) {
+    if (shouldTranscribe != null && !shouldTranscribe!()) {
+      // The echo gate is closed: our reply is playing, so this inbound audio is
+      // our own synthesized speech returning on the doorbell mic (FR-5.6).
+      return;
+    }
     _captions.apply(result);
     notifyListeners();
   }
