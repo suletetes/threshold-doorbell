@@ -126,6 +126,19 @@ class CaptionSurface extends StatelessWidget {
     final double fontSize = kBaseCaptionFontSize * settings.captionScale;
     final semantic = ThresholdSemanticColors.of(context);
 
+    // The de-emphasized caption color (provisional + low confidence) used to be
+    // `fg.withValues(alpha: 0.6)` applied AFTER the floor was enforced on the
+    // opaque fg, so the color actually painted dropped to about 2.2:1 (HIGH-07,
+    // probe P4). Instead derive a de-emphasized color that stays visibly softer
+    // (reduced alpha, AT-4) but whose composite over the opaque caption
+    // background meets the 4.5:1 floor: the alpha is raised only as far as the
+    // floor requires.
+    final Color deEmphasized = deEmphasizedCaptionColor(
+      fg,
+      settings.captionBackground,
+      targetAlpha: kDeEmphasizedCaptionAlpha,
+    );
+
     // The caption semantic roles, pushed through the SAME enforcement the
     // caption foreground already goes through (FR-10.2, NFR-2). The roles decide
     // the intent; enforceContrastFloor decides whether that intent is legible on
@@ -187,6 +200,7 @@ class CaptionSurface extends StatelessWidget {
                         key: ValueKey('caption-turn-$i'),
                         turn: turns[i],
                         foreground: fg,
+                        deEmphasized: deEmphasized,
                         fontSize: fontSize,
                         provisionalChrome: provisionalChromeColor,
                       ),
@@ -265,12 +279,19 @@ class _CaptionTurnText extends StatelessWidget {
     super.key,
     required this.turn,
     required this.foreground,
+    required this.deEmphasized,
     required this.fontSize,
     required this.provisionalChrome,
   });
 
   final CaptionTurn turn;
   final Color foreground;
+
+  /// The de-emphasized color that already meets the 4.5:1 floor against the
+  /// opaque caption background (HIGH-07). Used for provisional and
+  /// low-confidence tokens instead of a raw alpha reduction.
+  final Color deEmphasized;
+
   final double fontSize;
 
   /// The enforced color used for the provisional underline.
@@ -322,9 +343,12 @@ class _CaptionTurnText extends StatelessWidget {
       case CaptionEmphasis.provisional:
         // Whole-fragment provisional: de-emphasized, italic, never "certain",
         // and now explicitly marked as unsettled with a dotted underline rather
-        // than relying on alpha alone to carry that meaning (audit C7).
+        // than relying on alpha alone to carry that meaning (audit C7). The
+        // de-emphasized color meets the 4.5:1 floor against the opaque caption
+        // background (HIGH-07): it is an opaque, floor-enforced color, not a raw
+        // 0.6-alpha reduction that dropped provisional text below the floor.
         return TextStyle(
-          color: foreground.withValues(alpha: kDeEmphasizedCaptionAlpha),
+          color: deEmphasized,
           fontStyle: FontStyle.italic,
           fontWeight: FontWeight.w400,
           decoration: TextDecoration.underline,
@@ -332,9 +356,10 @@ class _CaptionTurnText extends StatelessWidget {
           decorationColor: provisionalChrome,
         );
       case CaptionEmphasis.lowConfidence:
-        // Finalized but low confidence (< 0.6): de-emphasized.
+        // Finalized but low confidence (< 0.6): de-emphasized but still at or
+        // above the 4.5:1 floor against the opaque background (HIGH-07).
         return TextStyle(
-          color: foreground.withValues(alpha: kDeEmphasizedCaptionAlpha),
+          color: deEmphasized,
           fontWeight: FontWeight.w400,
         );
       case CaptionEmphasis.normal:

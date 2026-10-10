@@ -29,14 +29,21 @@ class ThresholdSettings {
     required this.pendingMode,
     required double captionScale,
     required Color captionForeground,
-    required this.captionBackground,
+    required Color captionBackground,
     required Map<HapticEvent, bool> hapticEnabled,
     required this.strobeEnabled,
     required this.language,
     required this.audibleNoticeEnabled,
   })  : captionScale = captionScale.clamp(kMinCaptionScale, kMaxCaptionScale),
-        // The floor is enforced in code so no setting can breach NFR-2 (FR-10.2).
-        captionForeground = enforceContrastFloor(captionForeground, captionBackground),
+        // Reject a translucent caption background (HIGH-07): a see-through
+        // background lets inbound video bleed through the surface the 4.5:1
+        // floor is computed against, so the ratio could not be guaranteed. The
+        // background is forced opaque before the floor is enforced against it.
+        captionBackground = forceOpaque(captionBackground),
+        // The floor is enforced in code so no setting can breach NFR-2 (FR-10.2),
+        // against the now-opaque background.
+        captionForeground =
+            enforceContrastFloor(captionForeground, forceOpaque(captionBackground)),
         // Store an unmodifiable copy so the value type cannot be mutated in
         // place after construction (LOW-06): the map was previously held by
         // reference, letting a caller mutate "immutable" settings.
