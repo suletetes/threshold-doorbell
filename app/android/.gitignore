@@ -1,8 +1,7 @@
-gradle-wrapper.jar
+# The Gradle wrapper (jar + scripts) is committed so a fresh clone can build with
+# a pinned, integrity-checked Gradle, rather than failing on a missing wrapper (MED-20).
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/

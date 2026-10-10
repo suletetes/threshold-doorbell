@@ -29,22 +29,27 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // flutter_local_notifications (FR-3.3 alerts) requires core library
-        // desugaring for java.time APIs on older Android API levels.
+        // Core library desugaring is kept on so the deferred flutter_local_notifications
+        // adapter (FR-3.3 alerts) can use java.time on API 26 without churn when it is
+        // re-added. It is harmless with no desugared consumer today (LOW-16).
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    // KGP 2.2.x deprecates kotlinOptions in favour of the compilerOptions DSL (LOW-15).
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
         // Real reverse-DNS application id (HIGH-14). com.example is blocked by Play
         // and is permanent once published.
         applicationId = "dev.suletetes.threshold"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // minSdk is pinned to 26 explicitly to match NFR-8 and the spec: notification
+        // channels and several APIs the product relies on only exist from API 26, and
+        // nobody has tested API 24/25 (MED-16).
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -89,23 +94,23 @@ android {
     // Fail a release build loudly when the upload key is not configured, instead
     // of silently signing with the debug key (HIGH-12). A real keystore plus
     // android/key.properties (or the THRESHOLD_* CI env vars) is required to
-    // produce a store-signable APK/AAB.
-    afterEvaluate {
-        tasks.matching { it.name.startsWith("package") && it.name.contains("Release") }
-            .configureEach {
-                doFirst {
-                    val release = signingConfigs.getByName("release")
-                    if (release.storeFile == null) {
-                        throw GradleException(
-                            "No release signing key configured. Create android/key.properties " +
-                                "from android/key.properties.example (or set THRESHOLD_KEYSTORE_FILE, " +
-                                "THRESHOLD_KEYSTORE_PASSWORD, THRESHOLD_KEY_ALIAS and THRESHOLD_KEY_PASSWORD " +
-                                "in CI). Release builds must not fall back to the debug key.",
-                        )
-                    }
+    // produce a store-signable APK/AAB. The keystore presence is captured here at
+    // configuration time (not via Task.project at execution) so this stays
+    // configuration-cache compatible for Gradle 9+ (MED-20).
+    val releaseKeyConfigured = releaseSigningValue("storeFile", "THRESHOLD_KEYSTORE_FILE") != null
+    tasks.matching { it.name.startsWith("package") && it.name.contains("Release") }
+        .configureEach {
+            doFirst {
+                if (!releaseKeyConfigured) {
+                    throw GradleException(
+                        "No release signing key configured. Create android/key.properties " +
+                            "from android/key.properties.example (or set THRESHOLD_KEYSTORE_FILE, " +
+                            "THRESHOLD_KEYSTORE_PASSWORD, THRESHOLD_KEY_ALIAS and THRESHOLD_KEY_PASSWORD " +
+                            "in CI). Release builds must not fall back to the debug key.",
+                    )
                 }
             }
-    }
+        }
 }
 
 flutter {
@@ -113,7 +118,7 @@ flutter {
 }
 
 dependencies {
-    // Required by isCoreLibraryDesugaringEnabled above so flutter_local_notifications
-    // can use java.time on older API levels (minSdk 26+, NFR-8).
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Backs isCoreLibraryDesugaringEnabled above (LOW-16). Bumped to a current
+    // release; re-pin alongside flutter_local_notifications when that adapter lands.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
