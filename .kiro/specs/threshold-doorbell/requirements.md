@@ -387,6 +387,16 @@ Verified per the strategy in design §9 ("Testing strategy and acceptance criter
 
 ## 7. Known open items
 
-None as of this revision. Any ambiguity discovered during implementation must be recorded here with a date
-and an owner before code is written against an assumption. This section replaces the previous unearned
-"no open questions" assertion [D-13].
+Any ambiguity discovered during implementation must be recorded here with a date and an owner before code
+is written against an assumption. This section replaces the previous unearned "no open questions" assertion
+[D-13].
+
+- 2026-10-10, ARCH-1 spike outcome (owner: unassigned). The go/no-go outbound-audio spike (task 2) has not
+  been run against a real Ring WebRTC session. The spike page `app/spike/webrtc_audio_spike.html` was
+  executed only in a headless Chromium browser against its own offline loopback peer. Under those
+  conditions the capability probe reported "outbound audio WORKS" and a silent-track control sent 0
+  packets, so the probe does discriminate in that setting. However the spike has never run against Ring or
+  inside the app (there is no in-app WebView), and its "speak" path plays a 440 Hz tone rather than a
+  text-to-speech sample, so the TTS injection path is unproven (LOW-44). Task 2 therefore remains open: a
+  real Ring session on a device or emulator is required before the two-way audio capability can be
+  considered verified.
