@@ -312,7 +312,7 @@ resident's phone, so no visitor-facing prompt is possible (N9) [R-1, D-1, T-5].
 ## 5. Non-functional requirements
 
 - NFR-1 (Performance): meet G1a, G1b, G2, G3 on the reference devices under reference conditions, verified
-  by an automated latency harness (task 23).
+  by an automated latency harness (task 25).
 - NFR-2 (Accessibility): WCAG 2.2 AA on every screen; all interactive elements labeled for TalkBack and
   VoiceOver; minimum 4.5:1 text contrast enforced even against user settings (FR-10.2); no audio-only
   information; dynamic type to 200%.
@@ -323,13 +323,13 @@ resident's phone, so no visitor-facing prompt is possible (N9) [R-1, D-1, T-5].
   the handset (network assertion in tests).
 - NFR-5 (Reliability): failure of Bedrock, push, Transcribe, or the visual processor SHALL degrade
   gracefully without ending a session. Backend unreachability SHALL prevent only new sessions (FR-15.4).
-  Verified by an explicit degradation matrix (task 24).
+  Verified by an explicit degradation matrix (task 26).
 - NFR-6 (Scalability): webhook path idempotent and horizontally stateless; all state in the datastore.
 - NFR-7 (Rate limits): never exceed 100 requests per second to Ring; back off on 429.
 - NFR-8 (Portability): iOS 14 or later; Android 8.0 (API 26) or later.
 - NFR-9 (Maintainability): all Ring and AWS integrations behind interfaces with fixture implementations.
 - NFR-10 (UI copy): no em-dash or en-dash characters in any user-facing string, enforced by a CI lint gate
-  (steering/structure.md, task 27) [T-11].
+  (steering/structure.md, task 29) [T-11].
 
 ---
 

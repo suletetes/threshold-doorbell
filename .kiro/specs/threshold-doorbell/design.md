@@ -46,7 +46,7 @@ Consequences, accepted deliberately:
   `AudioWorkletNode`, producing 16 kHz mono PCM frames. Frames go to Clarity (backend WS) or are passed to
   Flutter over the JS bridge for Privacy Mode.
 - The JS bridge is a performance-sensitive path. Budget and verification belong to the latency harness
-  (task 23). If PCM bridging to Dart proves too slow for Privacy Mode on the reference devices, Privacy Mode
+  (task 25). If PCM bridging to Dart proves too slow for Privacy Mode on the reference devices, Privacy Mode
   runs its inference inside the WebView using a WASM build instead; this substitution does not affect any
   requirement because FR-5.2 only mandates that audio never leaves the handset.
 - The native platform-channel PCM source remains the only approved alternative if the WebView path fails.
@@ -293,7 +293,7 @@ next session, with the active mode always displayed.
   Privacy Mode sends nothing derived from audio.
 - Logging: structured logs with an allowlist serializer; no PII, tokens, session credentials, transcript
   text, or request bodies.
-- A written threat model and authorization test suite are required deliverables (task 26).
+- A written threat model and authorization test suite are required deliverables (task 27).
 
 ---
 

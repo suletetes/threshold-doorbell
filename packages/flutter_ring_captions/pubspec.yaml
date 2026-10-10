@@ -1,7 +1,7 @@
 name: flutter_ring_captions
 description: Accessibility-oriented, dependency-light pure logic for live captions and a reply bridge on a Ring style video doorbell, extracted from the Threshold project.
 version: 0.1.0
-repository: https://github.com/suletetes/aws
+repository: https://github.com/suletetes/threshold-doorbell
 publish_to: "none"
 
 environment:

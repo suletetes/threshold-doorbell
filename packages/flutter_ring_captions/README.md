@@ -37,7 +37,7 @@ Flutter app, add a path or git dependency:
 dependencies:
   flutter_ring_captions:
     git:
-      url: https://github.com/suletetes/aws
+      url: https://github.com/suletetes/threshold-doorbell
       path: packages/flutter_ring_captions
 ```
 

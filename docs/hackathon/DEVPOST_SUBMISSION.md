@@ -198,10 +198,10 @@ half of the pipeline that turns doorbell audio into an accessible conversation.
 
 ## Mini-challenge: Open Source
 
-We published the caption-and-reply bridge as a standalone MIT-licensed Dart
-package, **`flutter_ring_captions`**, so any Flutter developer building on the
-Ring Partner API can reuse the two-way captioning core without adopting the
-whole Threshold app. The main repository is MIT-licensed with the license
+We released the caption-and-reply bridge in-repo as a standalone MIT-licensed
+Dart package, **`flutter_ring_captions`** (under `packages/`, not yet published
+to pub.dev), so any Flutter developer building on the Ring Partner API can reuse
+the two-way captioning core without adopting the whole Threshold app. The main repository is MIT-licensed with the license
 visible in the repository, and the accessibility-oriented video-processor work
 is written against Ring's own `VideoProcessor` plugin contract so it reads as
 native to their ecosystem. Our intended open-source contribution back to the
