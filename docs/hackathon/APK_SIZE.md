@@ -1,128 +1,88 @@
-# APK size: baseline, why it is large, and what we did about it
+# APK size: baseline, why it was large, and what we did about it
 
-This note documents the Android release size work for Threshold: the starting
-point, the per-ABI numbers, why the app is large, the mitigations we applied,
-and the resulting per-device download. All numbers below were measured on this
-repo with Flutter 3.38.10 (Java 21 / Gradle), not estimated.
+This note documents the Android size work for Threshold: the starting point, why
+the app was large, the fix we actually applied, and the resulting download. All
+numbers below were measured on this repo with Flutter 3.38.10 (Java 17 / Gradle),
+not estimated.
 
-## Baseline (fat, multi-ABI release APK)
+## Baseline (before the fix)
 
-A single `flutter build apk --release` produces one fat APK that bundles the
-native libraries for every supported ABI (arm64-v8a, armeabi-v7a, x86_64):
+A debug fat APK that bundled the native libraries for every supported ABI
+(arm64-v8a, armeabi-v7a, x86_64) measured:
 
 | Artifact | Size |
 |---|---|
-| `app-release.apk` (fat, all ABIs) | about 113 MB |
+| `app-debug.apk` (fat, all ABIs) | about 210 MB (219,343,297 bytes) |
 
-That is the number a naive `flutter build apk --release` gives you, and it is
-what a user would download if we shipped that single APK to every device.
+The overwhelming majority of that payload was native `.so` code from plugins
+that nothing in the app actually imported.
 
-## Per-ABI split (the biggest win)
+## Why the app was large
 
-Building with `flutter build apk --release --split-per-abi` produces one APK per
-architecture. A given phone only ever installs the one matching its CPU, so the
-real per-device download is the size of a single split, not the fat APK:
+Two plugins shipped tens of MB of native code each, across three ABIs, for
+features that are not implemented and that no Dart code references:
 
-| Artifact | Size | Notes |
-|---|---|---|
-| `app-arm64-v8a-release.apk` | about 44 MB | modern phones (the realistic download) |
-| `app-armeabi-v7a-release.apk` | about 31 MB | older 32-bit devices |
-| `app-x86_64-release.apk` | about 48 MB | emulators / x86 devices |
+- **`flutter_webrtc`** shipped the full WebRTC native stack
+  (`libjingle_peerconnection_so.so`). The architecture decision in `design.md`
+  §2 is that the Ring live stream runs through `webview_flutter` and browser
+  WebRTC, **not** through `flutter_webrtc`, so this plugin was dead weight.
+- **`google_mlkit_object_detection`** shipped ML Kit's native object-detection
+  runtime (`libmlkitcommonpipeline.so`) plus bundled models, and silently
+  pulled in legacy Firebase Instance ID and Google telemetry (the `WAKE_LOCK`
+  and `c2dm.RECEIVE` permissions and an exported `FirebaseInstanceIdReceiver`;
+  see MED-17). There is no object-detection feature in the spec.
 
-For a modern arm64 phone the real download drops from about 113 MB to about
-44 MB, a **61% reduction**, with zero functional change.
+Together these two accounted for about 60 MB of native libraries across the
+three ABIs. A grep confirmed zero Dart imports of either plugin (HIGH-01).
 
-## R8 code shrinking and resource shrinking
+## The fix we actually applied
 
-We enabled R8 (`isMinifyEnabled = true`) and Android resource shrinking
-(`isShrinkResources = true`) on the release buildType in
-`app/android/app/build.gradle.kts`, wired to
-`app/android/app/proguard-rules.pro`. The keep rules are the minimal set needed
-so R8 does not strip classes that flutter_webrtc, Google ML Kit,
-flutter_local_notifications, and flutter_tts resolve via JNI or reflection. The
-release build (fat, split, and app bundle) succeeds with shrinking enabled; no
-plugin required disabling shrinking, only keep rules.
+The real fix was **removing the unused plugins**, not splitting the APK. We
+removed `flutter_webrtc`, `google_mlkit_object_detection`, `flutter_tts`,
+`vibration`, `http`, `web_socket_channel`, and `flutter_local_notifications`
+from `app/pubspec.yaml`, keeping only what the app imports today
+(`flutter_riverpod`, `shared_preferences`, `collection`). Each removed plugin is
+listed as a commented placeholder in `pubspec.yaml` so it can be added back when
+its real adapter is wired.
 
-Measured sizes with shrinking enabled:
+Measured debug fat APK after removal:
 
-| Artifact | Before shrink | After R8 + resource shrink |
-|---|---|---|
-| `app-release.apk` (fat) | about 113.4 MB | about 113.7 MB |
-| `app-arm64-v8a-release.apk` | about 43.8 MB | about 44.0 MB |
-| `app-armeabi-v7a-release.apk` | about 31.0 MB | about 32.5 MB |
-| `app-x86_64-release.apk` | about 47.6 MB | about 47.8 MB |
+| Artifact | Before | After | Change |
+|---|---|---|---|
+| `app-debug.apk` (fat, all ABIs) | about 210 MB | about 140 MB (146,769,908 bytes) | about 70 MB smaller |
 
-Honest read of these numbers: R8 and resource shrinking do **not** move the
-needle here, because the size is not in Dalvik bytecode or Android resources.
-It is in native `.so` libraries, which R8 (a Java/Kotlin bytecode tool) and the
-resource shrinker (an Android-resource tool) do not touch. We keep shrinking on
-because it is the right default, it strips unused Java/Kotlin code and resources
-from the plugins' Android glue, and it costs nothing at runtime once the keep
-rules are in place. But the lever that actually cuts the download is the ABI
-split, not R8. We document this rather than claim a shrink win we did not get.
+The `libjingle_peerconnection_so.so` and `libmlkitcommonpipeline.so` native
+libraries are gone from the APK (`unzip -l app-debug.apk | grep -E 'libjingle|libmlkit'`
+returns nothing), and the Firebase IID `WAKE_LOCK` / `c2dm.RECEIVE` permissions
+no longer appear in `aapt dump permissions`.
 
-## Why the app is large
+## R8 and resource shrinking
 
-The bulk of every APK is native code shipped by two plugins:
+R8 (`isMinifyEnabled = true`) and resource shrinking (`isShrinkResources = true`)
+remain enabled on the release buildType in `app/android/app/build.gradle.kts`.
+They are correct hygiene, but they never moved the needle on size here: the size
+was in native `.so` libraries, which a Java/Kotlin bytecode tool and the Android
+resource shrinker do not touch. The lever that cut the download was removing the
+plugins. The keep rules in `proguard-rules.pro` were narrowed to match the
+plugins that remain (MED-19).
 
-- **`google_mlkit_object_detection`** pulls in ML Kit's native object-detection
-  runtime and bundled model assets. This backs the visual-context feature
-  (Task 19: person count, package/uniform cues on the live frame).
-- **`flutter_webrtc`** ships the full WebRTC native stack (`libjingle`/`libwebrtc`),
-  which is the core of the Ring live stream and the outbound-audio reply path.
-  This one is not optional: it is the defining capability of the product.
+## Per-ABI split (secondary, for a real device build)
 
-These two account for the overwhelming majority of the per-ABI `.so` payload.
-Dart, the Flutter engine, and app code are a small fraction by comparison, which
-is why bytecode-level shrinking barely registers.
-
-## Mitigations applied
-
-1. **ABI split for direct APK distribution.** `--split-per-abi` so each device
-   downloads only its own native libraries (about 44 MB on arm64 instead of
-   about 113 MB). This is the primary mitigation.
-2. **App bundle for the Play Store.** `flutter build appbundle --release
-   --obfuscate --split-debug-info=build/symbols` produces an `.aab`
-   (about 73 MB on disk) from which Google Play generates and serves
-   per-device, per-ABI, per-density splits automatically, so the installed
-   download is smaller again than any single fat APK. Obfuscation with split
-   debug info keeps Dart symbols out of the shipped binary while preserving
-   crash de-obfuscation via `build/symbols`.
-3. **R8 + resource shrinking** on release, with minimal ProGuard keep rules for
-   the native plugins. Correct hygiene even though the win is small here.
-4. **A reproducible build script**, `app/scripts/build_release.sh`, that runs
-   the split-per-abi build and the obfuscated app-bundle build and prints the
-   resulting sizes, so these numbers can be re-measured by anyone.
-
-## The single biggest contributor, and the size-critical option
-
-`google_mlkit_object_detection` (the Task 19 visual-context feature) is the
-largest single removable contributor to the native payload. In the feature
-spec, visual context is a **should-have / nice-to-have**, not a must-have: the
-core two-way captioned conversation (Ring WebRTC audio, Transcribe/on-device
-captions, spoken reply at the door) does not depend on it. If binary size ever
-becomes a hard constraint (for example a strict store limit or a
-low-connectivity target market, where about 80% of the addressable audience
-lives), ML Kit object detection can be made a **deferred or optional component**
-(a Play dynamic feature module, or simply dropped from a "lite" flavor). That
-alone would remove the ML Kit native runtime and its bundled models from the
-base download. `flutter_webrtc`, by contrast, is load-bearing and stays.
+A per-device download can be reduced further with per-ABI splits, so a phone
+installs only its own native libraries. Note that a plain
+`flutter build apk --release` still produces a single fat APK: the split is
+**not** wired into Gradle (there is no `splits { abi { } }` block), so only the
+`app/scripts/build_release.sh` path, which passes `--split-per-abi`, produces
+split APKs today (NIT-14). Treat `build_release.sh` as the supported release
+path, or add a `splits` block if plain `flutter build apk` must split.
 
 ## Reproducing these numbers
 
-```bash
-# uses the project shell preamble internally
-app/scripts/build_release.sh
-```
-
-or manually, from `app/`:
+From `app/`:
 
 ```bash
-flutter build apk --release --split-per-abi
-flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
-ls -la build/app/outputs/flutter-apk/*.apk
-ls -la build/app/outputs/bundle/release/*.aab
+flutter build apk --debug
+ls -la build/app/outputs/flutter-apk/app-debug.apk
+unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep -E 'libjingle|libmlkit'   # expect no output
+aapt dump permissions build/app/outputs/flutter-apk/app-debug.apk | grep -E 'RECORD_AUDIO|INTERNET'
 ```
-
-The default `flutter build apk --debug` gate is unaffected by the release
-shrinking config and continues to build.
