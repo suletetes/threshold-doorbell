@@ -75,6 +75,39 @@ jobs:
       - name: Test (vitest)
         run: npx vitest run
 
+      # Fail the build on any high or critical advisory in a production
+      # dependency (MED-42). Dev-only advisories do not ship and are not gated
+      # here.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  security:
+    name: Security (secret scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # gitleaks needs the full history to scan every commit, not just the
+          # tip, so a leak introduced in an earlier commit is still caught.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.21.2"
+        run: |
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Secret scan (fail on any leak)
+        run: gitleaks detect --no-banner --redact
+
   app:
     name: App (flutter test, UI-copy lint)
     runs-on: ubuntu-latest
