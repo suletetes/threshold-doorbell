@@ -202,5 +202,66 @@ void main() {
       expect(mq.data.textScaler.scale(10) <= 20.0 + 1e-9, isTrue);
       c.dispose();
     });
+
+    testWidgets('the COMBINED caption scale never exceeds 200% (MED-03)', (tester) async {
+      final c = await _liveController();
+      _seedMixedTurns(c);
+      // captionScale 2.0 AND a hostile 4.0 OS scaler used to compound to 4x the
+      // base. The effective combined scale must stay at the 200% ceiling.
+      final big = ThresholdSettings.defaults().copyWith(captionScale: 2.0);
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(4.0)),
+          child: ConversationScreen(controller: c, settings: big),
+        ),
+      ));
+      await tester.pump();
+      final mq = tester.widget<MediaQuery>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('caption-region')),
+              matching: find.byType(MediaQuery),
+            )
+            .first,
+      );
+      final t = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('caption-turn-2')),
+          matching: find.byType(Text),
+        ),
+      );
+      // Base font is already multiplied by captionScale (2x); the OS scaler on
+      // top must be clamped so the product stays at the ceiling (2x the base).
+      final double effective = (t.style!.fontSize! / kBaseCaptionFontSize) *
+          mq.data.textScaler.scale(1.0);
+      expect(effective <= kMaxCaptionTextScale + 1e-6, isTrue,
+          reason: 'combined caption scale must be clamped at the 200% ceiling');
+    });
+  });
+
+  group('Caption surface uses per-word confidence (MED-02, FR-5.3a)', () {
+    testWidgets('tokens within a turn are styled by their own confidence', (tester) async {
+      final c = await _liveController();
+      // A final turn where the middle word is low confidence and the others are
+      // high. Per-token styling must differ, not paint every token identically.
+      c.ingestCaption(const CaptionResult(
+        speaker: CaptionSpeaker.visitor,
+        text: 'leave it there',
+        isFinal: true,
+        timestampMs: 0,
+        confidence: 0.9,
+        wordConfidences: <double>[0.95, 0.3, 0.92],
+      ));
+      await tester.pumpWidget(MaterialApp(home: ConversationScreen(controller: c)));
+      await tester.pump();
+      final spans = _leafSpans(tester, find.byKey(const ValueKey('caption-turn-0')));
+      expect(spans, hasLength(3));
+      // The middle token (0.3 < 0.6) is de-emphasized; the others are normal.
+      expect(spans[0].style?.fontWeight, FontWeight.w600);
+      expect(spans[1].style?.fontWeight, FontWeight.w400);
+      expect((spans[1].style!.color!.a) < 1.0, isTrue);
+      expect(spans[2].style?.fontWeight, FontWeight.w600);
+      c.dispose();
+    });
   });
 }

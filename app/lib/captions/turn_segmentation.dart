@@ -23,6 +23,7 @@ class CaptionResult {
     required this.timestampMs,
     this.segmentBoundary = false,
     this.confidence,
+    this.wordConfidences,
   });
 
   final CaptionSpeaker speaker;
@@ -33,8 +34,15 @@ class CaptionResult {
   /// The engine signaled an explicit segmentation boundary before this result.
   final bool segmentBoundary;
 
-  /// Confidence when finalized; null while provisional (FR-5.7).
+  /// Turn-level confidence when finalized; null while provisional (FR-5.7).
   final double? confidence;
+
+  /// Per-word confidences aligned to the whitespace-split words of [text], when
+  /// the engine reports them (FR-5.3a). Null when the engine only reports a
+  /// turn-level confidence, in which case per-token styling falls back to the
+  /// turn confidence. Carried through so per-token emphasis is real, not every
+  /// token painted with the turn's own value (MED-02).
+  final List<double>? wordConfidences;
 }
 
 /// A labeled turn accumulated from one or more results.
@@ -48,6 +56,7 @@ class CaptionTurn {
     required this.lastUpdatedMs,
     this.confidence,
     this.provisional = true,
+    this.wordConfidences,
   });
 
   final CaptionSpeaker speaker;
@@ -56,6 +65,11 @@ class CaptionTurn {
   final int startedAtMs;
   final int lastUpdatedMs;
   final double? confidence;
+
+  /// Per-word confidences aligned to the words of [text] when the engine
+  /// reports them (FR-5.3a, MED-02). Null when only a turn-level confidence is
+  /// available; the caption surface then styles every token by the turn value.
+  final List<double>? wordConfidences;
 
   /// True while the turn is not yet finalized (FR-5.7).
   final bool provisional;
@@ -66,6 +80,8 @@ class CaptionTurn {
     int? lastUpdatedMs,
     double? confidence,
     bool? provisional,
+    List<double>? wordConfidences,
+    bool clearWordConfidences = false,
   }) {
     return CaptionTurn(
       speaker: speaker,
@@ -75,6 +91,8 @@ class CaptionTurn {
       lastUpdatedMs: lastUpdatedMs ?? this.lastUpdatedMs,
       confidence: confidence ?? this.confidence,
       provisional: provisional ?? this.provisional,
+      wordConfidences:
+          clearWordConfidences ? null : (wordConfidences ?? this.wordConfidences),
     );
   }
 }
@@ -106,6 +124,10 @@ class TurnAccumulator {
   /// current one. Never concatenates across a boundary (FR-5.5).
   void apply(CaptionResult result) {
     if (startsNewTurn(current, result)) {
+      // Before starting the next turn, close out any open provisional turn so
+      // it does not linger on screen as "Still listening" forever when the
+      // speaker simply paused mid-utterance (MED-01, probe P12).
+      _closeOpenProvisionalTurn(nextResult: result);
       _turns.add(
         CaptionTurn(
           speaker: result.speaker,
@@ -114,6 +136,7 @@ class TurnAccumulator {
           startedAtMs: result.timestampMs,
           lastUpdatedMs: result.timestampMs,
           confidence: result.isFinal ? result.confidence : null,
+          wordConfidences: result.isFinal ? result.wordConfidences : null,
           provisional: !result.isFinal,
         ),
       );
@@ -128,9 +151,28 @@ class TurnAccumulator {
         isFinal: result.isFinal,
         lastUpdatedMs: result.timestampMs,
         confidence: result.isFinal ? result.confidence : null,
+        // Per-word confidences only exist once finalized; a partial clears them.
+        wordConfidences: result.isFinal ? result.wordConfidences : null,
+        clearWordConfidences: !result.isFinal,
         provisional: !result.isFinal,
       ),
     );
+  }
+
+  /// Close an open provisional turn when a pause or boundary starts the next
+  /// one (MED-01). An empty provisional turn is dropped; a provisional turn with
+  /// text is finalized (locked, no longer "Still listening") with null
+  /// confidence, since the engine never confirmed it. Called only when the
+  /// current turn is still provisional; a finalized turn is left untouched.
+  void _closeOpenProvisionalTurn({required CaptionResult nextResult}) {
+    final CaptionTurn? cur = current;
+    if (cur == null || !cur.provisional) return;
+    if (cur.text.trim().isEmpty) {
+      _turns.removeLast(); // nothing worth keeping
+      return;
+    }
+    final CaptionTurn open = _turns.removeLast();
+    _turns.add(open.copyWith(isFinal: true, provisional: false, confidence: null));
   }
 
   /// Persist-time finalization (FR-5.7): any still-provisional trailing turn is

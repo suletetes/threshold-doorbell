@@ -139,12 +139,19 @@ class CaptionSurface extends StatelessWidget {
       settings.captionBackground,
     );
 
-    // Clamp OS dynamic type to 200% on this subtree so a large system setting
-    // stacked on top of the caption scale never exceeds the NFR-2 ceiling.
+    // Clamp the COMBINED caption scale to the 200% ceiling (NFR-2, MED-03). The
+    // caption font is already scaled by the resident's captionScale (up to 2x);
+    // the OS dynamic-type scaler then multiplies on top of that. Clamping the OS
+    // scaler to 2.0 independently let the two compound to as much as 4x. Instead
+    // the OS scaler is clamped so captionScale times the OS scaler never exceeds
+    // kMaxCaptionTextScale, so the text can grow to the ceiling but no further.
     final MediaQueryData mq = MediaQuery.of(context);
+    final double captionScale = settings.captionScale;
+    final double maxOsScale =
+        captionScale <= 0 ? kMaxCaptionTextScale : kMaxCaptionTextScale / captionScale;
     final TextScaler clamped = mq.textScaler.clamp(
       minScaleFactor: 1.0,
-      maxScaleFactor: kMaxCaptionTextScale,
+      maxScaleFactor: maxOsScale < 1.0 ? 1.0 : maxOsScale,
     );
 
     final Widget content = turns.isEmpty
@@ -278,9 +285,19 @@ class _CaptionTurnText extends StatelessWidget {
         ? const <String>[]
         : turn.text.trim().split(RegExp(r'\s+'));
 
+    // Per-word confidences when the engine reports them (FR-5.3a, MED-02),
+    // falling back to the turn-level confidence when it does not. This replaces
+    // painting every token with the turn's own value, which made the per-token
+    // emphasis identical across a turn.
+    final List<double>? wordConfidences = turn.wordConfidences;
+
     final List<InlineSpan> spans = <InlineSpan>[];
     for (var i = 0; i < words.length; i++) {
-      final token = CaptionToken(text: words[i], confidence: turn.confidence);
+      final double? tokenConfidence =
+          (wordConfidences != null && i < wordConfidences.length)
+              ? wordConfidences[i]
+              : turn.confidence;
+      final token = CaptionToken(text: words[i], confidence: tokenConfidence);
       final emphasis = emphasisForToken(token, isFinal: turn.isFinal);
       spans.add(
         TextSpan(

@@ -100,5 +100,60 @@ void main() {
         ..apply(r(CaptionSpeaker.visitor, 'are you there', kTurnPauseThresholdMs + 100, isFinal: true, confidence: 0.9));
       expect(acc.turns, hasLength(2));
     });
+
+    test('a pause finalizes an open provisional turn, not an eternal "Still listening" (MED-01, probe P12)', () {
+      final acc = TurnAccumulator()
+        // A provisional partial, never finalized by the engine.
+        ..apply(r(CaptionSpeaker.visitor, 'I have a', 0))
+        // A new partial after a 1.6s gap starts the next turn.
+        ..apply(r(CaptionSpeaker.visitor, 'I have a package for you', kTurnPauseThresholdMs + 100));
+      expect(acc.turns, hasLength(2));
+      // The orphaned first turn is no longer provisional: it will not sit on
+      // screen forever as "Still listening".
+      expect(acc.turns.first.text, 'I have a');
+      expect(acc.turns.first.provisional, isFalse);
+      expect(acc.turns.first.isFinal, isTrue);
+      // The current turn is the new one, still provisional.
+      expect(acc.turns.last.text, 'I have a package for you');
+      expect(acc.turns.last.provisional, isTrue);
+    });
+
+    test('an empty open provisional turn is dropped on a pause (MED-01)', () {
+      final acc = TurnAccumulator()
+        ..apply(r(CaptionSpeaker.visitor, '   ', 0))
+        ..apply(r(CaptionSpeaker.visitor, 'hello', kTurnPauseThresholdMs + 100));
+      expect(acc.turns, hasLength(1));
+      expect(acc.turns.single.text, 'hello');
+    });
+
+    test('per-word confidences are carried through on a final result (MED-02)', () {
+      final acc = TurnAccumulator()
+        ..apply(const CaptionResult(
+          speaker: CaptionSpeaker.visitor,
+          text: 'leave it there',
+          isFinal: true,
+          timestampMs: 0,
+          confidence: 0.9,
+          wordConfidences: <double>[0.95, 0.4, 0.92],
+        ));
+      expect(acc.turns.single.wordConfidences, <double>[0.95, 0.4, 0.92]);
+    });
+
+    test('a provisional extension does not carry per-word confidences (MED-02)', () {
+      final acc = TurnAccumulator()
+        // Start provisional, then a final result confirms per-word confidences.
+        ..apply(r(CaptionSpeaker.visitor, 'leave it', 0))
+        ..apply(const CaptionResult(
+          speaker: CaptionSpeaker.visitor,
+          text: 'leave it there',
+          isFinal: true,
+          timestampMs: 200,
+          confidence: 0.9,
+          wordConfidences: <double>[0.95, 0.4, 0.92],
+        ));
+      // One turn, finalized, carrying the per-word confidences.
+      expect(acc.turns.single.wordConfidences, <double>[0.95, 0.4, 0.92]);
+      expect(acc.turns.single.provisional, isFalse);
+    });
   });
 }
