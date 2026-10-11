@@ -8,6 +8,27 @@ export type DeploymentEnv = 'local' | 'staging' | 'demo' | 'test';
 
 export const DEPLOYMENT_ENVS: readonly DeploymentEnv[] = ['local', 'staging', 'demo', 'test'];
 
+// Environments that are NEVER deployed to a networked host. They run only on a
+// developer machine or in CI against in-memory fixtures, so they are exempt
+// from the secret-strength guard below (the test harness deliberately boots
+// with short fixture secrets). This is an INVARIANT, not a convenience:
+//   - "local" is the developer loopback mode.
+//   - "test"  is the in-process vitest harness; it is asserted to be
+//             non-deployable by buildContainer (container.ts), which allows it
+//             to boot on fixtures but a real deployment can only ever use a
+//             deployable env. There is no code path that ships "test" to a
+//             host, and CI never sets THRESHOLD_ENV=test on a deployed service.
+// A DEPLOYABLE env (staging/demo) must therefore pass assertStrongSecret. If a
+// new non-deployable mode is ever added, add it here as well so the exemption
+// stays explicit rather than being re-expressed as an ad-hoc "!= local" check.
+export const NON_DEPLOYABLE_ENVS: readonly DeploymentEnv[] = ['local', 'test'];
+
+/** True when the env is deployed to a networked host and so must use real,
+ *  strong secrets. The secret-strength guard runs for exactly these envs. */
+export function isDeployableEnv(env: DeploymentEnv): boolean {
+  return !NON_DEPLOYABLE_ENVS.includes(env);
+}
+
 // Insecure defaults used ONLY in local/demo/test. If any of these is still in
 // use outside "local", loadConfig throws (MED-32).
 const DEFAULT_SESSION_SECRET = 'local-dev-session-secret-change-me';
@@ -137,9 +158,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
   };
 
-  // MED-32: outside "local" a public default or short secret is a hard error so
-  // a deployed instance can never forge sessions/webhooks with known keys.
-  if (deployment !== 'local' && deployment !== 'test') {
+  // MED-32: a DEPLOYABLE env (one that runs on a networked host) must use strong,
+  // non-default secrets so a deployed instance can never forge sessions/webhooks
+  // with known keys. The exemption below is scoped to the NON_DEPLOYABLE_ENVS
+  // ("local"/"test") invariant above, NOT to an ad-hoc "!= local" test, so the
+  // short-secret test harness cannot be mistaken for a deployable-env carve-out.
+  if (isDeployableEnv(deployment)) {
     assertStrongSecret('SESSION_SECRET', config.sessionSecret, DEFAULT_SESSION_SECRET, deployment);
     assertStrongSecret('WEBHOOK_HMAC_KEY', config.webhookHmacKey, DEFAULT_WEBHOOK_HMAC_KEY, deployment);
     assertStrongSecret(

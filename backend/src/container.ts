@@ -78,6 +78,14 @@ export interface ContainerOverrides {
 /**
  * Environments that may boot on in-memory fixtures. Any other environment is a
  * real deployment and MUST supply real adapters via overrides.
+ *
+ * Note the two non-deployable envs from config.ts (local, test) are both here,
+ * plus "demo": "demo" is a deployable showcase env that is deliberately allowed
+ * to run on fixtures, whereas "test" is the in-process vitest harness and is
+ * NEVER shipped to a host (see NON_DEPLOYABLE_ENVS / isDeployableEnv in
+ * config.ts). That is why the config secret-strength guard exempts "test": it
+ * is not a deployable target, so a short fixture secret under THRESHOLD_ENV=test
+ * can never reach a networked instance.
  */
 const FIXTURE_ENVS = new Set(['local', 'demo', 'test']);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConfigError, loadConfig } from '../src/config.js';
+import { ConfigError, isDeployableEnv, loadConfig } from '../src/config.js';
 
 const STRONG = 'x'.repeat(40);
 
@@ -55,5 +55,23 @@ describe('loadConfig validation (MED-32)', () => {
 
   it('allows insecure local defaults in local', () => {
     expect(() => loadConfig({ THRESHOLD_ENV: 'local' })).not.toThrow();
+  });
+
+  // #5 invariant: the secret-strength exemption applies ONLY to the
+  // non-deployable envs (local, test), never to a deployable env.
+  it('exempts the test harness from the secret-strength guard (non-deployable env)', () => {
+    expect(() => loadConfig({ THRESHOLD_ENV: 'test' })).not.toThrow();
+    expect(isDeployableEnv('test')).toBe(false);
+    expect(isDeployableEnv('local')).toBe(false);
+  });
+
+  it('treats staging and demo as deployable, so they must pass the secret guard', () => {
+    expect(isDeployableEnv('staging')).toBe(true);
+    expect(isDeployableEnv('demo')).toBe(true);
+    // A deployable env still rejects the insecure default even though "demo"
+    // may boot on fixtures (container.ts): the two concerns are separate.
+    expect(() => loadConfig({ THRESHOLD_ENV: 'demo' })).toThrow(
+      /SESSION_SECRET is still the insecure local default/,
+    );
   });
 });
