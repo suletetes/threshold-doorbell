@@ -2,7 +2,7 @@
   "name": "threshold-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Threshold backend: stateless Node 20+ + Fastify service for the two-way captioned Ring doorbell.",
+  "description": "Threshold backend: stateless Node 22+ + Fastify service for the two-way captioned Ring doorbell.",
   "type": "module",
   "engines": {
     "node": ">=22"
