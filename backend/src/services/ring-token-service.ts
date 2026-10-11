@@ -52,9 +52,14 @@ export class RingTokenService {
     const record = await this.store.get(residentSub);
     if (!record) throw errors.refreshFailed();
 
+    // L-4: a corrupt/unparseable expiresAt (NaN) must FORCE a refresh, not be
+    // treated as "not near expiry". The previous `Number.isFinite(expiresMs) &&
+    // ...` guard made a non-finite expiry fall into the decrypt-and-return path,
+    // so a bad record would vend a possibly-expired access token. Refresh when
+    // the expiry cannot be parsed OR when it is within the skew window.
     const expiresMs = Date.parse(record.expiresAt);
-    const nearExpiry = Number.isFinite(expiresMs) && expiresMs - now <= REFRESH_SKEW_MS;
-    if (!nearExpiry) {
+    const mustRefresh = !Number.isFinite(expiresMs) || expiresMs - now <= REFRESH_SKEW_MS;
+    if (!mustRefresh) {
       // MED-31: a decrypt failure here must surface as refresh_failed (the
       // unified recovery signal), not as an unlogged 500.
       try {
@@ -63,7 +68,7 @@ export class RingTokenService {
         throw errors.refreshFailed();
       }
     }
-    // Proactive refresh.
+    // Proactive refresh (near expiry or an unparseable expiry).
     return this.refreshAndStore(residentSub, record);
   }
 

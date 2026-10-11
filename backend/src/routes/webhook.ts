@@ -40,6 +40,12 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
   );
 
   app.post('/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+    // M-6: measure the webhook acknowledgement time (design.md section 10). The
+    // 200 ack is sent before the fire-and-forget push, so we measure to the ack
+    // (the SLA-relevant latency), not to the async delivery. Record it on the
+    // happy path right before the ack is sent; a 401/400 short-circuits earlier
+    // and is not an "acknowledged" delivery, so it is intentionally not timed.
+    const ackStart = performance.now();
     const rawBody = typeof request.body === 'string' ? request.body : '';
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const timestamp = request.headers[TIMESTAMP_HEADER] as string | undefined;
@@ -48,6 +54,17 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     // accepted key, within a +/-5 minute replay window. A mismatch, a missing
     // or stale timestamp, or an unknown key -> 401, with no body logging and no
     // processing.
+    //
+    // L-3: this encodes an ASSUMED signing contract that MUST be validated
+    // against Ring's actual Partner webhook spec before go-live:
+    //   - an x-ring-timestamp header is present on every delivery,
+    //   - the HMAC is computed over the exact material `${timestamp}.${body}`,
+    //   - the delivery is valid only within a +/-5 minute window.
+    // If Ring's real deliveries differ (no timestamp header, a different signed
+    // material, or a different window), EVERY real delivery would 401 here. When
+    // the real format is confirmed, update verifyTimestampedSignature in
+    // security/hmac.ts to match. The body-only verifySignature scheme in hmac.ts
+    // remains available as the fallback if Ring signs the raw body alone.
     if (
       !verifyTimestampedSignature({
         timestamp,
@@ -70,6 +87,9 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
 
     // Idempotent conditional put by requestId (FR-3.2). Cheap; inside the budget.
     const outcome = await service.record(event);
+
+    // M-6: record the ack latency just before sending the 200.
+    app.container.metrics.observe('webhook_ack_ms', performance.now() - ackStart);
 
     // Acknowledge 200 FIRST (design.md §4). Push is enqueued asynchronously so
     // the 5 s budget is never at risk, and only for first deliveries.

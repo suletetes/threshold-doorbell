@@ -39,6 +39,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- OAuth deep-link receiver (FR-1.5, HIGH-18, H-2). The backend
+                 OAuth callback 302-redirects to config.appDeepLink, which
+                 defaults to threshold://auth/complete, carrying the one-time app
+                 code (?code=) or an error (?error=). This VIEW/BROWSABLE filter
+                 lets the browser hand that link back to .MainActivity so the app
+                 can redeem the code at POST /oauth/exchange. The scheme and host
+                 match the server contract (scheme threshold, host auth). A future
+                 hardening is an HTTPS App Link with android:autoVerify, but the
+                 backend currently redirects to the custom scheme, so the
+                 custom-scheme filter is the correct minimal match today. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="threshold" android:host="auth"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

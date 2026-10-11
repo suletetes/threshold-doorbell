@@ -154,8 +154,11 @@ order everything else.
   KMS-backed token store is planned, not built, and the design keeps Ring tokens
   on the backend rather than the device.
 
-The extracted, reusable heart of the caption and reply logic ships as a
-standalone MIT package, [`flutter_ring_captions`](packages/flutter_ring_captions/README.md).
+The extracted, reusable heart of the caption and reply logic lives in a
+standalone, MIT-licensed package, [`flutter_ring_captions`](packages/flutter_ring_captions/README.md),
+that is reusable and extractable. It is not currently published to pub.dev
+(its `publish_to` is intentionally set to `none`); it is consumed from this
+repository via a git dependency.
 
 ## Status
 
@@ -164,6 +167,13 @@ The device-independent product logic (captions, alerts, sticky outbound mode,
 connectivity, language, model provisioning, vision) and the backend request
 handling (OAuth with PKCE, webhook, devices and events, signaling broker, ASR
 relay, transcripts, replies, observability) are covered by fixture-based tests.
+The backend OAuth-with-PKCE flow is implemented and tested, but sign-in is not
+yet end-to-end on device: the native Android deep-link handoff that delivers the
+one-time code to the app (threshold://auth/complete to POST /oauth/exchange) and
+the live backend session client (ProductionAuthPort) are part of the deferred
+device adapters. The app ships the deep-link parser and exchange contract, so
+the server-side handoff is wired, while the live link listener and HTTPS client
+remain to be bound on a device.
 The production adapters are not built: in a release build the live session,
 speak, Ring launch, smart replies and data erase paths throw, the backend wires
 in-memory fixtures in every environment, and the KMS token store is planned

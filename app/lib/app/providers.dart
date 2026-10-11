@@ -46,7 +46,7 @@ final ringAppLauncherProvider =
 
 /// The app-to-backend re-authentication binding (FR-1.5, FR-4.8; HIGH-09). The
 /// real backend session client is deferred; the production adapter fails closed.
-final authPortProvider = Provider<AuthPort>((ref) => ProductionAuthPort());
+final authPortProvider = Provider<AuthPort>((ref) => const ProductionAuthPort());
 
 final bedrockSuggestionPortProvider =
     Provider<BedrockSuggestionPort>((ref) => ProductionBedrockSuggestionPort());

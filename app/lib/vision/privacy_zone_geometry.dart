@@ -56,9 +56,18 @@ class Rect {
 }
 
 /// The fraction of [region] that is covered by any of the [zones] (0..1). Used
-/// to decide how heavily a region is masked. Overlap of multiple zones is not
-/// double counted for the common non-overlapping case; when zones overlap this
-/// is a conservative upper bound, which only makes masking stricter (safe).
+/// to decide how heavily a region is masked.
+///
+/// This sums each zone's intersection area with [region]. For the common
+/// non-overlapping case the sum equals the exact union coverage. When zones
+/// OVERLAP each other the shared sub-region is counted once per zone, so the
+/// raw sum can exceed the true covered fraction; it is a conservative UPPER
+/// BOUND and is clamped to 1 before being returned. Over-estimating coverage
+/// only ever makes [isAdmissibleRegion] and [admitDetection] STRICTER (they
+/// discard more detections), so overlapping zones can never relax masking or
+/// cause a masked detection to be admitted. The result therefore always stays
+/// within [trueCoveredFraction, 1] for the overlap case and never dips below
+/// the true coverage, so it never under-masks (LOW-23).
 double maskedFraction(Rect region, List<Rect> zones) {
   if (region.area <= 0) return 0;
   var covered = 0.0;
@@ -96,7 +105,18 @@ Rect? admitDetection(Rect region, List<Rect> zones, {double threshold = 0.5}) {
 /// correct order is mask first, then detect: this returns the sub-rectangles of
 /// [frame] that remain after the masked zones are removed, so a detector only
 /// ever sees unmasked pixels. The result is the frame clipped to exclude each
-/// zone (a conservative decomposition: when zones overlap, the union is removed).
+/// zone (when zones overlap, their union is removed).
+///
+/// Overlap handling (LOW-23): zones are removed by subtracting each one in turn
+/// from the running region set. Each [_subtract] returns disjoint sub-rectangles
+/// of its input that lie entirely OUTSIDE the subtracted zone, so the invariant
+/// "every remaining region is disjoint from every already-removed zone and from
+/// every other remaining region" holds after each step. Consequently the output
+/// rectangles never overlap each other and never overlap any masked zone even
+/// when the input zones overlap one another. The subtraction is only ever
+/// additive in what it removes, so it can never leave a masked pixel in the
+/// result (it never under-masks); overlapping input zones at worst remove the
+/// same pixel twice, which is harmless.
 ///
 /// This is pure geometry over normalized rectangles; the live vision binding
 /// zeroes the corresponding pixel regions on device before inference.
@@ -104,6 +124,8 @@ List<Rect> maskBeforeDetection(Rect frame, List<Rect> zones) {
   // Start with the whole frame and subtract each zone's intersection by
   // splitting the remaining regions around it. For v1 there are at most a
   // handful of zones, so a straightforward rectangle-subtraction is enough.
+  // Because each _subtract yields regions disjoint from the removed zone, this
+  // stays correct even when later zones overlap earlier ones (LOW-23).
   var regions = <Rect>[frame];
   for (final zone in zones) {
     final next = <Rect>[];
@@ -117,6 +139,14 @@ List<Rect> maskBeforeDetection(Rect frame, List<Rect> zones) {
 
 /// Subtract [zone] from [r], returning the (up to four) rectangles of [r] that
 /// lie outside [zone]. When they do not overlap, [r] is returned unchanged.
+///
+/// The returned strips are mutually disjoint and none of them intersects
+/// [zone]: the top and bottom strips span the full width of [r] but lie outside
+/// the overlap's vertical band, while the left and right strips are confined to
+/// the overlap's vertical band and lie outside it horizontally. This disjoint,
+/// zone-free output is what lets [maskBeforeDetection] subtract overlapping
+/// zones one after another without ever producing overlapping output rectangles
+/// or leaving a masked pixel behind (LOW-23).
 List<Rect> _subtract(Rect r, Rect zone) {
   final overlap = r.intersection(zone);
   if (overlap == null) return <Rect>[r];

@@ -73,9 +73,16 @@ export async function registerAsrRoutes(app: FastifyInstance): Promise<void> {
   // .agents/tasks/task-audit-remediation/features/FEAT-004.json (deferred).
   const liveByResident = new Map<string, number>();
 
-  app.get('/asr/stream', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
+  app.get('/asr/stream', { websocket: true }, async (socket: WebSocket, request: FastifyRequest) => {
     const { sessionSecret, wsAllowedOrigins } = app.container.config;
-    const claims = authenticateWs(request, sessionSecret, wsAllowedOrigins);
+    // HIGH-23 / H-1: authenticateWs also consults the erasure deny-list so a
+    // pre-erasure bearer cannot open a billing ASR relay after DELETE /me/data.
+    const claims = await authenticateWs(
+      request,
+      sessionSecret,
+      wsAllowedOrigins,
+      app.container.sessionInvalidation,
+    );
     if (claims === null) {
       // Defer so the client has attached its listeners before the error frame
       // and close arrive (the socket resolves to the caller after the upgrade).

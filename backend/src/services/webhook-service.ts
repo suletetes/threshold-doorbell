@@ -29,6 +29,18 @@ const EVENT_TYPES: readonly EventType[] = ['motion_detected', 'person_detected']
  * Ring-owned host. Anything else (a foreign host, http, a javascript: or data:
  * URL) is dropped to null rather than stored and later handed to a client,
  * which prevents the webhook from steering the app at an attacker URL.
+ *
+ * L-2: '.amazonaws.com' is a deliberately BROAD suffix. The exact Ring/S3
+ * bucket host that serves event thumbnails is not known in this environment (no
+ * Ring Partner access; no fixture carries a concrete thumbnail host), and S3
+ * thumbnail URLs are commonly served from a bucket under *.amazonaws.com. The
+ * breadth is acceptable TODAY because: (1) the webhook is HMAC-authenticated
+ * over timestamp.body, so only Ring can supply a thumbnail_url at all, and
+ * (2) sanitizeThumbnailUrl already requires https: and drops anything that is
+ * not a parseable HTTPS URL. BEFORE GO-LIVE this suffix MUST be narrowed to the
+ * specific Ring S3 bucket host(s) (for example
+ * 'ring-event-thumbnails.s3.amazonaws.com') once Ring's actual thumbnail host
+ * is known, so a compromised unrelated amazonaws.com host cannot be referenced.
  */
 const ALLOWED_THUMBNAIL_HOST_SUFFIXES = ['.ring.com', '.amazonaws.com'];
 
@@ -120,6 +132,22 @@ export function parseWebhook(raw: unknown): DoorEvent {
  * resident (LOW-30). It is an explicit, non-empty marker so the event is never
  * silently stored under '' (which would be unreachable and unerasable) and is
  * never confused with a real resident.
+ *
+ * L-5: retention and erasure semantics of a quarantined event. An event stored
+ * under this marker:
+ *   - is NEVER pushed (enqueuePush returns false for UNMAPPED_RESIDENT),
+ *   - is NEVER attributable to a real resident, so it is NOT removed by any
+ *     resident's DELETE /me/data (which erases only that resident's own rows),
+ *   - is removed ONLY by the 7-day event TTL, which is the sole lifetime bound
+ *     on an unmapped event.
+ * This is intentional: a device with no owner has no resident whose erasure
+ * could claim it. A FUTURE device-mapping event (deviceAccountStore.map / the
+ * device-list fetch in devices.ts) SHOULD re-attribute any still-quarantined
+ * events for that device to the newly mapped resident, so they become part of
+ * that resident's erasable data. Re-attribution is deferred here because it
+ * needs an event-store scan-and-rewrite keyed by deviceId that the current
+ * EventStorePort does not expose; the 7-day TTL bounds the quarantine until
+ * then.
  */
 export const UNMAPPED_RESIDENT = '__unmapped__';
 

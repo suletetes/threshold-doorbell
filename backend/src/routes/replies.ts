@@ -14,6 +14,12 @@ interface ReplyBody {
   mode?: unknown; // 'clarity' | 'privacy'
 }
 
+// M-2: bound the free-text field well below the 64 KiB global body limit so a
+// single legitimate request cannot carry an oversized string into the Bedrock
+// prompt path. A visitor utterance is at most a sentence or two; 4096 chars is a
+// generous ceiling. Over-limit input returns the uniform 400 'schema' envelope.
+const MAX_VISITOR_TEXT_CHARS = 4096;
+
 export async function registerReplyRoutes(app: FastifyInstance): Promise<void> {
   const service = new ReplyService(app.container.bedrock);
 
@@ -30,6 +36,10 @@ export async function registerReplyRoutes(app: FastifyInstance): Promise<void> {
       // accepts text fields, but a caller must never smuggle binary here).
       if (body.visitorText !== undefined && typeof body.visitorText !== 'string') {
         throw errors.schema('visitorText must be a string.');
+      }
+      // M-2: reject an over-long visitorText rather than forward it to Bedrock.
+      if (visitorText.length > MAX_VISITOR_TEXT_CHARS) {
+        throw errors.schema('visitorText is too long.');
       }
 
       // MED-24: Privacy Mode must FAIL CLOSED. Accept exactly 'clarity' or

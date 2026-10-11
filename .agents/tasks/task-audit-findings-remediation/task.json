@@ -1,0 +1,14 @@
+{
+  "task_id": "task-audit-findings-remediation",
+  "task_description": "Install the toolchain (Flutter 3.38.10 pinned to CI, npm) and remediate ALL findings in CODEBASE_AUDIT.md for suletetes/threshold-doorbell: 2 High (H-1 WS erasure-revocation bypass, H-2 OAuth Android deep-link receiver), 6 Medium (M-1 route schemas, M-2 request field sizes, M-3 per-process caps, M-4 shallow readiness, M-5 .env.example drift, M-6 unwired latency metrics), and 7 Low (L-1 HSTS/secure flag, L-2 thumbnail allowlist, L-3 webhook timestamp contract, L-4 expiresAt NaN, L-5 unmapped-event retention, L-6 privacy-zone subtraction, L-7 package publish_to). Atomic, user-authored commits on branch fix/audit-findings-remediation (off main). Do not push or open a PR.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Backend (export PATH to nvm node v22; cd backend): npm run typecheck PASS, npm run lint PASS, npm run test PASS (288 tests / 37 files; baseline was 275), npm run build PASS (tsc -p tsconfig.build.json). App (Flutter 3.38.10 pinned to CI; cd app): flutter analyze --fatal-infos clean, flutter test PASS (680 tests), dart run tool/lint_ui_copy.dart lib OK. Package (cd packages/flutter_ring_captions): flutter analyze --fatal-infos clean, flutter test PASS (50 tests). 16 atomic commits, all authored by Suleiman <85356587+suletetes@users.noreply.github.com>, no AI trailers, no em/en dashes in any message or diff. Test quality: new tests are behavioral and would fail if reverted. H-1 WS erasure test was confirmed to fail with the isRevoked check removed (socket never closes 4401). M-2 caps assert over-limit 400s and at-cap success boundaries. M-6 asserts webhook_ack_ms is observed after a signed delivery. M-4 asserts /ready 503 when an injected tokenStore rejects. L-4 asserts a non-finite expiresAt forces refresh. H-2 deep-link parser/exchange tests cover code/error/invalid/foreign and 200-with-session vs non-200/missing-session/non-JSON. L-6 overlapping-zone tests assert center-in-overlap discarded and maskedFraction stays within [trueCovered,1] with a disjoint zone-free decomposition. docker_build skipped: no Dockerfile for the backend; the Android release-APK build (flutter build apk --release) and its RECORD_AUDIO/INTERNET R8 permission assertion could NOT be run locally (no Android SDK in sandbox) and are relied upon via the CI android job."
+  }
+}
