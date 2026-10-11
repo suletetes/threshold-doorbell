@@ -6,8 +6,9 @@
 # request (design.md §11). The jobs that gate a merge:
 #
 #   backend  - TypeScript typecheck, ESLint, and vitest (unit + contract + WS).
-#              Runs on a Node 20 and 22 matrix: 20 is the declared engines
-#              floor, 22 is the forward LTS.
+#              Runs on Node 22, the declared engines floor and the only
+#              supported runtime (the dependency tree requires Node 22; see
+#              the matrix note below).
 #   app      - flutter analyze --fatal-infos, dart format check, flutter test,
 #              and the em-dash / en-dash UI-copy lint (AT-24) which fails the
 #              build if a forbidden dash appears in any user-facing string.
@@ -23,7 +24,7 @@
 #
 # Third-party and first-party actions are pinned to a full commit SHA with the
 # released tag in a trailing comment, and every job has a timeout. Versions are
-# pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10, Node 20/22).
+# pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10, Node 22).
 
 name: CI
 
@@ -53,10 +54,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 20 is the engines floor declared in backend/package.json; 22 is the
-        # forward LTS the service is expected to run on next. Test both so CI
-        # never diverges from the declared runtime (MED-41).
-        node-version: ["20", "22"]
+        # 22 is the engines floor declared in backend/package.json and the only
+        # supported runtime: the dependency tree resolves cookie@2.0.1 (ESM-only)
+        # loaded via require() by light-my-request, which throws ERR_REQUIRE_ESM
+        # on Node 20 and breaks the route tests. Test 22 so CI never diverges
+        # from the declared runtime (MED-41).
+        node-version: ["22"]
     defaults:
       run:
         working-directory: backend

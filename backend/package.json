@@ -5,7 +5,7 @@
   "description": "Threshold backend: stateless Node 20+ + Fastify service for the two-way captioned Ring doorbell.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
