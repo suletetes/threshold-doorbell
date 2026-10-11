@@ -233,7 +233,18 @@
         "detail": "NIT-04 (session exp semantics) was addressed in FEAT-003 (commit dcd17e7). FEAT-004's step G referenced a NIT cluster of 01/02/03/05/06; NIT-04 is excluded here deliberately."
       }
     },
-    "deferred": [],
+    "deferred": [
+      {
+        "id": "HIGH-22-distributed",
+        "status": "deferred",
+        "detail": "The per-resident concurrent ASR-session cap (HIGH-22, backend/src/routes/asr.ts `liveByResident`) and the signaling single-session-per-resident invariant (FR-4.7, backend/src/services/signaling-service.ts `active`) are enforced with per-PROCESS in-memory maps. They are correct for the single-process fixture but do NOT hold across a multi-process / multi-pod deployment: a resident could reach the cap (or hold a live session) once per instance. The real Transcribe and signaling adapters MUST carry a cross-instance counter / lock in a shared store (e.g. an atomic DynamoDB/Redis counter or a conditional-write claim row keyed by residentSub, with the existing session TTL as the lease) so the cap and the single-session invariant are enforced globally. The code comments at both sites document this limitation and reference this note.",
+        "files": [
+          "backend/src/routes/asr.ts",
+          "backend/src/services/signaling-service.ts"
+        ],
+        "requires": "A real distributed datastore adapter (deferred: no AWS/Redis in this environment). This is a documentation/tracking item, not a code change, until those adapters land."
+      }
+    ],
     "notes": "Scope was backend/ only (per the orchestrator briefing). osv-scanner still reports dev-only advisories (vitest 3.2.7 / @vitest/mocker need 4.x, tinypool needs 2.x, braces); these are not production dependencies, are excluded by npm audit --omit=dev, and are outside the HIGH-25 scope (which only required vitest >= 3.2.6 to clear the critical dev advisory and the fastify/find-my-way production advisories). A node >=22 EBADENGINE warning appears during install from a vitest transitive dev dep; it is a warning only, the install and the whole suite succeed on Node 20.20.2, and the backend engines field stays >=20 <21."
   }
 }

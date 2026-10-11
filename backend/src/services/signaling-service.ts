@@ -7,9 +7,18 @@
 // refuses any duplicate open. On end (explicit close or timeout) the Ring
 // session URL is released (FR-4.3).
 //
-// The registry is per-instance in-memory. The real horizontally-scaled
-// deployment records the active session in the datastore keyed by residentSub;
-// this fixture-backed service proves the lifecycle and rejection rules.
+// DEFERRED (cross-instance limitation): the `active` registry below is a
+// per-PROCESS in-memory map, so the single-session-per-resident invariant
+// (FR-4.7) holds within ONE instance only. Across a multi-process / multi-pod
+// deployment a resident could hold one live session per instance, which breaks
+// FR-4.7 globally. This is correct for the single-process fixture but is NOT a
+// cross-instance guarantee. The real horizontally-scaled deployment MUST record
+// the active session in a shared datastore keyed by residentSub (e.g. a
+// conditional-write "claim" row / distributed lock with the TTL below as the
+// lease), so a second concurrent open is rejected regardless of which instance
+// serves it. Tracked in
+// .agents/tasks/task-audit-remediation/features/FEAT-004.json (deferred).
+// This fixture-backed service proves the lifecycle and rejection rules.
 
 import type { RingSessionHandle, RingSignalingPort } from './ring-signaling.js';
 

@@ -60,8 +60,17 @@ export async function registerAsrRoutes(app: FastifyInstance): Promise<void> {
   const { limits } = app.container.config;
 
   // HIGH-22: count live sessions per resident so one account cannot open an
-  // unbounded number of concurrent Transcribe streams. Per-process is fine for
-  // the fixture; a real deployment uses a distributed counter.
+  // unbounded number of concurrent Transcribe streams.
+  //
+  // DEFERRED (cross-instance limitation): `liveByResident` is a per-PROCESS map.
+  // The HIGH-22 concurrent-session cap therefore holds within a single instance
+  // only; across a multi-process / multi-pod deployment a resident could open
+  // `asrMaxSessionsPerResident` streams PER instance. This is correct for the
+  // single-process fixture but is NOT a cross-instance guarantee. The real
+  // Transcribe adapter MUST carry the counter in a shared store (e.g. an atomic
+  // DynamoDB/Redis counter or token lease keyed by residentSub) so the cap is
+  // enforced across instances. Tracked in
+  // .agents/tasks/task-audit-remediation/features/FEAT-004.json (deferred).
   const liveByResident = new Map<string, number>();
 
   app.get('/asr/stream', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
