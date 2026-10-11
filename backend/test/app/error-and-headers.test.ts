@@ -5,6 +5,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
+import { loadConfig } from '../../src/config.js';
+import { buildContainer } from '../../src/container.js';
+import { buildApp } from '../../src/app.js';
+import type { TokenStorePort } from '../../src/services/stores.js';
 
 let app: FastifyInstance | undefined;
 afterEach(async () => {
@@ -82,5 +86,29 @@ describe('MED-36 readiness probe', () => {
     expect(body.ready).toBe(true);
     expect(Array.isArray(body.checks)).toBe(true);
     expect(body.checks.some((c: { name: string }) => c.name === 'tokenStore')).toBe(true);
+  });
+
+  it('reports 503 with tokenStore ok:false when the token store probe rejects (M-4)', async () => {
+    // Inject a token store whose get() rejects, standing in for an unreachable
+    // real datastore. The bounded readiness probe must surface this as not-ready
+    // rather than hanging or reporting ready.
+    const config = loadConfig({ THRESHOLD_ENV: 'local', SESSION_SECRET: 'test-secret-for-sessions' });
+    const failingTokenStore: TokenStorePort = {
+      get: async () => {
+        throw new Error('datastore unreachable');
+      },
+      put: async () => {},
+      delete: async () => {},
+    };
+    const container = buildContainer(config, { tokenStore: failingTokenStore });
+    const built = await buildApp(container);
+    app = built;
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/ready' });
+    expect(res.statusCode).toBe(503);
+    const body = res.json();
+    expect(body.ready).toBe(false);
+    const tokenStoreCheck = body.checks.find((c: { name: string }) => c.name === 'tokenStore');
+    expect(tokenStoreCheck.ok).toBe(false);
   });
 });

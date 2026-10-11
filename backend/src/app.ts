@@ -169,9 +169,10 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   app.get('/health', async () => ({ ok: true }));
 
   // MED-36: readiness probe. Reports whether the dependencies the service needs
-  // to serve traffic are reachable. In fixture mode everything is in-process so
-  // it is ready; a real adapter deployment can extend readinessChecks to ping
-  // its datastore and token store. Returns 503 when any check fails so the
+  // to serve traffic are reachable. Each dependency check is an awaited probe
+  // with a bounded timeout, so a hung real adapter fails the check (503) rather
+  // than hanging /ready. In fixture mode everything is in-process and resolves
+  // immediately, so it is ready. Returns 503 when any check fails so the
   // orchestrator can hold traffic off a not-yet-ready instance.
   app.get('/ready', async (_request, reply) => {
     const checks = await runReadinessChecks(container);
@@ -208,22 +209,50 @@ interface ReadinessCheck {
   ok: boolean;
 }
 
+// MED-36: per-dependency readiness probe timeout. A real adapter that hangs
+// (an unreachable DynamoDB/KMS endpoint) must fail its check rather than block
+// /ready indefinitely, so each probe races against this bound.
+const READINESS_CHECK_TIMEOUT_MS = 1000;
+
 /**
- * MED-36: readiness checks. A real-adapter deployment would ping its datastore
- * and token store here; in fixture mode the stores are in-process and always
- * reachable, so readiness mirrors liveness. Kept separate from /health so the
- * two probes can diverge once real adapters land.
+ * Run an async readiness probe with a bounded timeout. The probe resolves to
+ * ok:true only if it completes before the timeout AND does not throw; a thrown
+ * error (adapter unreachable) or a timeout (adapter hung) both yield ok:false.
+ * In fixture mode the in-process probe resolves immediately, well inside the
+ * bound, so readiness stays green.
+ */
+async function timedCheck(name: string, probe: () => Promise<unknown>): Promise<ReadinessCheck> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${name} readiness probe timed out`)), READINESS_CHECK_TIMEOUT_MS);
+  });
+  try {
+    await Promise.race([probe(), timeout]);
+    return { name, ok: true };
+  } catch {
+    return { name, ok: false };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * MED-36: readiness checks. Each dependency the service needs to serve traffic
+ * is probed with a per-check timeout (timedCheck), so a hung real adapter fails
+ * the check instead of hanging /ready. In fixture mode the stores are
+ * in-process and resolve immediately, so readiness mirrors liveness; once real
+ * adapters land, a failing or hung datastore/token-store probe surfaces here as
+ * not-ready (503). Kept separate from /health so the two probes can diverge.
  */
 async function runReadinessChecks(container: Container): Promise<ReadinessCheck[]> {
   const checks: ReadinessCheck[] = [];
-  // The config is validated at boot; its presence is a cheap readiness signal.
+  // The config is validated at boot; its presence is a cheap, synchronous
+  // readiness signal that needs no timeout.
   checks.push({ name: 'config', ok: typeof container.config.env === 'string' });
-  // The token store must be reachable to serve any authenticated request.
-  try {
-    await container.tokenStore.get('__readiness_probe__');
-    checks.push({ name: 'tokenStore', ok: true });
-  } catch {
-    checks.push({ name: 'tokenStore', ok: false });
-  }
+  // The token store must be reachable to serve any authenticated request. A
+  // real adapter that hangs or rejects fails this bounded probe.
+  checks.push(
+    await timedCheck('tokenStore', () => container.tokenStore.get('__readiness_probe__')),
+  );
   return checks;
 }
