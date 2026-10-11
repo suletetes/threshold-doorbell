@@ -154,8 +154,11 @@ order everything else.
   KMS-backed token store is planned, not built, and the design keeps Ring tokens
   on the backend rather than the device.
 
-The extracted, reusable heart of the caption and reply logic ships as a
-standalone MIT package, [`flutter_ring_captions`](packages/flutter_ring_captions/README.md).
+The extracted, reusable heart of the caption and reply logic lives in a
+standalone, MIT-licensed package, [`flutter_ring_captions`](packages/flutter_ring_captions/README.md),
+that is reusable and extractable. It is not currently published to pub.dev
+(its `publish_to` is intentionally set to `none`); it is consumed from this
+repository via a git dependency.
 
 ## Status
 
