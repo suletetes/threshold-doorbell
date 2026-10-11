@@ -54,6 +54,17 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
     // accepted key, within a +/-5 minute replay window. A mismatch, a missing
     // or stale timestamp, or an unknown key -> 401, with no body logging and no
     // processing.
+    //
+    // L-3: this encodes an ASSUMED signing contract that MUST be validated
+    // against Ring's actual Partner webhook spec before go-live:
+    //   - an x-ring-timestamp header is present on every delivery,
+    //   - the HMAC is computed over the exact material `${timestamp}.${body}`,
+    //   - the delivery is valid only within a +/-5 minute window.
+    // If Ring's real deliveries differ (no timestamp header, a different signed
+    // material, or a different window), EVERY real delivery would 401 here. When
+    // the real format is confirmed, update verifyTimestampedSignature in
+    // security/hmac.ts to match. The body-only verifySignature scheme in hmac.ts
+    // remains available as the fallback if Ring signs the raw body alone.
     if (
       !verifyTimestampedSignature({
         timestamp,

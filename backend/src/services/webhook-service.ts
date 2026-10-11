@@ -29,6 +29,18 @@ const EVENT_TYPES: readonly EventType[] = ['motion_detected', 'person_detected']
  * Ring-owned host. Anything else (a foreign host, http, a javascript: or data:
  * URL) is dropped to null rather than stored and later handed to a client,
  * which prevents the webhook from steering the app at an attacker URL.
+ *
+ * L-2: '.amazonaws.com' is a deliberately BROAD suffix. The exact Ring/S3
+ * bucket host that serves event thumbnails is not known in this environment (no
+ * Ring Partner access; no fixture carries a concrete thumbnail host), and S3
+ * thumbnail URLs are commonly served from a bucket under *.amazonaws.com. The
+ * breadth is acceptable TODAY because: (1) the webhook is HMAC-authenticated
+ * over timestamp.body, so only Ring can supply a thumbnail_url at all, and
+ * (2) sanitizeThumbnailUrl already requires https: and drops anything that is
+ * not a parseable HTTPS URL. BEFORE GO-LIVE this suffix MUST be narrowed to the
+ * specific Ring S3 bucket host(s) (for example
+ * 'ring-event-thumbnails.s3.amazonaws.com') once Ring's actual thumbnail host
+ * is known, so a compromised unrelated amazonaws.com host cannot be referenced.
  */
 const ALLOWED_THUMBNAIL_HOST_SUFFIXES = ['.ring.com', '.amazonaws.com'];
 
