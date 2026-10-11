@@ -12,8 +12,11 @@
 #              em-dash / en-dash UI-copy lint (AT-24) which fails the build if a
 #              forbidden dash appears in any user-facing string.
 #   packages - flutter analyze, dart format check, and flutter test.
-#   android  - flutter build apk, then an aapt assertion that the merged
-#              manifest declares RECORD_AUDIO and INTERNET.
+#   android  - flutter build apk --release (signed with a throwaway CI keystore
+#              so the R8/resource-shrinking release path runs), then an aapt
+#              assertion that the SHRUNK release manifest still declares
+#              RECORD_AUDIO and INTERNET (locks in the release-manifest
+#              guarantee HIGH-13 is about, which a debug APK does not exercise).
 #
 # Third-party and first-party actions are pinned to a full commit SHA with the
 # released tag in a trailing comment, and every job has a timeout. Versions are
@@ -144,7 +147,7 @@ jobs:
         run: flutter test
 
   android:
-    name: Android (build apk, assert permissions)
+    name: Android (build release apk, assert permissions)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -170,16 +173,44 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Build debug APK
-        run: flutter build apk --debug
-
-      # Lock in CRIT-09, HIGH-12, MED-16, and MED-19: assert the merged manifest
-      # still declares the mandatory runtime permissions. If a later change drops
-      # RECORD_AUDIO or INTERNET from the manifest, this fails the build.
-      - name: Assert manifest permissions (RECORD_AUDIO, INTERNET)
+      # Generate a THROWAWAY release keystore so the release build can be signed
+      # in CI without any real production secret (#4). build.gradle.kts fails a
+      # release build closed when no key is configured (HIGH-12), so to exercise
+      # the real release path (R8 + resource shrinking) we must supply a signing
+      # config. This keystore is created fresh on every run, never leaves the
+      # runner, and is NOT the Play upload key; it only proves the release
+      # manifest, not store-publishable signing. Only the four THRESHOLD_* signing
+      # variables are referenced, not the whole environment.
+      - name: Generate throwaway release keystore
         run: |
           set -euo pipefail
-          apk="build/app/outputs/flutter-apk/app-debug.apk"
+          keystore="$RUNNER_TEMP/ci-throwaway-release.jks"
+          keytool -genkeypair -v \
+            -keystore "$keystore" \
+            -storepass ci-throwaway -keypass ci-throwaway \
+            -alias ci-upload -keyalg RSA -keysize 2048 -validity 36500 \
+            -dname "CN=Threshold CI, OU=CI, O=Threshold, L=NA, ST=NA, C=NA"
+          echo "THRESHOLD_KEYSTORE_FILE=$keystore" >> "$GITHUB_ENV"
+
+      # Build the SHRUNK RELEASE APK so the aapt assertion below runs against the
+      # same R8/resource-shrinking path that ships to users (#4). A debug APK
+      # skips R8 and resource shrinking, so asserting permissions on it does not
+      # prove the release-manifest guarantee that HIGH-13/CRIT-09 are about.
+      - name: Build release APK
+        env:
+          THRESHOLD_KEYSTORE_PASSWORD: ci-throwaway
+          THRESHOLD_KEY_ALIAS: ci-upload
+          THRESHOLD_KEY_PASSWORD: ci-throwaway
+        run: flutter build apk --release
+
+      # Lock in CRIT-09, HIGH-12, HIGH-13, MED-16, and MED-19: assert the merged
+      # manifest in the RELEASE APK still declares the mandatory runtime
+      # permissions after R8/resource shrinking. If a later change drops
+      # RECORD_AUDIO or INTERNET from the release manifest, this fails the build.
+      - name: Assert release manifest permissions (RECORD_AUDIO, INTERNET)
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-release.apk"
           test -f "$apk"
           build_tools_dir="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools"
           aapt="$(find "$build_tools_dir" -name aapt -type f | sort -V | tail -n 1)"
