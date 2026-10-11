@@ -326,8 +326,16 @@ Principle: fully usable with sound off and a screen reader on. No information co
 - **Unit** (Dart and Node): services behind interfaces with fixtures. Cover unified auth recovery, webhook
   dedupe, probe logic, sticky-mode transitions, confidence styling for partial and final, ASR gating,
   pagination cursors.
-- **Contract**: every route validated against its Fastify JSON schema; HMAC and idempotency; pagination
-  contract; authorization rejection of foreign `residentSub`.
+- **Contract**: request validation is performed in the service layer by explicit choice, not via per-route
+  Fastify JSON schemas. The session guard (`requireSession`, a `preHandler`) must run before any body or
+  query validation so an unauthenticated request is rejected with 401 before its payload is inspected; a
+  route-level Fastify body schema would validate before the `preHandler` and leak a 400 ahead of the 401,
+  which the auth-first contract forbids. Each route therefore reads `request.body`/`request.query` as
+  `unknown` and hand-validates in its service (`replies.ts`, `transcript-service.ts`, `webhook-service.ts`),
+  returning the uniform `schema` (400) envelope on a malformed input. The one `preHandler`-independent
+  validation Fastify still performs for us is the framework-level body guard (malformed JSON, oversized body,
+  unsupported media type), which the error handler maps to a 4xx `schema` envelope. HMAC and idempotency;
+  pagination contract; authorization rejection of foreign `residentSub`.
 - **Integration**: end-to-end session against fixture Ring and fixture ASR; assert exactly one peer
   connection and the `sendrecv`/`recvonly` shape.
 - **Probe and injection harness** (AT-5, AT-6): assert audio energy on the outbound track within 2 s; assert

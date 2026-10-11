@@ -134,14 +134,13 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
       reply.code(err.statusCode).send(err.toEnvelope(requestId));
       return;
     }
-    // Fastify schema validation failures map to our `schema` error.
-    if ((err as { validation?: unknown }).validation) {
-      container.metrics.increment('schema_validation_failure');
-      correlatedLogger(requestId).warn('request schema validation failure');
-      const schemaErr = errors.schema();
-      reply.code(schemaErr.statusCode).send(schemaErr.toEnvelope(requestId));
-      return;
-    }
+    // M-1: there is deliberately NO per-route Fastify body/query schema (see
+    // design.md section 9: validation is service-layer by choice so the session
+    // guard runs before any payload inspection). A Fastify-native validation
+    // error (err.validation) therefore never occurs on this app, so the branch
+    // that used to translate it was dead code and has been removed. If a route
+    // schema is ever added, its validation error carries a 4xx statusCode and is
+    // handled by the generic client-error branch below as a 'schema' envelope.
     // HIGH-24: a framework-level client error (malformed JSON body, oversized
     // body, unsupported media type) carries a 4xx statusCode. Pass it through as
     // a 4xx `schema` envelope instead of masking it as a 500 `internal`.
