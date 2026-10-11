@@ -17,6 +17,7 @@ import '../consent/recording_notice.dart';
 import '../reply/echo_gate.dart';
 import '../reply/reply_port.dart';
 import '../reply/suggestion_provider.dart';
+import '../session/auth_deep_link.dart';
 import '../session/auth_port.dart';
 import '../session/ring_app_launcher.dart';
 import '../session/session_port.dart';
@@ -143,15 +144,55 @@ class ProductionDataErasurePort implements DataErasurePort {
   }
 }
 
-/// Re-authentication after a mid-session expiry (FR-1.5, FR-4.8; HIGH-09). The
-/// real binding runs the OAuth / backend session exchange over HTTPS and
-/// verifies the returned token. That client is DEFERRED: it needs a device and
-/// live network, so here it fails closed rather than pretending a token was
-/// verified.
+/// Re-authentication after a mid-session expiry (FR-1.5, FR-4.8; HIGH-09,
+/// HIGH-18, H-2). The real binding starts the OAuth flow in the browser, awaits
+/// the threshold://auth/complete deep link the backend redirects to, parses the
+/// one-time code with [parseAuthDeepLink], and redeems it at POST /oauth/exchange
+/// through an [AuthExchangeClient]. Only a verified session may resume (HIGH-09).
+///
+/// The structure is split so the two halves have different availability:
+///  * [completeFromDeepLink] is pure. Given the already-received deep-link [Uri]
+///    and an [AuthExchangeClient], it parses the link and drives the exchange.
+///    This is fully covered by `flutter test`, so the server-side handoff is no
+///    longer orphaned on the client.
+///  * [reauthenticate] is DEFERRED: starting the browser flow and listening for
+///    the incoming link both need a device and live network, which this
+///    environment cannot provide, so it fails closed rather than pretending a
+///    token was verified. When an exchange client is supplied for the live
+///    binding it is used by [completeFromDeepLink] once a device delivers a link.
 class ProductionAuthPort implements AuthPort {
+  const ProductionAuthPort({AuthExchangeClient? exchangeClient})
+      : _exchangeClient = exchangeClient;
+
+  final AuthExchangeClient? _exchangeClient;
+
   @override
   Future<AuthResult> reauthenticate() async {
+    // The live step launches the browser OAuth flow and waits for the backend
+    // to redirect to the threshold://auth/complete deep link. Both are device
+    // and network bound, so fail closed here; a device delivers the link to
+    // completeFromDeepLink below.
     throw const DeviceBindingUnavailable('Signing in again');
+  }
+
+  /// Parse an already-received OAuth deep link and, when it carries a one-time
+  /// code, redeem it through [client] (or the client supplied at construction).
+  /// A link that is invalid or carries an error is a failed re-authentication,
+  /// so the session must not resume (HIGH-09). This path is pure and headless.
+  Future<AuthResult> completeFromDeepLink(
+    Uri link, {
+    AuthExchangeClient? client,
+  }) async {
+    final exchange = client ?? _exchangeClient;
+    if (exchange == null) {
+      throw const DeviceBindingUnavailable('The backend session exchange');
+    }
+    final parsed = parseAuthDeepLink(link);
+    return switch (parsed) {
+      AuthDeepLinkCode(code: final code) => exchange.exchange(code),
+      AuthDeepLinkError() => AuthResult.failed,
+      AuthDeepLinkInvalid() => AuthResult.failed,
+    };
   }
 }
 
