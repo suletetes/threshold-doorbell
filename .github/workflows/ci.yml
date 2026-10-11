@@ -8,10 +8,13 @@
 #   backend  - TypeScript typecheck, ESLint, and vitest (unit + contract + WS).
 #              Runs on a Node 20 and 22 matrix: 20 is the declared engines
 #              floor, 22 is the forward LTS.
-#   app      - flutter analyze, dart format check, flutter test, and the
-#              em-dash / en-dash UI-copy lint (AT-24) which fails the build if a
-#              forbidden dash appears in any user-facing string.
-#   packages - flutter analyze, dart format check, and flutter test.
+#   app      - flutter analyze --fatal-infos, dart format check, flutter test,
+#              and the em-dash / en-dash UI-copy lint (AT-24) which fails the
+#              build if a forbidden dash appears in any user-facing string.
+#              analyze is a hard gate, verified clean on the pinned Flutter
+#              3.38.10 (see the Analyze step for the fallback if a toolchain bump
+#              reintroduces the old analysis-server crash).
+#   packages - flutter analyze --fatal-infos, dart format check, and flutter test.
 #   android  - flutter build apk --release (signed with a throwaway CI keystore
 #              so the R8/resource-shrinking release path runs), then an aapt
 #              assertion that the SHRUNK release manifest still declares
@@ -134,6 +137,15 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # Static analysis as a real, fatal gate (#3). A previous CI config removed
+      # flutter analyze with a comment that it "crashes in the sandbox analysis
+      # server"; that was on an unpinned/older toolchain. On the pinned Flutter
+      # 3.38.10 used here, `flutter analyze --fatal-infos` runs clean on both the
+      # app and the package (verified: "No issues found!"), so it is restored as
+      # a hard gate. If a future toolchain bump reintroduces an analysis-server
+      # crash, prefer `dart analyze --fatal-infos --fatal-warnings` (the Dart CLI
+      # analyzer, which does not spin up the long-lived IDE analysis server)
+      # rather than disabling the gate.
       - name: Analyze (fatal infos)
         run: flutter analyze --fatal-infos
 
@@ -242,6 +254,10 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # Static analysis as a real, fatal gate (#3). See the app job for the
+      # rationale: verified clean on the pinned Flutter 3.38.10; fall back to
+      # `dart analyze --fatal-infos --fatal-warnings` only if a toolchain bump
+      # ever reintroduces the analysis-server crash the old CI config cited.
       - name: Analyze (fatal infos)
         run: flutter analyze --fatal-infos
 
