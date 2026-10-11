@@ -25,7 +25,10 @@ Future<RecordingNoticeController> _notice({
   ComplianceChoice? defaultChoice,
 }) async {
   final c = RecordingNoticeController(
-    FakeConsentStore(acknowledged: true, audibleNotice: audible, defaultChoice: defaultChoice),
+    FakeConsentStore(
+        acknowledged: true,
+        audibleNotice: audible,
+        defaultChoice: defaultChoice),
   );
   await c.load();
   return c;
@@ -33,7 +36,8 @@ Future<RecordingNoticeController> _notice({
 
 void main() {
   group('Privacy-Mode model gating (P2-4, FR-5.2a, AT-21)', () {
-    test('Privacy Mode is refused and labelled until the model verifies', () async {
+    test('Privacy Mode is refused and labelled until the model verifies',
+        () async {
       final coord = SessionStartCoordinator(
         provisioning: _notReady(),
         recordingNotice: await _notice(),
@@ -65,8 +69,10 @@ void main() {
     });
   });
 
-  group('Recording-notice fallback at session start (P2-4, FR-14.3a, AT-14)', () {
-    test('audible notice enabled + outbound unavailable + no default => prompt', () async {
+  group('Recording-notice fallback at session start (P2-4, FR-14.3a, AT-14)',
+      () {
+    test('audible notice enabled + outbound unavailable + no default => prompt',
+        () async {
       final coord = SessionStartCoordinator(
         provisioning: _verified(),
         recordingNotice: await _notice(audible: true),
@@ -111,7 +117,8 @@ void main() {
       expect(plan.transcriptionDisabled, isTrue);
     });
 
-    test('audible notice enabled + outbound available => play then transcribe', () async {
+    test('audible notice enabled + outbound available => play then transcribe',
+        () async {
       final coord = SessionStartCoordinator(
         provisioning: _verified(),
         recordingNotice: await _notice(audible: true),

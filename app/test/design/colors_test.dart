@@ -38,10 +38,15 @@ void main() {
       expect(ThresholdColors.dark.brightness, Brightness.dark);
     });
 
-    test('the two schemes are genuinely different, not one derived from the other', () {
-      expect(ThresholdColors.light.surface, isNot(ThresholdColors.dark.surface));
-      expect(ThresholdColors.light.primary, isNot(ThresholdColors.dark.primary));
-      expect(ThresholdColors.light.onSurface, isNot(ThresholdColors.dark.onSurface));
+    test(
+        'the two schemes are genuinely different, not one derived from the other',
+        () {
+      expect(
+          ThresholdColors.light.surface, isNot(ThresholdColors.dark.surface));
+      expect(
+          ThresholdColors.light.primary, isNot(ThresholdColors.dark.primary));
+      expect(ThresholdColors.light.onSurface,
+          isNot(ThresholdColors.dark.onSurface));
     });
 
     test('the light surface really is lighter than the dark surface', () {
@@ -79,7 +84,8 @@ void main() {
       final scheme = entry.value.$1;
 
       test('$name: body text (onSurface on surface)', () {
-        _expectMeetsAa(scheme.onSurface, scheme.surface, '$name onSurface on surface');
+        _expectMeetsAa(
+            scheme.onSurface, scheme.surface, '$name onSurface on surface');
       });
 
       test('$name: secondary body text (onSurfaceVariant on surface)', () {
@@ -91,7 +97,8 @@ void main() {
       });
 
       test('$name: primary button label (onPrimary on primary)', () {
-        _expectMeetsAa(scheme.onPrimary, scheme.primary, '$name onPrimary on primary');
+        _expectMeetsAa(
+            scheme.onPrimary, scheme.primary, '$name onPrimary on primary');
       });
 
       test('$name: error text (onError on error)', () {
@@ -133,7 +140,8 @@ void main() {
           'surfaceContainerHighest': scheme.surfaceContainerHighest,
         };
         containers.forEach((container, color) {
-          _expectMeetsAa(scheme.onSurface, color, '$name onSurface on $container');
+          _expectMeetsAa(
+              scheme.onSurface, color, '$name onSurface on $container');
         });
       });
     }
@@ -143,22 +151,28 @@ void main() {
     test('both schemes expose all eight semantic roles', () {
       for (final entry in _schemes.entries) {
         final semantic = entry.value.$2;
-        expect(semantic.all, hasLength(8), reason: '${entry.key} must expose eight roles');
+        expect(semantic.all, hasLength(8),
+            reason: '${entry.key} must expose eight roles');
         for (final color in semantic.all) {
-          expect(color.a, 1.0, reason: '${entry.key} semantic roles must be opaque');
+          expect(color.a, 1.0,
+              reason: '${entry.key} semantic roles must be opaque');
         }
       }
     });
 
     test('the light and dark role sets are distinct', () {
-      expect(ThresholdSemanticColors.light, isNot(ThresholdSemanticColors.dark));
+      expect(
+          ThresholdSemanticColors.light, isNot(ThresholdSemanticColors.dark));
       expect(ThresholdSemanticColors.light.captionSurface,
           isNot(ThresholdSemanticColors.dark.captionSurface));
-      expect(ThresholdSemanticColors.light.live, isNot(ThresholdSemanticColors.dark.live));
-      expect(ThresholdSemanticColors.light.danger, isNot(ThresholdSemanticColors.dark.danger));
+      expect(ThresholdSemanticColors.light.live,
+          isNot(ThresholdSemanticColors.dark.live));
+      expect(ThresholdSemanticColors.light.danger,
+          isNot(ThresholdSemanticColors.dark.danger));
     });
 
-    test('recording and danger are distinguishable roles, not the same color', () {
+    test('recording and danger are distinguishable roles, not the same color',
+        () {
       expect(
         ThresholdSemanticColors.light.recording,
         isNot(ThresholdSemanticColors.light.danger),
@@ -170,7 +184,8 @@ void main() {
     });
   });
 
-  group('Semantic role contrast (FR-10.2, NFR-2 discipline applied app wide)', () {
+  group('Semantic role contrast (FR-10.2, NFR-2 discipline applied app wide)',
+      () {
     for (final entry in _schemes.entries) {
       final name = entry.key;
       final scheme = entry.value.$1;
@@ -184,7 +199,8 @@ void main() {
         );
       });
 
-      test('$name: provisional caption text is still readable, not just faded', () {
+      test('$name: provisional caption text is still readable, not just faded',
+          () {
         // Audit C7: provisional text must be a deliberate treatment, which means
         // it still has to clear the floor. Reduced emphasis is not permission to
         // drop below 4.5:1.
@@ -195,8 +211,10 @@ void main() {
         );
       });
 
-      test('$name: provisional reads as lower emphasis than confident text', () {
-        final confident = wcagContrastRatio(semantic.captionOnSurface, semantic.captionSurface);
+      test('$name: provisional reads as lower emphasis than confident text',
+          () {
+        final confident = wcagContrastRatio(
+            semantic.captionOnSurface, semantic.captionSurface);
         final provisional = wcagContrastRatio(
           semantic.captionProvisional,
           semantic.captionSurface,
@@ -258,35 +276,42 @@ void main() {
 
   group('ThresholdSemanticColors.lerp', () {
     test('t = 0 returns the start value', () {
-      final result = ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 0);
+      final result =
+          ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 0);
       expect(result, ThresholdSemanticColors.light);
     });
 
     test('t = 1 returns the end value', () {
-      final result = ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 1);
+      final result =
+          ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 1);
       expect(result, ThresholdSemanticColors.dark);
     });
 
     test('t = 0.5 lands between the two, per role', () {
-      final result = ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 0.5);
+      final result =
+          ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 0.5);
       expect(
         result.live,
-        Color.lerp(ThresholdSemanticColors.light.live, ThresholdSemanticColors.dark.live, 0.5),
+        Color.lerp(ThresholdSemanticColors.light.live,
+            ThresholdSemanticColors.dark.live, 0.5),
       );
       expect(
         result.danger,
-        Color.lerp(ThresholdSemanticColors.light.danger, ThresholdSemanticColors.dark.danger, 0.5),
+        Color.lerp(ThresholdSemanticColors.light.danger,
+            ThresholdSemanticColors.dark.danger, 0.5),
       );
       expect(result, isNot(ThresholdSemanticColors.light));
       expect(result, isNot(ThresholdSemanticColors.dark));
     });
 
     test('a null or foreign other returns this unchanged', () {
-      expect(ThresholdSemanticColors.light.lerp(null, 0.5), ThresholdSemanticColors.light);
+      expect(ThresholdSemanticColors.light.lerp(null, 0.5),
+          ThresholdSemanticColors.light);
     });
 
     test('every role is interpolated, none is dropped', () {
-      final result = ThresholdSemanticColors.light.lerp(ThresholdSemanticColors.dark, 0.25);
+      final result = ThresholdSemanticColors.light
+          .lerp(ThresholdSemanticColors.dark, 0.25);
       for (var i = 0; i < result.all.length; i++) {
         expect(
           result.all[i],
@@ -321,7 +346,8 @@ void main() {
     });
 
     test('the brand blue carries white text at AA', () {
-      _expectMeetsAa(const Color(0xFFFFFFFF), kThresholdBrandSeed, 'white on the brand blue');
+      _expectMeetsAa(const Color(0xFFFFFFFF), kThresholdBrandSeed,
+          'white on the brand blue');
     });
   });
 }

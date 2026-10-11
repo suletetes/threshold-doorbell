@@ -55,6 +55,22 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     expect(stored!.residentSub).toBe(SUB);
   });
 
+  it('rejects a privacy-mode transcript upload (MED-25, FR-5.2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, mode: 'privacy' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
+    // Nothing was stored for this resident.
+    const stored = await t.conversationStore.listOrdered(SUB, {});
+    expect(stored).toHaveLength(0);
+  });
+
   it('rejects a foreign residentSub with 403 (FR-8.7, AT-19)', async () => {
     const t = await buildTestApp();
     app = t.app;
@@ -66,6 +82,72 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     });
     expect(res.statusCode).toBe(403);
     expect(res.json().error.code).toBe('resident_mismatch');
+  });
+
+  it('rejects a re-post of an existing conversationId with 409 (MED-28)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const first = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, conversationId: 'fixed-id', turns: body.turns },
+    });
+    expect(first.statusCode).toBe(201);
+    const second = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: {
+        ...body,
+        conversationId: 'fixed-id',
+        turns: [{ speaker: 'visitor', text: 'OVERWRITTEN', source: 'transcribe', confidence: 0.9 }],
+      },
+    });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error.code).toBe('conflict');
+    // The original turns are intact (not overwritten).
+    const stored = await t.conversationStore.get(SUB, 'fixed-id');
+    expect(stored!.turns[0]!.text).toBe('package delivery');
+  });
+
+  it('includes same-day results for a date-only "to" filter (MED-27)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // A transcript started today at a non-midnight time.
+    const today = new Date();
+    const yyyyMmDd = today.toISOString().slice(0, 10);
+    const startedAt = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 14, 30, 0),
+    ).toISOString();
+    const create = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, startedAt },
+    });
+    expect(create.statusCode).toBe(201);
+    // Lexical ISO comparison would drop this (startedAt > 'YYYY-MM-DD'); the
+    // instant-based filter with end-of-day widening must include it.
+    const res = await app.inject({
+      method: 'GET',
+      url: `/transcripts?from=${yyyyMmDd}&to=${yyyyMmDd}`,
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.length).toBe(1);
+  });
+
+  it('rejects an unparseable date filter with 400 (MED-27)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'GET',
+      url: '/transcripts?from=not-a-date',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
   });
 
   it('rejects a schema-invalid body with 400', async () => {
@@ -166,6 +248,66 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     expect(res.statusCode).toBe(204);
     expect(await t.conversationStore.listOrdered(SUB, {})).toEqual([]);
     expect(await t.tokenStore.get(SUB)).toBeNull();
+  });
+
+  it('DELETE /me/data erases events and leaves GET /events empty (HIGH-23, P6)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // Seed an event owned by the resident and a device mapping.
+    await t.eventStore.putIfAbsent({
+      eventId: 'e1',
+      requestId: 'r1',
+      residentSub: SUB,
+      type: 'motion_detected',
+      deviceId: 'd1',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      confidence: null,
+      boundingBox: null,
+      thumbnailUrl: null,
+      processedAt: null,
+    });
+    await t.deviceAccountStore.map('d1', SUB);
+
+    const before = await app.inject({
+      method: 'GET',
+      url: '/events',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(before.json().items).toHaveLength(1);
+
+    const del = await app.inject({
+      method: 'DELETE',
+      url: '/me/data',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(del.statusCode).toBe(204);
+
+    // Events are gone: a session issued AFTER erasure sees an empty feed.
+    await new Promise((r) => setTimeout(r, 5));
+    const after = await app.inject({
+      method: 'GET',
+      url: '/events',
+      headers: auth(t.config.sessionSecret),
+    });
+    expect(after.statusCode).toBe(200);
+    expect(after.json().items).toEqual([]);
+    // The device mapping was removed too.
+    expect(await t.deviceAccountStore.resolve('d1')).toBeNull();
+  });
+
+  it('DELETE /me/data invalidates existing sessions (HIGH-23 deny-list)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // A session issued before the erase must be denied afterwards.
+    const stale = auth(t.config.sessionSecret);
+    await new Promise((r) => setTimeout(r, 2));
+    const del = await app.inject({ method: 'DELETE', url: '/me/data', headers: stale });
+    expect(del.statusCode).toBe(204);
+    await new Promise((r) => setTimeout(r, 2));
+    // Reusing the same (now stale) session is rejected with the unified signal.
+    const reuse = await app.inject({ method: 'GET', url: '/events', headers: stale });
+    expect(reuse.statusCode).toBe(401);
+    expect(reuse.json().error.code).toBe('unauthorized');
   });
 
   it('never surfaces an expired transcript (FR-8.5 defensive filter)', async () => {

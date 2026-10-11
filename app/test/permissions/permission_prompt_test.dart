@@ -10,11 +10,13 @@ Widget _wrap(PermissionController c, AppPermission p) => MaterialApp(
 
 void main() {
   group('PermissionPrompt widget (Task 20, FR-13.2..13.4; AT-13)', () {
-    testWidgets('shows the in-context rationale before requesting (FR-13.2)', (tester) async {
+    testWidgets('shows the in-context rationale before requesting (FR-13.2)',
+        (tester) async {
       final c = PermissionController(FakePermissionPort());
       await tester.pumpWidget(_wrap(c, AppPermission.microphone));
       await tester.pump();
-      expect(find.byKey(const ValueKey('permission-rationale')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('permission-rationale')), findsOneWidget);
       expect(find.textContaining('microphone'), findsOneWidget);
     });
 
@@ -29,12 +31,15 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('permission-request')));
       await tester.pumpAndSettle();
-      expect(port.requestedPermissions, <AppPermission>[AppPermission.microphone]);
+      expect(
+          port.requestedPermissions, <AppPermission>[AppPermission.microphone]);
       // Granted: the prompt disappears.
       expect(find.byKey(const ValueKey('permission-rationale')), findsNothing);
     });
 
-    testWidgets('permanently denied shows the settings deep link, not a re-prompt (FR-13.4)', (tester) async {
+    testWidgets(
+        'permanently denied shows the settings deep link, not a re-prompt (FR-13.4)',
+        (tester) async {
       final port = FakePermissionPort(
         initial: <AppPermission, PermissionStatus>{
           AppPermission.notifications: PermissionStatus.permanentlyDenied,
@@ -51,7 +56,8 @@ void main() {
       expect(port.requestedPermissions, isEmpty); // never re-prompted
     });
 
-    testWidgets('denied shows a non-blocking explanation with retry (FR-13.3)', (tester) async {
+    testWidgets('denied shows a non-blocking explanation with retry (FR-13.3)',
+        (tester) async {
       final port = FakePermissionPort(
         initial: <AppPermission, PermissionStatus>{
           AppPermission.microphone: PermissionStatus.denied,

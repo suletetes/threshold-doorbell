@@ -5,11 +5,12 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { errors } from '../domain/errors.js';
-import { verifySignature } from '../security/hmac.js';
+import { verifyTimestampedSignature } from '../security/hmac.js';
 import { parseWebhook, WebhookService } from '../services/webhook-service.js';
 import { getLogger } from '../observability/logger.js';
 
 const SIGNATURE_HEADER = 'x-ring-signature';
+const TIMESTAMP_HEADER = 'x-ring-timestamp';
 
 export async function registerWebhookRoutes(app: FastifyInstance): Promise<void> {
   const { config } = app.container;
@@ -31,19 +32,30 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
   const service = new WebhookService(
     app.container.eventStore,
     app.container.push,
-    // Resolve the resident for a device server-side. In the fixture flow every
-    // known device maps to a single demo resident; the real impl queries the
-    // device->account mapping. Never taken from the webhook body (FR-8.7).
-    async (deviceId: string) => (deviceId ? 'resident-account-1' : null),
+    // Resolve the resident for a device from the server-side device->account
+    // mapping, never from a hard-coded account and never from the webhook body
+    // (CRIT-04, FR-8.7). An unmapped device resolves to null so its event is
+    // quarantined rather than attributed to any real resident.
+    (deviceId: string) => app.container.deviceAccountStore.resolve(deviceId),
   );
 
   app.post('/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
     const rawBody = typeof request.body === 'string' ? request.body : '';
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
+    const timestamp = request.headers[TIMESTAMP_HEADER] as string | undefined;
 
-    // FR-3.1: constant-time HMAC over the raw body. Mismatch -> 401, no logging
-    // of the body, no processing.
-    if (!verifySignature(rawBody, signature, config.webhookHmacKey)) {
+    // FR-3.1, MED-38: constant-time HMAC over `timestamp.body` against any
+    // accepted key, within a +/-5 minute replay window. A mismatch, a missing
+    // or stale timestamp, or an unknown key -> 401, with no body logging and no
+    // processing.
+    if (
+      !verifyTimestampedSignature({
+        timestamp,
+        rawBody,
+        providedSignature: signature,
+        keys: config.webhookHmacKeys,
+      })
+    ) {
       throw errors.badSignature();
     }
 

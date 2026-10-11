@@ -4,6 +4,8 @@
 // (which haptic to play, which thumbnail to show, poll fallback) is fully
 // unit-testable. See PushAlert for the payload shape carried by FR-3.3.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'haptic_vocabulary.dart';
 
@@ -23,11 +25,16 @@ class PushAlert {
   final String? thumbnailUrl;
 
   factory PushAlert.fromMap(Map<String, dynamic> data) {
+    // Guard each field with `is String` rather than an `as String?` cast: a
+    // non-string value in a drifting payload must not throw a TypeError, which
+    // would contradict the "no crash on contract drift" claim (LOW-01).
+    String str(Object? value) => value is String ? value : '';
+    final thumb = data['thumbnailUrl'];
     return PushAlert(
-      type: (data['type'] as String?) ?? '',
-      timestamp: (data['timestamp'] as String?) ?? '',
-      deviceId: (data['deviceId'] as String?) ?? '',
-      thumbnailUrl: data['thumbnailUrl'] as String?,
+      type: str(data['type']),
+      timestamp: str(data['timestamp']),
+      deviceId: str(data['deviceId']),
+      thumbnailUrl: thumb is String ? thumb : null,
     );
   }
 }
@@ -73,6 +80,13 @@ class FixturePushReceiver implements PushReceiver {
   bool _available;
   final List<PushAlert> _delivered = <PushAlert>[];
 
+  // A broadcast controller so a subscriber attached before delivery actually
+  // receives the alert. The old Stream.fromIterable snapshot only replayed what
+  // had already been delivered, so a live subscriber missed later events
+  // (LOW-02).
+  final StreamController<PushAlert> _controller =
+      StreamController<PushAlert>.broadcast();
+
   @override
   bool get isPushAvailable => _available;
 
@@ -86,9 +100,13 @@ class FixturePushReceiver implements PushReceiver {
   bool deliver(PushAlert alert) {
     if (!_available) return false;
     _delivered.add(alert);
+    _controller.add(alert);
     return true;
   }
 
   @override
-  Stream<PushAlert> get alerts => Stream<PushAlert>.fromIterable(_delivered);
+  Stream<PushAlert> get alerts => _controller.stream;
+
+  /// Release the controller (test teardown).
+  Future<void> dispose() => _controller.close();
 }

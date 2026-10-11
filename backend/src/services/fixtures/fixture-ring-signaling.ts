@@ -29,6 +29,7 @@ export const FIXTURE_SDP_ANSWER = [
 export class FixtureRingSignaling implements RingSignalingPort {
   private counter = 0;
   private mode: 'ok' | 'error' = 'ok';
+  private startDelayMs = 0;
   private readonly released = new Set<string>();
   private readonly issued = new Set<string>();
 
@@ -40,6 +41,14 @@ export class FixtureRingSignaling implements RingSignalingPort {
   /** Restore normal canned responses. */
   setOk(): void {
     this.mode = 'ok';
+  }
+
+  /**
+   * Delay startSession by `ms` so a test can disconnect mid-handshake and assert
+   * the signaling slot is still released (HIGH-19 probe P3).
+   */
+  setStartDelay(ms: number): void {
+    this.startDelayMs = ms;
   }
 
   /** URLs that have been released, for lifecycle assertions. */
@@ -58,6 +67,9 @@ export class FixtureRingSignaling implements RingSignalingPort {
   }
 
   async startSession(input: StartSessionInput): Promise<RingSessionHandle> {
+    if (this.startDelayMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, this.startDelayMs));
+    }
     if (this.mode === 'error') {
       throw new Error('ring signaling unavailable');
     }

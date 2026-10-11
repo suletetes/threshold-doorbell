@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup rules for API 23 to 30 (MED-18).
+
+  allowBackup is false in the manifest, so these rules are belt-and-braces: even
+  if backup is ever re-enabled, the recording-consent record and settings stored
+  in shared_preferences must never be copied off the device, because consent and
+  privacy state are not meant to travel to Google Drive backup.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

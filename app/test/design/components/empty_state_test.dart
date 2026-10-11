@@ -17,7 +17,8 @@ Widget _host(Widget child) => MaterialApp(
 
 void main() {
   group('EmptyState rendering', () {
-    testWidgets('renders the icon, the title, and the supporting line', (tester) async {
+    testWidgets('renders the icon, the title, and the supporting line',
+        (tester) async {
       await tester.pumpWidget(
         _host(
           const EmptyState(
@@ -29,7 +30,8 @@ void main() {
       );
       expect(find.byIcon(Icons.closed_caption_off_outlined), findsOneWidget);
       expect(find.text('No captions yet'), findsOneWidget);
-      expect(find.text('Captions appear here as your visitor speaks.'), findsOneWidget);
+      expect(find.text('Captions appear here as your visitor speaks.'),
+          findsOneWidget);
     });
 
     testWidgets('renders an optional action', (tester) async {
@@ -66,7 +68,8 @@ void main() {
   });
 
   group('EmptyState foreground override (FR-10.2, NFR-2)', () {
-    testWidgets('an explicit foreground drives the title color', (tester) async {
+    testWidgets('an explicit foreground drives the title color',
+        (tester) async {
       const enforced = Color(0xFFFFFFFF);
       await tester.pumpWidget(
         _host(
@@ -78,7 +81,8 @@ void main() {
           ),
         ),
       );
-      expect(tester.widget<Text>(find.text('No captions yet')).style?.color, enforced);
+      expect(tester.widget<Text>(find.text('No captions yet')).style?.color,
+          enforced);
       // The supporting line is derived from the same enforced color, never from
       // the theme, so it cannot drift off the caption background.
       final supporting = tester.widget<Text>(find.text('Soon')).style!.color!;
@@ -87,9 +91,11 @@ void main() {
       expect(supporting.b, enforced.b);
     });
 
-    testWidgets('without an override it falls back to the theme', (tester) async {
+    testWidgets('without an override it falls back to the theme',
+        (tester) async {
       await tester.pumpWidget(
-        _host(const EmptyState(icon: Icons.inbox_outlined, title: 'Nothing here')),
+        _host(const EmptyState(
+            icon: Icons.inbox_outlined, title: 'Nothing here')),
       );
       final context = tester.element(find.byType(EmptyState));
       expect(
@@ -100,7 +106,8 @@ void main() {
   });
 
   group('EmptyState semantics (G4)', () {
-    testWidgets('title and supporting line are announced as one node', (tester) async {
+    testWidgets('title and supporting line are announced as one node',
+        (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         _host(
@@ -131,7 +138,8 @@ void main() {
           ),
         ),
       );
-      expect(find.bySemanticsLabel('Waiting for your visitor to speak'), findsOneWidget);
+      expect(find.bySemanticsLabel('Waiting for your visitor to speak'),
+          findsOneWidget);
       handle.dispose();
     });
   });

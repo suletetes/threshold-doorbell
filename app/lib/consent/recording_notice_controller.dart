@@ -86,9 +86,15 @@ class RecordingNoticeController extends ChangeNotifier {
   /// Record the resident's compliance-fallback choice (FR-14.3a). [rememberAsDefault]
   /// persists it as the default for future sessions. The choice is honored for
   /// the whole current session.
+  ///
+  /// [rememberAsDefault] defaults to FALSE (MED-06): a one-time per-session
+  /// choice must not silently become the persisted legal default. The dialog
+  /// surfaces an explicit, default-off "remember my choice" checkbox and passes
+  /// its value here, so the resident opts in to remembering rather than having
+  /// it chosen for them.
   Future<void> chooseComplianceFallback(
     ComplianceChoice choice, {
-    bool rememberAsDefault = true,
+    bool rememberAsDefault = false,
   }) async {
     _sessionChoice = choice;
     if (rememberAsDefault) {

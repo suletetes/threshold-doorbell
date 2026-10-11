@@ -42,14 +42,17 @@
 // watermarkSafeInsets() and kWatermarkBandHeight are untouched (FR-4.5).
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
+import '../captions/caption_announcer.dart';
 import '../captions/caption_surface.dart';
 import '../design/colors.dart';
 import '../design/components/components.dart';
 import '../design/theme.dart';
 import '../design/tokens.dart';
 import '../settings/settings_state.dart';
+import 'auth_port.dart';
 import 'session_controller.dart';
 import 'session_state.dart';
 import 'watermark_safe_area.dart';
@@ -99,9 +102,15 @@ class ConversationScreen extends StatelessWidget {
     this.settings,
     this.replyBar,
     this.videoSurfaceBuilder,
+    this.authPort,
   });
 
   final SessionController controller;
+
+  /// The re-authentication binding used by the auth-recovery prompt (HIGH-09).
+  /// When null (headless caption tests), the prompt resolves recovery directly
+  /// so those tests do not need to supply an auth port.
+  final AuthPort? authPort;
 
   /// The resident's accessibility settings driving caption scale + the enforced
   /// contrast foreground (FR-10.2, NFR-2). Defaults to accessible defaults.
@@ -122,7 +131,8 @@ class ConversationScreen extends StatelessWidget {
       data: mediaSurfaceTheme(),
       child: AnimatedBuilder(
         animation: controller,
-        builder: (context, _) => _buildForSnapshot(context, controller.snapshot),
+        builder: (context, _) =>
+            _buildForSnapshot(context, controller.snapshot),
       ),
     );
   }
@@ -153,7 +163,7 @@ class ConversationScreen extends StatelessWidget {
                 child: _ModeBadge(mode: snap.mode, state: snap.state),
               ),
               if (snap.state == SessionState.authRecovering)
-                _AuthRecoveryPrompt(controller: controller),
+                _AuthRecoveryPrompt(controller: controller, authPort: authPort),
             ],
           ),
         ),
@@ -182,14 +192,16 @@ class ConversationScreen extends StatelessWidget {
       // StackFit.expand, unlike the default loose layout builder, keeps the
       // panels filling the overlay area exactly as they did before the switcher
       // was introduced.
-      layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) => Stack(
+      layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) =>
+          Stack(
         fit: StackFit.expand,
         children: <Widget>[
           ...previousChildren,
           if (currentChild != null) currentChild,
         ],
       ),
-      transitionBuilder: (Widget child, Animation<double> animation) => FadeTransition(
+      transitionBuilder: (Widget child, Animation<double> animation) =>
+          FadeTransition(
         opacity: animation,
         child: SlideTransition(
           position: Tween<Offset>(
@@ -225,7 +237,8 @@ class ConversationScreen extends StatelessWidget {
         return const _StatusPanel(
           key: ValueKey('status-reconnecting'),
           message: 'Reconnecting to your doorbell',
-          supportingText: 'Your captions continue as soon as the connection is back.',
+          supportingText:
+              'Your captions continue as soon as the connection is back.',
           showSpinner: true,
           showCaptionPreview: true,
         );
@@ -233,7 +246,8 @@ class ConversationScreen extends StatelessWidget {
         return const _StatusPanel(
           key: ValueKey('status-backgrounded'),
           message: 'Session paused. It stays ready for up to five minutes.',
-          supportingText: 'Come back to this screen to pick up where you left off.',
+          supportingText:
+              'Come back to this screen to pick up where you left off.',
           icon: Icons.pause_circle_outline,
           showSpinner: false,
         );
@@ -296,7 +310,8 @@ class _LiveOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return isLandscape ? _landscape(context) : _portrait(context);
   }
 
@@ -380,6 +395,7 @@ class _LiveOverlay extends StatelessWidget {
         child: Semantics(
           button: true,
           label: 'End session',
+          onTap: () => controller.end(),
           excludeSemantics: true,
           child: FilledButton.tonalIcon(
             key: const ValueKey('end-session'),
@@ -402,7 +418,7 @@ class _LiveOverlay extends StatelessWidget {
 /// against, which strengthens FR-10.2 rather than decorating it. And a
 /// translucent caption background still lands on a designed dark surface instead
 /// of on arbitrary video.
-class _CaptionPanel extends StatelessWidget {
+class _CaptionPanel extends StatefulWidget {
   const _CaptionPanel({
     required this.controller,
     required this.settings,
@@ -419,30 +435,52 @@ class _CaptionPanel extends StatelessWidget {
   final bool fillHeight;
 
   @override
+  State<_CaptionPanel> createState() => _CaptionPanelState();
+}
+
+class _CaptionPanelState extends State<_CaptionPanel> {
+  final CaptionAnnouncer _announcer = CaptionAnnouncer();
+
+  @override
   Widget build(BuildContext context) {
     final semantic = ThresholdSemanticColors.of(context);
     final scheme = Theme.of(context).colorScheme;
+
+    // Announce each newly finalized turn once, throttled (LOW-09), instead of
+    // marking the whole container as a live region which re-reads the entire
+    // run on every partial update. Scheduled post frame so the announcement
+    // does not happen during build.
+    final announcement =
+        _announcer.announcementFor(widget.controller.captionTurns);
+    if (announcement != null) {
+      final view = View.of(context);
+      final direction = Directionality.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SemanticsService.sendAnnouncement(view, announcement, direction);
+      });
+    }
+
     // The caption run always scrolls, anchored to the bottom, because the newest
     // turn is the one being read. Under loose constraints the scroll view shrink
     // wraps to its content, so a short conversation still sizes to its text.
     final Widget captions = SingleChildScrollView(
       reverse: true,
       child: CaptionSurface(
-        turns: controller.captionTurns,
-        settings: settings,
+        turns: widget.controller.captionTurns,
+        settings: widget.settings,
       ),
     );
     return Semantics(
-      liveRegion: true,
       label: 'Visitor captions',
       child: Container(
-        key: regionKey,
-        constraints: fillHeight
+        key: widget.regionKey,
+        constraints: widget.fillHeight
             ? null
             : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
         padding: const EdgeInsets.all(Spacing.space4),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(settings.captionBackground, semantic.captionSurface),
+          color: Color.alphaBlend(
+              widget.settings.captionBackground, semantic.captionSurface),
           borderRadius: Radii.roundedLarge,
           border: Border.all(
             color: semantic.captionOnSurface.withValues(alpha: 0.12),
@@ -535,12 +573,14 @@ class _StatusPanel extends StatelessWidget {
               if (showSpinner)
                 const _WorkingIndicator()
               else if (leadingIcon != null)
-                Icon(leadingIcon, size: Spacing.space8, color: scheme.onSurfaceVariant),
+                Icon(leadingIcon,
+                    size: Spacing.space8, color: scheme.onSurfaceVariant),
               const SizedBox(height: Spacing.space5),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(color: scheme.onSurface),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: scheme.onSurface),
               ),
               if (supporting != null) ...<Widget>[
                 const SizedBox(height: Spacing.space2),
@@ -640,7 +680,8 @@ class _ErrorPanel extends StatelessWidget {
 
   Future<void> _retry() async {
     try {
-      await controller.open(deviceId: controller.deviceId, mode: controller.mode);
+      await controller.open(
+          deviceId: controller.deviceId, mode: controller.mode);
     } catch (_) {
       // A repeated failure is recorded in the controller snapshot, which this
       // panel renders. Never throw out of a button callback.
@@ -685,7 +726,8 @@ class _ErrorPanel extends StatelessWidget {
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge?.copyWith(color: scheme.onSurface),
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(color: scheme.onSurface),
                   ),
                   const SizedBox(height: Spacing.space2),
                   Text(
@@ -701,6 +743,7 @@ class _ErrorPanel extends StatelessWidget {
             Semantics(
               button: true,
               label: 'Try again',
+              onTap: _retry,
               excludeSemantics: true,
               child: FilledButton.icon(
                 key: const ValueKey('error-retry'),
@@ -713,11 +756,13 @@ class _ErrorPanel extends StatelessWidget {
             Semantics(
               button: true,
               label: 'Go back',
+              onTap: () => _escape(context),
               excludeSemantics: true,
               child: TextButton.icon(
                 key: const ValueKey('error-go-back'),
                 onPressed: () => _escape(context),
-                icon: const Icon(Icons.arrow_back_rounded, size: Spacing.space5),
+                icon:
+                    const Icon(Icons.arrow_back_rounded, size: Spacing.space5),
                 label: const Text('Go back'),
               ),
             ),
@@ -730,68 +775,118 @@ class _ErrorPanel extends StatelessWidget {
 
 /// The single, non-destructive re-authentication prompt (FR-1.5, AT-12). There
 /// is exactly one recovery path; the controller enforces one prompt at a time.
-class _AuthRecoveryPrompt extends StatelessWidget {
-  const _AuthRecoveryPrompt({required this.controller});
+class _AuthRecoveryPrompt extends StatefulWidget {
+  const _AuthRecoveryPrompt({required this.controller, this.authPort});
   final SessionController controller;
+  final AuthPort? authPort;
+
+  @override
+  State<_AuthRecoveryPrompt> createState() => _AuthRecoveryPromptState();
+}
+
+class _AuthRecoveryPromptState extends State<_AuthRecoveryPrompt> {
+  bool _signingIn = false;
+
+  /// Run the real re-authentication flow (HIGH-09) and resume the session ONLY
+  /// when a fresh token is verified. The old stub called
+  /// completeAuthRecovery(success: true) unconditionally, resuming an expired
+  /// session without re-authenticating. When no auth port is wired (headless
+  /// caption tests) fall back to resolving recovery directly.
+  Future<void> _signIn() async {
+    if (_signingIn) return;
+    final port = widget.authPort;
+    if (port == null) {
+      widget.controller.completeAuthRecovery(success: true);
+      return;
+    }
+    setState(() => _signingIn = true);
+    AuthResult result;
+    try {
+      result = await port.reauthenticate();
+    } catch (_) {
+      // A thrown binding is a failed re-authentication: do not resume.
+      result = AuthResult.failed;
+    }
+    if (!mounted) return;
+    setState(() => _signingIn = false);
+    widget.controller
+        .completeAuthRecovery(success: result == AuthResult.verified);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final controller = widget.controller;
     return Positioned.fill(
-      child: ColoredBox(
-        // The themed scrim, replacing the raw 0xB3000000 (audit C2).
-        color: scheme.scrim.withValues(alpha: kModalScrimOpacity),
-        child: Center(
-          child: Semantics(
-            container: true,
-            label: 'Sign in again to continue. Your conversation is saved.',
-            child: Card(
-              key: const ValueKey('auth-recovery-prompt'),
-              margin: const EdgeInsets.all(Spacing.space6),
-              child: Padding(
-                padding: const EdgeInsets.all(Spacing.space5),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      Icons.lock_person_outlined,
-                      size: Spacing.space8,
-                      color: scheme.primary,
-                    ),
-                    const SizedBox(height: Spacing.space4),
-                    Text(
-                      'Sign in again to continue',
-                      textAlign: TextAlign.center,
-                      style:
-                          theme.textTheme.headlineSmall?.copyWith(color: scheme.onSurface),
-                    ),
-                    const SizedBox(height: Spacing.space2),
-                    Text(
-                      'Your conversation is saved and will resume once you sign in.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: Spacing.space5),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: <Widget>[
-                        TextButton(
-                          key: const ValueKey('auth-recovery-cancel'),
-                          onPressed: () =>
-                              controller.completeAuthRecovery(success: false),
-                          child: const Text('Not now'),
-                        ),
-                        FilledButton(
-                          key: const ValueKey('auth-recovery-signin'),
-                          onPressed: () =>
-                              controller.completeAuthRecovery(success: true),
-                          child: const Text('Sign in'),
-                        ),
-                      ],
-                    ),
-                  ],
+      // Block semantics and pointer traversal to everything beneath the modal
+      // (MED-05): a screen reader could otherwise still reach End and Reply
+      // behind the re-authentication prompt. BlockSemantics drops the subtree
+      // below it in paint order from the semantics tree, and the opaque scrim
+      // absorbs taps, so the prompt is genuinely modal.
+      child: BlockSemantics(
+        child: ColoredBox(
+          // The themed scrim, replacing the raw 0xB3000000 (audit C2).
+          color: scheme.scrim.withValues(alpha: kModalScrimOpacity),
+          child: Center(
+            child: Semantics(
+              container: true,
+              label: 'Sign in again to continue. Your conversation is saved.',
+              child: Card(
+                key: const ValueKey('auth-recovery-prompt'),
+                margin: const EdgeInsets.all(Spacing.space6),
+                child: Padding(
+                  padding: const EdgeInsets.all(Spacing.space5),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.lock_person_outlined,
+                        size: Spacing.space8,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(height: Spacing.space4),
+                      Text(
+                        'Sign in again to continue',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(color: scheme.onSurface),
+                      ),
+                      const SizedBox(height: Spacing.space2),
+                      Text(
+                        'Your conversation is saved and will resume once you sign in.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: Spacing.space5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: <Widget>[
+                          TextButton(
+                            key: const ValueKey('auth-recovery-cancel'),
+                            onPressed: _signingIn
+                                ? null
+                                : () => controller.completeAuthRecovery(
+                                    success: false),
+                            child: const Text('Not now'),
+                          ),
+                          FilledButton(
+                            key: const ValueKey('auth-recovery-signin'),
+                            onPressed: _signingIn ? null : _signIn,
+                            child: _signingIn
+                                ? const SizedBox(
+                                    width: Spacing.space5,
+                                    height: Spacing.space5,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Text('Sign in'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -53,6 +53,14 @@ export interface LatencySummary {
  * and latency observations so a test can assert a metric was recorded and that
  * no forbidden data leaked into a metric.
  */
+/**
+ * HIGH-21: the in-memory sink is the only metrics sink in fixture mode, so an
+ * unbounded per-metric observation array would grow without bound over a long
+ * run. Cap the retained observations per metric; a real adapter would flush to
+ * CloudWatch and keep nothing. Metrics carry only numbers, never PII.
+ */
+const MAX_RETAINED_OBSERVATIONS = 1024;
+
 export class InMemoryMetricsSink implements MetricsPort {
   private readonly counters = new Map<CounterMetric, number>();
   private readonly latencies = new Map<LatencyMetric, number[]>();
@@ -61,6 +69,10 @@ export class InMemoryMetricsSink implements MetricsPort {
     if (!Number.isFinite(valueMs) || valueMs < 0) return;
     const arr = this.latencies.get(metric) ?? [];
     arr.push(valueMs);
+    // HIGH-21: drop the oldest observations past the cap so memory is bounded.
+    if (arr.length > MAX_RETAINED_OBSERVATIONS) {
+      arr.splice(0, arr.length - MAX_RETAINED_OBSERVATIONS);
+    }
     this.latencies.set(metric, arr);
   }
 

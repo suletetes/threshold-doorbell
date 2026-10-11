@@ -1,26 +1,41 @@
 # CI gates for Threshold (task 29, NFR-10; design.md §9, §11; steering/structure.md).
 #
-# Runs on pull requests and on pushes to feature branches. CI configuration is
-# never applied to main outside a reviewed pull request (design.md §11). Two
-# independent jobs gate a merge:
+# Runs on pull requests into main, on pushes to feature branches, and on pushes
+# to main after a merge so a merge-skew break is caught on the integration
+# branch. CI configuration still only lands on main through a reviewed pull
+# request (design.md §11). The jobs that gate a merge:
 #
 #   backend  - TypeScript typecheck, ESLint, and vitest (unit + contract + WS).
-#   app      - flutter pub get, flutter test (compiles all Dart, the primary
-#              gate in this project), and the em-dash / en-dash UI-copy lint
-#              (AT-24) which fails the build if a forbidden dash appears in any
-#              user-facing string.
+#              Runs on a Node 20 and 22 matrix: 20 is the declared engines
+#              floor, 22 is the forward LTS.
+#   app      - flutter analyze --fatal-infos, dart format check, flutter test,
+#              and the em-dash / en-dash UI-copy lint (AT-24) which fails the
+#              build if a forbidden dash appears in any user-facing string.
+#              analyze is a hard gate, verified clean on the pinned Flutter
+#              3.38.10 (see the Analyze step for the fallback if a toolchain bump
+#              reintroduces the old analysis-server crash).
+#   packages - flutter analyze --fatal-infos, dart format check, and flutter test.
+#   android  - flutter build apk --release (signed with a throwaway CI keystore
+#              so the R8/resource-shrinking release path runs), then an aapt
+#              assertion that the SHRUNK release manifest still declares
+#              RECORD_AUDIO and INTERNET (locks in the release-manifest
+#              guarantee HIGH-13 is about, which a debug APK does not exercise).
 #
-# Versions are pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10,
-# Node 20). flutter analyze is intentionally NOT run here: it crashes in the
-# sandbox analysis server; flutter test compiles all Dart and is the gate.
+# Third-party and first-party actions are pinned to a full commit SHA with the
+# released tag in a trailing comment, and every job has a timeout. Versions are
+# pinned to the toolchain in .kiro/ENVIRONMENT.md (Flutter 3.38.10, Node 20/22).
 
 name: CI
 
 on:
   pull_request:
     branches: [main]
+  # Build every pushed branch, including main after a merge (MED-40). A pull
+  # request from a branch in this same repo also triggers the push event; the
+  # concurrency group below cancels the superseded run so this does not double
+  # the cost.
   push:
-    branches-ignore: [main]
+    branches: ["**"]
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
@@ -34,19 +49,25 @@ jobs:
   backend:
     name: Backend (typecheck, lint, vitest)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the engines floor declared in backend/package.json; 22 is the
+        # forward LTS the service is expected to run on next. Test both so CI
+        # never diverges from the declared runtime (MED-41).
+        node-version: ["20", "22"]
     defaults:
       run:
         working-directory: backend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4.1.0
         with:
-          # 22 (active LTS) on the runner to avoid the Node 20 runner
-          # deprecation warning; the backend targets Node 20+ and runs on both.
-          node-version: "22"
+          node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -62,18 +83,52 @@ jobs:
       - name: Test (vitest)
         run: npx vitest run
 
+      # Fail the build on any high or critical advisory in a production
+      # dependency (MED-42). Dev-only advisories do not ship and are not gated
+      # here.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  security:
+    name: Security (secret scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # gitleaks needs the full history to scan every commit, not just the
+          # tip, so a leak introduced in an earlier commit is still caught.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.21.2"
+        run: |
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Secret scan (fail on any leak)
+        run: gitleaks detect --no-banner --redact
+
   app:
     name: App (flutter test, UI-copy lint)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: app
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Flutter 3.38.10
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a40bde3801046 # v2.19.0
         with:
           flutter-version: "3.38.10"
           channel: stable
@@ -81,6 +136,21 @@ jobs:
 
       - name: Resolve dependencies
         run: flutter pub get
+
+      # Static analysis as a real, fatal gate (#3). A previous CI config removed
+      # flutter analyze with a comment that it "crashes in the sandbox analysis
+      # server"; that was on an unpinned/older toolchain. On the pinned Flutter
+      # 3.38.10 used here, `flutter analyze --fatal-infos` runs clean on both the
+      # app and the package (verified: "No issues found!"), so it is restored as
+      # a hard gate. If a future toolchain bump reintroduces an analysis-server
+      # crash, prefer `dart analyze --fatal-infos --fatal-warnings` (the Dart CLI
+      # analyzer, which does not spin up the long-lived IDE analysis server)
+      # rather than disabling the gate.
+      - name: Analyze (fatal infos)
+        run: flutter analyze --fatal-infos
+
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: UI-copy lint (no em-dash or en-dash, AT-24)
         run: dart run tool/lint_ui_copy.dart lib
@@ -88,18 +158,25 @@ jobs:
       - name: Test (flutter test)
         run: flutter test
 
-  packages:
-    name: Package flutter_ring_captions (test, lint)
+  android:
+    name: Android (build release apk, assert permissions)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: packages/flutter_ring_captions
+        working-directory: app
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Java 17
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Set up Flutter 3.38.10
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a40bde3801046 # v2.19.0
         with:
           flutter-version: "3.38.10"
           channel: stable
@@ -107,6 +184,85 @@ jobs:
 
       - name: Resolve dependencies
         run: flutter pub get
+
+      # Generate a THROWAWAY release keystore so the release build can be signed
+      # in CI without any real production secret (#4). build.gradle.kts fails a
+      # release build closed when no key is configured (HIGH-12), so to exercise
+      # the real release path (R8 + resource shrinking) we must supply a signing
+      # config. This keystore is created fresh on every run, never leaves the
+      # runner, and is NOT the Play upload key; it only proves the release
+      # manifest, not store-publishable signing. Only the four THRESHOLD_* signing
+      # variables are referenced, not the whole environment.
+      - name: Generate throwaway release keystore
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/ci-throwaway-release.jks"
+          keytool -genkeypair -v \
+            -keystore "$keystore" \
+            -storepass ci-throwaway -keypass ci-throwaway \
+            -alias ci-upload -keyalg RSA -keysize 2048 -validity 36500 \
+            -dname "CN=Threshold CI, OU=CI, O=Threshold, L=NA, ST=NA, C=NA"
+          echo "THRESHOLD_KEYSTORE_FILE=$keystore" >> "$GITHUB_ENV"
+
+      # Build the SHRUNK RELEASE APK so the aapt assertion below runs against the
+      # same R8/resource-shrinking path that ships to users (#4). A debug APK
+      # skips R8 and resource shrinking, so asserting permissions on it does not
+      # prove the release-manifest guarantee that HIGH-13/CRIT-09 are about.
+      - name: Build release APK
+        env:
+          THRESHOLD_KEYSTORE_PASSWORD: ci-throwaway
+          THRESHOLD_KEY_ALIAS: ci-upload
+          THRESHOLD_KEY_PASSWORD: ci-throwaway
+        run: flutter build apk --release
+
+      # Lock in CRIT-09, HIGH-12, HIGH-13, MED-16, and MED-19: assert the merged
+      # manifest in the RELEASE APK still declares the mandatory runtime
+      # permissions after R8/resource shrinking. If a later change drops
+      # RECORD_AUDIO or INTERNET from the release manifest, this fails the build.
+      - name: Assert release manifest permissions (RECORD_AUDIO, INTERNET)
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$apk"
+          build_tools_dir="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools"
+          aapt="$(find "$build_tools_dir" -name aapt -type f | sort -V | tail -n 1)"
+          test -n "$aapt"
+          echo "Using aapt at $aapt"
+          perms="$("$aapt" dump permissions "$apk")"
+          echo "$perms"
+          echo "$perms" | grep -q "android.permission.RECORD_AUDIO"
+          echo "$perms" | grep -q "android.permission.INTERNET"
+
+  packages:
+    name: Package flutter_ring_captions (test, lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/flutter_ring_captions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Flutter 3.38.10
+        uses: subosito/flutter-action@e938fdf56512cc96ef2f93601a5a40bde3801046 # v2.19.0
+        with:
+          flutter-version: "3.38.10"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # Static analysis as a real, fatal gate (#3). See the app job for the
+      # rationale: verified clean on the pinned Flutter 3.38.10; fall back to
+      # `dart analyze --fatal-infos --fatal-warnings` only if a toolchain bump
+      # ever reintroduces the analysis-server crash the old CI config cited.
+      - name: Analyze (fatal infos)
+        run: flutter analyze --fatal-infos
+
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: Test (flutter test)
         run: flutter test

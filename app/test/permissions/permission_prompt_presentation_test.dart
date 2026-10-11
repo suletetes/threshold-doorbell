@@ -34,12 +34,14 @@ Future<PermissionController> _inState(
 
 void main() {
   group('The prompt is the shared StatusBanner (audit section 3.6)', () {
-    testWidgets('the rationale renders as a banner with an icon', (tester) async {
+    testWidgets('the rationale renders as a banner with an icon',
+        (tester) async {
       final c = PermissionController(FakePermissionPort());
       await tester.pumpWidget(_host(c, AppPermission.microphone));
       await tester.pump();
       expect(find.byType(StatusBanner), findsOneWidget);
-      expect(find.byKey(const ValueKey('permission-rationale')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('permission-rationale')), findsOneWidget);
       expect(
         find.byIcon(PermissionPrompt.iconFor(PermissionUiState.needsRationale)),
         findsOneWidget,
@@ -49,17 +51,20 @@ void main() {
 
     testWidgets('the denied explanation renders as a banner with its own icon',
         (tester) async {
-      final c = await _inState(AppPermission.microphone, PermissionStatus.denied);
+      final c =
+          await _inState(AppPermission.microphone, PermissionStatus.denied);
       await tester.pumpWidget(_host(c, AppPermission.microphone));
       await tester.pump();
       expect(find.byKey(const ValueKey('permission-denied')), findsOneWidget);
       expect(
-        find.byIcon(PermissionPrompt.iconFor(PermissionUiState.deniedRetryable)),
+        find.byIcon(
+            PermissionPrompt.iconFor(PermissionUiState.deniedRetryable)),
         findsOneWidget,
       );
     });
 
-    testWidgets('the settings deep link renders as a banner with a settings icon',
+    testWidgets(
+        'the settings deep link renders as a banner with a settings icon',
         (tester) async {
       final c = await _inState(
         AppPermission.notifications,
@@ -82,7 +87,8 @@ void main() {
   });
 
   group('Denial is non-blocking, not a failure (FR-13.3)', () {
-    testWidgets('asking is info; denial is warning, never danger', (tester) async {
+    testWidgets('asking is info; denial is warning, never danger',
+        (tester) async {
       expect(
         PermissionPrompt.variantFor(PermissionUiState.needsRationale),
         StatusVariant.info,
@@ -101,7 +107,8 @@ void main() {
     });
 
     testWidgets('the rendered banner uses the mapped variant', (tester) async {
-      final c = await _inState(AppPermission.microphone, PermissionStatus.denied);
+      final c =
+          await _inState(AppPermission.microphone, PermissionStatus.denied);
       await tester.pumpWidget(_host(c, AppPermission.microphone));
       await tester.pump();
       final banner = tester.widget<StatusBanner>(
@@ -112,28 +119,33 @@ void main() {
   });
 
   group('Actions keep their weight, keys, and targets', () {
-    testWidgets('each action is a real button with an icon at 48dp', (tester) async {
+    testWidgets('each action is a real button with an icon at 48dp',
+        (tester) async {
       final cases = <ValueKey<String>, PermissionController>{
-        const ValueKey('permission-request'): PermissionController(FakePermissionPort()),
+        const ValueKey('permission-request'):
+            PermissionController(FakePermissionPort()),
         const ValueKey('permission-retry'):
             await _inState(AppPermission.microphone, PermissionStatus.denied),
-        const ValueKey('permission-open-settings'):
-            await _inState(AppPermission.microphone, PermissionStatus.permanentlyDenied),
+        const ValueKey('permission-open-settings'): await _inState(
+            AppPermission.microphone, PermissionStatus.permanentlyDenied),
       };
       for (final entry in cases.entries) {
         await tester.pumpWidget(_host(entry.value, AppPermission.microphone));
         await tester.pump();
-        expect(find.byKey(entry.key), findsOneWidget, reason: '${entry.key} missing');
+        expect(find.byKey(entry.key), findsOneWidget,
+            reason: '${entry.key} missing');
         expect(
           tester.getSize(find.byKey(entry.key)).height,
           greaterThanOrEqualTo(TouchTarget.minimum),
         );
-        expect(find.byWidgetPredicate((w) => w is FilledButton), findsOneWidget);
+        expect(
+            find.byWidgetPredicate((w) => w is FilledButton), findsOneWidget);
       }
     });
 
     testWidgets('granted renders nothing at all', (tester) async {
-      final c = await _inState(AppPermission.microphone, PermissionStatus.granted);
+      final c =
+          await _inState(AppPermission.microphone, PermissionStatus.granted);
       await tester.pumpWidget(_host(c, AppPermission.microphone));
       await tester.pump();
       expect(find.byType(StatusBanner), findsNothing);

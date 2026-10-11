@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security config (LOW-14).
+
+  Production traffic is cleartext-forbidden by the base config: all backend calls
+  must use HTTPS. Cleartext is permitted only in debug builds, and only for the
+  local development hosts (the Android emulator loopback 10.0.2.2 and localhost),
+  so testing against a local http:// backend works without weakening release.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <debug-overrides>
+        <domain-config cleartextTrafficPermitted="true">
+            <domain includeSubdomains="true">10.0.2.2</domain>
+            <domain includeSubdomains="true">localhost</domain>
+            <domain includeSubdomains="true">127.0.0.1</domain>
+        </domain-config>
+    </debug-overrides>
+</network-security-config>

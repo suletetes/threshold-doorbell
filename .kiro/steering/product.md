@@ -54,7 +54,8 @@ TV/Alexa companion, our own account system, storing audio/video, non-Ring doorbe
 App Store release within the hackathon window.
 
 **Deliberate fallback:** if outbound audio injection is proven unavailable, ship **Captions-Only Mode** as a
-first-class, fully-tested product (captions + a visitor-facing prompt), not an error state.
+first-class, fully-tested product (captions plus a one-tap "Open Ring app" action, no visitor-facing prompt
+per tasks.md task 17 / N9), not an error state.
 
 ## Definition of success
 

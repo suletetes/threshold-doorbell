@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Modify this file to customize your launch splash screen -->
+<!-- Use the themed window background so the splash follows light/dark mode and
+     does not flash white in dark mode (LOW-12). Matches drawable-v21. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+    <item android:drawable="?android:colorBackground" />
 
     <!-- You can insert your own image assets here -->
     <!-- <item>

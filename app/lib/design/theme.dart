@@ -26,13 +26,16 @@ import 'typography.dart';
 /// are the only two themes the app has; both are designed, not derived.
 abstract final class ThresholdTheme {
   /// The light theme.
-  static ThemeData light() => _build(ThresholdColors.light, ThresholdSemanticColors.light);
+  static ThemeData light() =>
+      _build(ThresholdColors.light, ThresholdSemanticColors.light);
 
   /// The dark theme. First-class, not a derivation of the light one
   /// (audit design principle 7).
-  static ThemeData dark() => _build(ThresholdColors.dark, ThresholdSemanticColors.dark);
+  static ThemeData dark() =>
+      _build(ThresholdColors.dark, ThresholdSemanticColors.dark);
 
-  static ThemeData _build(ColorScheme scheme, ThresholdSemanticColors semantic) {
+  static ThemeData _build(
+      ColorScheme scheme, ThresholdSemanticColors semantic) {
     final text = ThresholdTypography.forScheme(scheme);
     return ThemeData(
       useMaterial3: true,
@@ -84,7 +87,8 @@ abstract final class ThresholdTheme {
             horizontal: Spacing.space4,
             vertical: Spacing.space3,
           ),
-          shape: const RoundedRectangleBorder(borderRadius: Radii.roundedMedium),
+          shape:
+              const RoundedRectangleBorder(borderRadius: Radii.roundedMedium),
           textStyle: text.labelLarge,
           foregroundColor: scheme.primary,
         ),
@@ -107,7 +111,8 @@ abstract final class ThresholdTheme {
         elevation: Elevations.level3,
         backgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: Radii.roundedExtraLarge),
+        shape:
+            const RoundedRectangleBorder(borderRadius: Radii.roundedExtraLarge),
         titleTextStyle: text.headlineSmall,
         contentTextStyle: text.bodyMedium,
         insetPadding: const EdgeInsets.symmetric(
@@ -127,12 +132,14 @@ abstract final class ThresholdTheme {
         titleTextStyle: text.titleLarge,
         toolbarTextStyle: text.bodyMedium,
         iconTheme: IconThemeData(color: scheme.onSurface, size: Spacing.space6),
-        actionsIconTheme: IconThemeData(color: scheme.onSurface, size: Spacing.space6),
+        actionsIconTheme:
+            IconThemeData(color: scheme.onSurface, size: Spacing.space6),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: scheme.inverseSurface,
-        contentTextStyle: text.bodyMedium?.copyWith(color: scheme.onInverseSurface),
+        contentTextStyle:
+            text.bodyMedium?.copyWith(color: scheme.onInverseSurface),
         actionTextColor: scheme.inversePrimary,
         elevation: Elevations.level3,
         insetPadding: const EdgeInsets.all(Spacing.space4),
@@ -142,11 +149,17 @@ abstract final class ThresholdTheme {
       // --- Controls. The settings screen is the longest surface in the app and
       // is built out of these three. ---
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
-          if (states.contains(WidgetState.disabled)) return scheme.onSurface.withValues(alpha: 0.38);
-          return states.contains(WidgetState.selected) ? scheme.onPrimary : scheme.outline;
+        thumbColor:
+            WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+          if (states.contains(WidgetState.disabled)) {
+            return scheme.onSurface.withValues(alpha: 0.38);
+          }
+          return states.contains(WidgetState.selected)
+              ? scheme.onPrimary
+              : scheme.outline;
         }),
-        trackColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        trackColor:
+            WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
           if (states.contains(WidgetState.disabled)) {
             return scheme.onSurface.withValues(alpha: 0.12);
           }
@@ -154,8 +167,11 @@ abstract final class ThresholdTheme {
               ? scheme.primary
               : scheme.surfaceContainerHighest;
         }),
-        trackOutlineColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
-          return states.contains(WidgetState.selected) ? Colors.transparent : scheme.outline;
+        trackOutlineColor:
+            WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+          return states.contains(WidgetState.selected)
+              ? Colors.transparent
+              : scheme.outline;
         }),
       ),
       sliderTheme: SliderThemeData(
@@ -167,7 +183,8 @@ abstract final class ThresholdTheme {
         thumbColor: scheme.primary,
         overlayColor: scheme.primary.withValues(alpha: 0.12),
         valueIndicatorColor: scheme.inverseSurface,
-        valueIndicatorTextStyle: text.labelLarge?.copyWith(color: scheme.onInverseSurface),
+        valueIndicatorTextStyle:
+            text.labelLarge?.copyWith(color: scheme.onInverseSurface),
         activeTickMarkColor: scheme.onPrimary,
         inactiveTickMarkColor: scheme.outline,
       ),
@@ -179,7 +196,8 @@ abstract final class ThresholdTheme {
         minVerticalPadding: Spacing.space3,
         shape: const RoundedRectangleBorder(borderRadius: Radii.roundedMedium),
         titleTextStyle: text.titleSmall,
-        subtitleTextStyle: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        subtitleTextStyle:
+            text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
         leadingAndTrailingTextStyle: text.labelMedium,
         iconColor: scheme.onSurfaceVariant,
         textColor: scheme.onSurface,

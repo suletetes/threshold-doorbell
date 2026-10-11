@@ -87,10 +87,36 @@ class RecordingNoticeScreen extends StatelessWidget {
 /// The FR-14.3a compliance-fallback prompt: continue without the audible notice,
 /// or disable transcription for this session. Shown when the audible notice is
 /// enabled but outbound audio is unavailable and no default is remembered.
-class ComplianceFallbackDialog extends StatelessWidget {
+///
+/// MED-06: the dialog now POPS with the chosen [ComplianceChoice] (previously it
+/// never closed), and the "remember my choice" option is an explicit checkbox
+/// that defaults to OFF, so a one-time per-session choice does not silently
+/// become the persisted legal default. The checkbox value is passed through to
+/// the controller as [rememberAsDefault].
+class ComplianceFallbackDialog extends StatefulWidget {
   const ComplianceFallbackDialog({super.key, required this.controller});
 
   final RecordingNoticeController controller;
+
+  @override
+  State<ComplianceFallbackDialog> createState() =>
+      _ComplianceFallbackDialogState();
+}
+
+class _ComplianceFallbackDialogState extends State<ComplianceFallbackDialog> {
+  /// Defaults OFF (MED-06): remembering a legal choice must be opt in.
+  bool _remember = false;
+
+  Future<void> _choose(ComplianceChoice choice) async {
+    await widget.controller.chooseComplianceFallback(
+      choice,
+      rememberAsDefault: _remember,
+    );
+    if (!mounted) return;
+    // Close the dialog with its result (MED-06). maybePop is safe whether the
+    // dialog was pushed as a route (showDialog) or rendered inline in a test.
+    Navigator.of(context).maybePop(choice);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,23 +129,39 @@ class ComplianceFallbackDialog extends StatelessWidget {
         size: Spacing.space8,
       ),
       title: const Text('Spoken door notice unavailable'),
-      content: const Text(
-        'This device cannot play the spoken notice at the door for this '
-        'session. Choose how to continue.',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'This device cannot play the spoken notice at the door for this '
+            'session. Choose how to continue.',
+          ),
+          const SizedBox(height: Spacing.space3),
+          // Explicit, default-off remember toggle (MED-06).
+          Semantics(
+            toggled: _remember,
+            label: 'Remember my choice for future sessions',
+            child: CheckboxListTile(
+              key: const ValueKey('compliance-remember'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _remember,
+              onChanged: (v) => setState(() => _remember = v ?? false),
+              title: const Text('Remember my choice for future sessions'),
+            ),
+          ),
+        ],
       ),
       actions: <Widget>[
         TextButton(
           key: const ValueKey('compliance-disable-transcription'),
-          onPressed: () => controller.chooseComplianceFallback(
-            ComplianceChoice.disableTranscription,
-          ),
+          onPressed: () => _choose(ComplianceChoice.disableTranscription),
           child: const Text('Turn off captions this session'),
         ),
         FilledButton(
           key: const ValueKey('compliance-continue'),
-          onPressed: () => controller.chooseComplianceFallback(
-            ComplianceChoice.continueWithoutNotice,
-          ),
+          onPressed: () => _choose(ComplianceChoice.continueWithoutNotice),
           child: const Text('Continue with captions'),
         ),
       ],

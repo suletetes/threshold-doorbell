@@ -50,13 +50,24 @@ export class FixtureTranscribeStream implements TranscribeStream {
     private readonly script: TranscribeResult[],
     /** If > 0, the stream ends (drops) after emitting this many results. */
     private readonly dropAfter = 0,
-    /** Chunks received, for replay assertions. */
+    /**
+     * HIGH-21/FR-8.3: raw audio is NEVER retained in normal operation. The
+     * `received` array stays empty unless a test explicitly opts in via
+     * retainAudio, so the fixture cannot grow memory without bound by holding
+     * every doorstep PCM chunk. The real adapter must likewise never persist
+     * audio.
+     */
     readonly received: AudioChunk[] = [],
+    private readonly retainAudio = false,
   ) {}
 
   pushAudio(chunk: AudioChunk): void {
     if (this.closed) return;
-    this.received.push(chunk);
+    // HIGH-21: only retain audio when a test asked for it; otherwise the chunk
+    // is used to drive the result script and immediately discarded (FR-8.3).
+    if (this.retainAudio) {
+      this.received.push(chunk);
+    }
     if (this.mode === 'error') {
       // Signal an engine error by closing the stream; results() ends and the
       // route maps this to a 4500 close.
@@ -136,6 +147,14 @@ export class FixtureTranscribe implements TranscribePort {
   readonly openedLanguages: string[] = [];
   readonly streams: FixtureTranscribeStream[] = [];
 
+  /**
+   * HIGH-21/FR-8.3: audio and stream bookkeeping are only retained when a test
+   * opts in. In normal operation (the container wires `new FixtureTranscribe()`
+   * with no argument) nothing is kept, so the fixture cannot accumulate raw
+   * doorstep audio or an unbounded list of streams in process memory.
+   */
+  constructor(private readonly retainAudio = false) {}
+
   /** Simulate a Transcribe engine error (route closes 4500). */
   setError(): void {
     this.mode = 'error';
@@ -161,11 +180,15 @@ export class FixtureTranscribe implements TranscribePort {
   }
 
   async open(language: string): Promise<TranscribeStream> {
-    this.openedLanguages.push(language);
     const drop = this.dropAfter;
     this.dropAfter = 0; // one-shot: only the first stream drops
-    const stream = new FixtureTranscribeStream(this.mode, this.script, drop);
-    this.streams.push(stream);
+    const stream = new FixtureTranscribeStream(this.mode, this.script, drop, [], this.retainAudio);
+    // HIGH-21: only keep the language and stream bookkeeping under retainAudio
+    // so normal operation does not grow memory with every session.
+    if (this.retainAudio) {
+      this.openedLanguages.push(language);
+      this.streams.push(stream);
+    }
     return stream;
   }
 }

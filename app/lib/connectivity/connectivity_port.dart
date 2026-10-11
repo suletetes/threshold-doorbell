@@ -19,7 +19,8 @@ abstract class ConnectivityPort {
 /// Deterministic fixture: tests push signals to drive state transitions.
 class FixtureConnectivity implements ConnectivityPort {
   FixtureConnectivity({
-    ConnectivitySignal initial = const ConnectivitySignal(hasNetwork: true, backendReachable: true),
+    ConnectivitySignal initial =
+        const ConnectivitySignal(hasNetwork: true, backendReachable: true),
   }) : _current = initial;
 
   ConnectivitySignal _current;
@@ -39,10 +40,12 @@ class FixtureConnectivity implements ConnectivityPort {
   }
 
   /// Convenience: go fully offline (FR-15.1, 15.2).
-  void goOffline() => emit(const ConnectivitySignal(hasNetwork: false, backendReachable: false));
+  void goOffline() => emit(
+      const ConnectivitySignal(hasNetwork: false, backendReachable: false));
 
   /// Convenience: online with backend reachable (FR-15.3 restore).
-  void goOnline() => emit(const ConnectivitySignal(hasNetwork: true, backendReachable: true));
+  void goOnline() =>
+      emit(const ConnectivitySignal(hasNetwork: true, backendReachable: true));
 
   /// Convenience: network up but backend unreachable (FR-15.4).
   void goBackendUnreachable() =>

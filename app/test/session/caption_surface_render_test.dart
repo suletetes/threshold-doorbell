@@ -51,7 +51,8 @@ void _seedMixedTurns(SessionController c) {
 
 /// Collect every rendered TextSpan (leaf) under [finder].
 List<TextSpan> _leafSpans(WidgetTester tester, Finder finder) {
-  final texts = tester.widgetList<Text>(find.descendant(of: finder, matching: find.byType(Text)));
+  final texts = tester.widgetList<Text>(
+      find.descendant(of: finder, matching: find.byType(Text)));
   final out = <TextSpan>[];
   for (final t in texts) {
     final span = t.textSpan;
@@ -65,6 +66,7 @@ List<TextSpan> _leafSpans(WidgetTester tester, Finder finder) {
         }
       }
     }
+
     walk(span);
   }
   return out;
@@ -72,36 +74,45 @@ List<TextSpan> _leafSpans(WidgetTester tester, Finder finder) {
 
 void main() {
   group('Caption surface renders emphasis on the real screen (AT-4, P1-2)', () {
-    testWidgets('provisional and low-confidence tokens are de-emphasized; >=0.6 normal', (tester) async {
+    testWidgets(
+        'provisional and low-confidence tokens are de-emphasized; >=0.6 normal',
+        (tester) async {
       final c = await _liveController();
       _seedMixedTurns(c);
-      await tester.pumpWidget(MaterialApp(home: ConversationScreen(controller: c)));
+      await tester
+          .pumpWidget(MaterialApp(home: ConversationScreen(controller: c)));
       await tester.pump();
 
       final region = find.byKey(const ValueKey('caption-region'));
       // Provisional turn: italic + reduced alpha.
-      final provisional = _leafSpans(tester, find.byKey(const ValueKey('caption-turn-0')));
+      final provisional =
+          _leafSpans(tester, find.byKey(const ValueKey('caption-turn-0')));
       expect(provisional, isNotEmpty);
-      expect(provisional.every((s) => s.style?.fontStyle == FontStyle.italic), isTrue);
+      expect(provisional.every((s) => s.style?.fontStyle == FontStyle.italic),
+          isTrue);
       expect(provisional.every((s) => (s.style!.color!.a) < 1.0), isTrue);
 
       // Low-confidence final (<0.6): de-emphasized (reduced alpha, w400).
-      final low = _leafSpans(tester, find.byKey(const ValueKey('caption-turn-1')));
+      final low =
+          _leafSpans(tester, find.byKey(const ValueKey('caption-turn-1')));
       expect(low, isNotEmpty);
       expect(low.every((s) => (s.style!.color!.a) < 1.0), isTrue);
       expect(low.every((s) => s.style?.fontWeight == FontWeight.w400), isTrue);
 
       // High-confidence final (>=0.6): normal (full alpha, bold).
-      final normal = _leafSpans(tester, find.byKey(const ValueKey('caption-turn-2')));
+      final normal =
+          _leafSpans(tester, find.byKey(const ValueKey('caption-turn-2')));
       expect(normal, isNotEmpty);
       expect(normal.every((s) => (s.style!.color!.a) >= 1.0 - 1e-9), isTrue);
-      expect(normal.every((s) => s.style?.fontWeight == FontWeight.w600), isTrue);
+      expect(
+          normal.every((s) => s.style?.fontWeight == FontWeight.w600), isTrue);
 
       expect(region, findsOneWidget);
       c.dispose();
     });
 
-    testWidgets('0.6 confidence is inclusive normal (boundary, FR-5.3a)', (tester) async {
+    testWidgets('0.6 confidence is inclusive normal (boundary, FR-5.3a)',
+        (tester) async {
       final c = await _liveController();
       c.ingestCaption(const CaptionResult(
         speaker: CaptionSpeaker.visitor,
@@ -110,17 +121,22 @@ void main() {
         timestampMs: 0,
         confidence: 0.6,
       ));
-      await tester.pumpWidget(MaterialApp(home: ConversationScreen(controller: c)));
+      await tester
+          .pumpWidget(MaterialApp(home: ConversationScreen(controller: c)));
       await tester.pump();
-      final spans = _leafSpans(tester, find.byKey(const ValueKey('caption-turn-0')));
+      final spans =
+          _leafSpans(tester, find.byKey(const ValueKey('caption-turn-0')));
       expect(spans, isNotEmpty);
-      expect(spans.every((s) => s.style?.fontWeight == FontWeight.w600), isTrue);
+      expect(
+          spans.every((s) => s.style?.fontWeight == FontWeight.w600), isTrue);
       c.dispose();
     });
   });
 
   group('Caption surface enforces the contrast floor (AT-9, P1-2)', () {
-    testWidgets('a low-contrast user setting still renders a >=4.5:1 foreground', (tester) async {
+    testWidgets(
+        'a low-contrast user setting still renders a >=4.5:1 foreground',
+        (tester) async {
       final c = await _liveController();
       _seedMixedTurns(c);
       // A user picks a near-black foreground on a near-black background: the
@@ -135,20 +151,23 @@ void main() {
       ));
       await tester.pump();
       // The rendered normal-token color meets the floor against the background.
-      final normal = _leafSpans(tester, find.byKey(const ValueKey('caption-turn-2')));
+      final normal =
+          _leafSpans(tester, find.byKey(const ValueKey('caption-turn-2')));
       expect(normal, isNotEmpty);
       final fg = normal.first.style!.color!;
       expect(
         meetsContrastFloor(fg, lowContrast.captionBackground),
         isTrue,
-        reason: 'caption foreground must meet 4.5:1 even for a low-contrast setting',
+        reason:
+            'caption foreground must meet 4.5:1 even for a low-contrast setting',
       );
       c.dispose();
     });
   });
 
   group('Caption surface honors the caption scale (FR-10.2, P1-2)', () {
-    testWidgets('a larger caption scale increases the caption font size', (tester) async {
+    testWidgets('a larger caption scale increases the caption font size',
+        (tester) async {
       final c = await _liveController();
       _seedMixedTurns(c);
       final big = ThresholdSettings.defaults().copyWith(captionScale: 2.0);
@@ -166,20 +185,25 @@ void main() {
       c.dispose();
     });
 
-    testWidgets('captions-only screen also renders real turns (P1-2)', (tester) async {
+    testWidgets('captions-only screen also renders real turns (P1-2)',
+        (tester) async {
       final c = await _liveController(captionsOnly: true);
       _seedMixedTurns(c);
       await tester.pumpWidget(MaterialApp(
-        home: CaptionsOnlyScreen(controller: c, launcher: FakeRingAppLauncher()),
+        home:
+            CaptionsOnlyScreen(controller: c, launcher: FakeRingAppLauncher()),
       ));
       await tester.pump();
       // The hardcoded placeholder is gone; real turns render.
-      expect(find.text('Captions appear here as your visitor speaks.'), findsNothing);
+      expect(find.text('Captions appear here as your visitor speaks.'),
+          findsNothing);
       expect(find.byKey(const ValueKey('caption-turn-2')), findsOneWidget);
       c.dispose();
     });
 
-    testWidgets('OS text scaling is clamped to 200% on the caption subtree (NFR-2)', (tester) async {
+    testWidgets(
+        'OS text scaling is clamped to 200% on the caption subtree (NFR-2)',
+        (tester) async {
       final c = await _liveController();
       _seedMixedTurns(c);
       await tester.pumpWidget(MaterialApp(
@@ -200,6 +224,71 @@ void main() {
             .first,
       );
       expect(mq.data.textScaler.scale(10) <= 20.0 + 1e-9, isTrue);
+      c.dispose();
+    });
+
+    testWidgets('the COMBINED caption scale never exceeds 200% (MED-03)',
+        (tester) async {
+      final c = await _liveController();
+      _seedMixedTurns(c);
+      // captionScale 2.0 AND a hostile 4.0 OS scaler used to compound to 4x the
+      // base. The effective combined scale must stay at the 200% ceiling.
+      final big = ThresholdSettings.defaults().copyWith(captionScale: 2.0);
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(4.0)),
+          child: ConversationScreen(controller: c, settings: big),
+        ),
+      ));
+      await tester.pump();
+      final mq = tester.widget<MediaQuery>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('caption-region')),
+              matching: find.byType(MediaQuery),
+            )
+            .first,
+      );
+      final t = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('caption-turn-2')),
+          matching: find.byType(Text),
+        ),
+      );
+      // Base font is already multiplied by captionScale (2x); the OS scaler on
+      // top must be clamped so the product stays at the ceiling (2x the base).
+      final double effective = (t.style!.fontSize! / kBaseCaptionFontSize) *
+          mq.data.textScaler.scale(1.0);
+      expect(effective <= kMaxCaptionTextScale + 1e-6, isTrue,
+          reason: 'combined caption scale must be clamped at the 200% ceiling');
+    });
+  });
+
+  group('Caption surface uses per-word confidence (MED-02, FR-5.3a)', () {
+    testWidgets('tokens within a turn are styled by their own confidence',
+        (tester) async {
+      final c = await _liveController();
+      // A final turn where the middle word is low confidence and the others are
+      // high. Per-token styling must differ, not paint every token identically.
+      c.ingestCaption(const CaptionResult(
+        speaker: CaptionSpeaker.visitor,
+        text: 'leave it there',
+        isFinal: true,
+        timestampMs: 0,
+        confidence: 0.9,
+        wordConfidences: <double>[0.95, 0.3, 0.92],
+      ));
+      await tester
+          .pumpWidget(MaterialApp(home: ConversationScreen(controller: c)));
+      await tester.pump();
+      final spans =
+          _leafSpans(tester, find.byKey(const ValueKey('caption-turn-0')));
+      expect(spans, hasLength(3));
+      // The middle token (0.3 < 0.6) is de-emphasized; the others are normal.
+      expect(spans[0].style?.fontWeight, FontWeight.w600);
+      expect(spans[1].style?.fontWeight, FontWeight.w400);
+      expect((spans[1].style!.color!.a) < 1.0, isTrue);
+      expect(spans[2].style?.fontWeight, FontWeight.w600);
       c.dispose();
     });
   });

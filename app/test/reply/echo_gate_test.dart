@@ -19,7 +19,8 @@ void main() {
       expect(gate.shouldTranscribe, isFalse); // our own reply not transcribed
     });
 
-    test('gate stays closed for the 300 ms tail after playback ends (AT-18)', () {
+    test('gate stays closed for the 300 ms tail after playback ends (AT-18)',
+        () {
       var now = 1000;
       final gate = EchoGate(nowMs: () => now);
       gate.onReplyPlaybackStart();
@@ -34,7 +35,8 @@ void main() {
       expect(gate.shouldTranscribe, isTrue);
     });
 
-    test('the gate reopens within 300 ms and records a non-visitor gap (AT-18)', () {
+    test('the gate reopens within 300 ms and records a non-visitor gap (AT-18)',
+        () {
       var now = 0;
       final gate = EchoGate(nowMs: () => now);
       gate.onReplyPlaybackStart(); // opened at 0
@@ -102,9 +104,22 @@ void main() {
       expect(gate.gaps[1].startMs, 2000);
     });
 
-    test('WebRTC echo cancellation is enabled on the inbound track (FR-5.6)', () {
-      // The documented device-bound constraint complements the software gate.
+    test(
+        'the inbound audio constraints enable the full suppression set (FR-5.6)',
+        () {
+      // The live WebView binding passes these straight into getUserMedia /
+      // RTCPeerConnection, so the whole contract matters: echo cancellation,
+      // noise suppression, and auto gain must all be on so the doorbell
+      // microphone return of our own synthesized reply is attenuated before it
+      // can be transcribed. Dropping or disabling any one of them fails here.
       expect(kInboundAudioConstraints['echoCancellation'], isTrue);
+      expect(kInboundAudioConstraints['noiseSuppression'], isTrue);
+      expect(kInboundAudioConstraints['autoGainControl'], isTrue);
+      expect(
+        kInboundAudioConstraints.values.every((Object v) => v == true),
+        isTrue,
+        reason: 'no suppression constraint may be left disabled',
+      );
     });
   });
 }

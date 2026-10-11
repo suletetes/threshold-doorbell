@@ -22,7 +22,8 @@ void main() {
       expect(s.length, 3);
     });
 
-    test('deduplicates so a template that equals a safe reply appears once', () {
+    test('deduplicates so a template that equals a safe reply appears once',
+        () {
       final s = onDeviceSuggestions('sign for the parcel');
       final counts = <String, int>{};
       for (final x in s) {
@@ -40,6 +41,19 @@ void main() {
       final s = onDeviceSuggestions('who is at the door');
       final hasSafe = s.any(kFixedSafeReplies.contains);
       expect(hasSafe, isTrue);
+    });
+
+    test('matches on word boundaries, not substrings (LOW-03)', () {
+      // "whole" must NOT trigger the "who" template, and "design" must NOT
+      // trigger the "sign" template. The old substring match offered them.
+      final whole = onDeviceSuggestions('the whole street is busy');
+      expect(whole.contains('Who is this please'), isFalse);
+      final design = onDeviceSuggestions('I like your design');
+      expect(design.contains('Please leave it at the door'),
+          isTrue); // only from the safe-set fill, not the sign template
+      // The whole-word "who" still matches.
+      final who = onDeviceSuggestions('who is this');
+      expect(who.contains('Who is this please'), isTrue);
     });
 
     test('no suggestion contains a forbidden dash (NFR-10)', () {

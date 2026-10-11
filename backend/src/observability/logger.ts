@@ -1,43 +1,96 @@
-// Structured logging with a redaction allowlist (FR-1.7, NFR-3, design.md §7, §10).
-// No PII, tokens, session credentials, transcript text, or request bodies may be
-// logged. We enforce this with pino's redact plus an explicit deny-list of keys.
+// Structured logging with recursive redaction (FR-1.7, NFR-3, design.md §7, §10).
+// No PII, tokens, session credentials, transcript text, SDP, OAuth code/state,
+// Ring session URLs, or request bodies may be logged. MED-35: pino's fixed
+// redact paths only reach a known depth, so a deeply nested token (depth 3+)
+// leaked through. Instead we censor the whole log object with a RECURSIVE walk
+// that matches a sensitive key at ANY depth before pino serializes it.
 
 import { pino, type Logger, type DestinationStream } from 'pino';
 
-// Keys that must never appear in logs, at any nesting depth (pino redact paths).
-// The wildcard form covers nested occurrences.
-export const REDACT_PATHS: string[] = [
-  'accessToken',
-  'refreshToken',
-  'accessTokenEnc',
-  'refreshTokenEnc',
+/**
+ * Keys whose VALUE must never be logged, matched case-insensitively at any
+ * nesting depth (MED-35). Covers tokens/secrets/cookies, the resident subject,
+ * and the free-text and protocol fields that can carry visitor content or an
+ * exploitable credential: transcript text, visitorText, sdp, OAuth code/state,
+ * and the Ring sessionUrl.
+ */
+export const REDACTED_KEYS: readonly string[] = [
+  'accesstoken',
+  'refreshtoken',
+  'accesstokenenc',
+  'refreshtokenenc',
   'token',
   'tokens',
   'authorization',
   'cookie',
   'password',
-  'clientSecret',
-  'hmacKey',
-  'webhookHmacKey',
-  'sessionSecret',
+  'clientsecret',
+  'hmackey',
+  'webhookhmackey',
+  'sessionsecret',
   'session',
   'body',
-  'rawBody',
+  'rawbody',
   'text', // transcript text
+  'transcript',
+  'visitortext',
   'turns',
+  'sdp',
+  'sdpanswer',
+  'sdpoffer',
+  'code',
+  'state',
+  'sessionurl',
   'sub',
-  'residentSub',
-  '*.accessToken',
-  '*.refreshToken',
-  '*.accessTokenEnc',
-  '*.refreshTokenEnc',
-  '*.token',
-  '*.authorization',
-  '*.cookie',
-  '*.clientSecret',
-  '*.text',
-  '*.residentSub',
+  'residentsub',
 ];
+
+/**
+ * The names kept for the backward-compatible REDACT_PATHS export (used by the
+ * allowlist guard test). These are the canonical camelCase key names.
+ */
+export const REDACT_PATHS: readonly string[] = [
+  'accessToken',
+  'refreshToken',
+  'residentSub',
+  'text',
+  'body',
+  'authorization',
+  'cookie',
+];
+
+const CENSOR = '[redacted]';
+// A hard cap on recursion depth so a cyclic or pathological object cannot hang
+// the walker; anything past it is dropped.
+const MAX_DEPTH = 8;
+
+const redactedSet = new Set(REDACTED_KEYS);
+
+/**
+ * Recursively censor any sensitive key at any depth (MED-35). Returns a new
+ * value; the input is never mutated. Non-plain objects (Error, Buffer, Date)
+ * are passed through so pino's own serializers still handle them.
+ */
+export function deepRedact(value: unknown, depth = 0): unknown {
+  if (depth > MAX_DEPTH) return CENSOR;
+  if (Array.isArray(value)) {
+    return value.map((v) => deepRedact(v, depth + 1));
+  }
+  if (value === null || typeof value !== 'object') return value;
+  // Leave special objects for pino's serializers (err/req/res) to format.
+  if (value instanceof Error || Buffer.isBuffer(value) || value instanceof Date) {
+    return value;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (redactedSet.has(key.toLowerCase())) {
+      out[key] = CENSOR;
+    } else {
+      out[key] = deepRedact(v, depth + 1);
+    }
+  }
+  return out;
+}
 
 let singleton: Logger | null = null;
 
@@ -47,9 +100,12 @@ export function createLogger(
 ): Logger {
   const options = {
     level,
-    redact: {
-      paths: REDACT_PATHS,
-      censor: '[redacted]',
+    formatters: {
+      // MED-35: censor the entire merged log object recursively before pino
+      // writes it, so a sensitive key is removed no matter how deeply nested.
+      log(obj: Record<string, unknown>): Record<string, unknown> {
+        return deepRedact(obj) as Record<string, unknown>;
+      },
     },
     // Never serialize raw request/response bodies.
     serializers: {
@@ -75,8 +131,8 @@ export function getLogger(): Logger {
  * (the webhook path) it is used as the correlation id so a log line can be tied
  * to the originating event; elsewhere the Fastify request id is used
  * (design.md §10). The requestId itself is not sensitive, but every child still
- * inherits the redaction allowlist so no token, PII, transcript text, or body
- * can be logged (NFR-3).
+ * inherits the recursive redaction so no token, PII, transcript text, SDP,
+ * OAuth code/state, session URL, or body can be logged (NFR-3).
  */
 export function correlatedLogger(requestId: string, base: Logger = getLogger()): Logger {
   return base.child({ requestId });

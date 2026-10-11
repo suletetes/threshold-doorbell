@@ -20,16 +20,18 @@ export async function registerTranscriptRoutes(app: FastifyInstance): Promise<vo
   const service = new TranscriptService(
     app.container.conversationStore,
     app.container.tokenStore,
+    {
+      events: app.container.eventStore,
+      deviceAccounts: app.container.deviceAccountStore,
+      sessionInvalidation: app.container.sessionInvalidation,
+    },
   );
 
   // GET /transcripts -> paginated, searchable, date-filtered list.
   app.get<{ Querystring: ListQuery }>(
     '/transcripts',
     { preHandler: app.requireSession },
-    async (
-      request: FastifyRequest<{ Querystring: ListQuery }>,
-      reply: FastifyReply,
-    ): Promise<Page<Conversation>> => {
+    async (request: FastifyRequest<{ Querystring: ListQuery }>): Promise<Page<Conversation>> => {
       const residentSub = request.session!.sub;
       const limit = normalizeLimit(request.query.limit);
       const offset = decodeCursor(request.query.cursor);
@@ -41,11 +43,10 @@ export async function registerTranscriptRoutes(app: FastifyInstance): Promise<vo
         to: request.query.to,
       });
       // Defensive TTL filter (FR-8.5): never surface an expired transcript even
-      // if the store's TTL sweep has not yet run.
+      // if the store's TTL sweep has not yet run. NIT-05: return the page
+      // (default 200) rather than send() and return.
       const live = all.filter((c) => !TranscriptService.isExpired(c));
-      const page = paginate(live, limit, offset);
-      reply.code(200).send(page);
-      return page;
+      return paginate(live, limit, offset);
     },
   );
 

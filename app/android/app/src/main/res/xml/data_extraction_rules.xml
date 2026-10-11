@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Data extraction rules for API 31+ (MED-18): cloud backup and device-to-device
+  transfer. allowBackup is false, so these are defensive. Consent and settings in
+  shared_preferences are excluded from both so privacy state never leaves the device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>

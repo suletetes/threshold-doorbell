@@ -7,8 +7,8 @@
 | Concern | Package / service | Pin (verify latest at build) |
 |---|---|---|
 | State management / DI | `flutter_riverpod` | ^2.6.0 |
-| WebRTC (inbound video/audio, SDP) | `flutter_webrtc` | ^0.12.0 |
-| **Outbound audio injection** | **`webview_flutter` + JS AudioContext pipeline** | ^4.7.0 |
+| **Live session (video in, two-way audio)** | **`webview_flutter` + browser WebRTC + JS AudioContext pipeline** | ^4.7.0 |
+| ~~Inbound WebRTC~~ (removed per ARCH-1) | ~~`flutter_webrtc`~~ | removed; see design.md |
 | Text-to-speech | `flutter_tts` (uses `synthesizeToFile`) | ^4.2.0 |
 | On-device ASR (Privacy Mode, stretch) | whisper.cpp via `whisper_ggml` / FFI | current |
 | On-device vision | `google_mlkit_object_detection` | ^0.14.0 |
@@ -45,8 +45,8 @@
    a network-capture test.
 7. **No PII, tokens, transcript text, or payload bodies in logs.** Redaction via a serializer allowlist.
 8. **WebRTC session shape:** audio `sendrecv`, video `recvonly`; overlays kept out of the top corners to
-   avoid the mandatory Ring watermark; close the peer connection and release the session URL on end or
-   background > 30 s.
+   avoid the mandatory Ring watermark; keep the session alive for up to 5 minutes while backgrounded, then
+   close the peer connection and release the session URL (FR-4.3a).
 9. **Everything external is behind an interface with a fixture implementation** (Ring, Transcribe, Bedrock,
    push) so the app runs offline for tests and demo.
 

@@ -1,4 +1,4 @@
-package com.example.threshold
+package dev.suletetes.threshold
 
 import io.flutter.embedding.android.FlutterActivity
 

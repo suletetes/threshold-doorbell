@@ -18,11 +18,23 @@
 
 import 'dart:async';
 
-/// The exact first-run notice text (FR-14.1). Plain language, dash-free (NFR-10).
+/// The exact first-run notice text (FR-14.1, HIGH-11). Informed consent, plain
+/// language, dash-free (NFR-10). It names the real processing so the resident
+/// knows what happens before they acknowledge: Clarity Mode (the default) sends
+/// audio to a cloud speech service and sends the text to a cloud assistant for
+/// short suggested replies; Privacy Mode keeps everything on the phone; the
+/// 90 day retention and the erase path are stated. The old copy ("No visitor
+/// audio or video is stored. In Privacy Mode everything stays on your phone")
+/// understated the cloud processing and omitted retention, which the audit
+/// flagged as not being informed consent.
 const String kRecordingNoticeText =
-    'Threshold turns what your visitor says into text so you can read it. No '
-    'visitor audio or video is stored. In Privacy Mode everything stays on your '
-    'phone. You are responsible for lawful use where you live.';
+    'Threshold turns what your visitor says into text so you can read it. '
+    'Clarity Mode is the default: it sends the visitor audio to a cloud speech '
+    'service to make the captions, and sends that text to a cloud assistant to '
+    'suggest short replies. Privacy Mode keeps everything on your phone and uses '
+    'no cloud services. Transcripts are kept for 90 days and then deleted, and '
+    'you can erase everything at any time from Settings. You are responsible for '
+    'lawful use where you live.';
 
 /// Persists the first-run acknowledgement and the audible-notice preference. The
 /// live binding wraps shared_preferences; the fake keeps values in memory.
@@ -72,7 +84,8 @@ class FakeConsentStore implements ConsentStore {
   Future<bool> audibleNoticeEnabled() async => _audibleNotice;
 
   @override
-  Future<void> setAudibleNoticeEnabled(bool value) async => _audibleNotice = value;
+  Future<void> setAudibleNoticeEnabled(bool value) async =>
+      _audibleNotice = value;
 
   @override
   Future<ComplianceChoice?> defaultComplianceChoice() async => _defaultChoice;

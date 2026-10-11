@@ -6,10 +6,14 @@ import {
 } from '../../src/services/fixtures/memory-stores.js';
 import type { Conversation } from '../../src/domain/types.js';
 
+// A pinned "now" so the server-time TTL (MED-26) is deterministic. startedAt in
+// validInput is before this instant so it is never a future-timestamp rejection.
+const NOW_MS = Date.parse('2026-06-01T00:00:00.000Z');
+
 function build() {
   const store = new MemoryConversationStore();
   const tokens = new MemoryTokenStore();
-  return { store, tokens, svc: new TranscriptService(store, tokens) };
+  return { store, tokens, svc: new TranscriptService(store, tokens, {}, () => NOW_MS) };
 }
 
 const validInput = {
@@ -47,12 +51,19 @@ describe('TranscriptService (Task 9, FR-8)', () => {
     ).toThrowError(/own data/);
   });
 
-  it('stamps a 90-day TTL from startedAt (FR-8.5)', () => {
+  it('stamps a 90-day TTL from the server receive time, not startedAt (MED-26, FR-8.5)', () => {
     const { svc } = build();
     const c = svc.buildConversation({ ...validInput }, 'resident-a');
-    const started = Date.parse(c.startedAt);
     const expires = Date.parse(c.expiresAt);
-    expect(Math.round((expires - started) / (24 * 60 * 60 * 1000))).toBe(RETENTION_DAYS);
+    // The TTL is anchored to the pinned server "now", not the client startedAt.
+    expect(Math.round((expires - NOW_MS) / (24 * 60 * 60 * 1000))).toBe(RETENTION_DAYS);
+  });
+
+  it('rejects a future startedAt so retention cannot be bypassed (MED-26)', () => {
+    const { svc } = build();
+    expect(() =>
+      svc.buildConversation({ ...validInput, startedAt: '9999-01-01T00:00:00.000Z' }, 'resident-a'),
+    ).toThrow();
   });
 
   it('rejects malformed input', () => {

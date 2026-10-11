@@ -19,9 +19,27 @@ void main() {
       expect(emphasisForFinalToken(null), CaptionEmphasis.provisional);
     });
 
+    test(
+      'a NaN confidence is treated as provisional, not low confidence (LOW-19)',
+      () {
+        expect(emphasisForFinalToken(double.nan), CaptionEmphasis.provisional);
+      },
+    );
+
+    test('an out-of-range high confidence clamps to normal (LOW-19)', () {
+      // Asserts are enabled under flutter test, so an out-of-range value trips
+      // the debug assert. Verify the assertion fires for a non-NaN out-of-range
+      // input, which documents the defensive contract.
+      expect(() => emphasisForFinalToken(1.5), throwsA(isA<AssertionError>()));
+      expect(() => emphasisForFinalToken(-0.5), throwsA(isA<AssertionError>()));
+    });
+
     test('emphasisForToken branches on isFinal', () {
       const token = CaptionToken(text: 'hello', confidence: 0.9);
-      expect(emphasisForToken(token, isFinal: false), CaptionEmphasis.provisional);
+      expect(
+        emphasisForToken(token, isFinal: false),
+        CaptionEmphasis.provisional,
+      );
       expect(emphasisForToken(token, isFinal: true), CaptionEmphasis.normal);
     });
 

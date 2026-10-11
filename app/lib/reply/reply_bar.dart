@@ -45,13 +45,15 @@ class ReplyBar extends StatefulWidget {
   const ReplyBar({
     super.key,
     required this.controller,
-    required this.contextualSuggestions,
+    this.contextualSuggestions = const <String>[],
   });
 
   final ReplyController controller;
 
   /// Up to 3 contextual suggestions (Bedrock or on-device). The fixed safe set
-  /// is always appended by [composeReplyButtons].
+  /// is always appended by [composeReplyButtons]. The composition root supplies
+  /// live suggestions via the controller; this field is a static fallback used
+  /// by presentation tests.
   final List<String> contextualSuggestions;
 
   @override
@@ -95,7 +97,13 @@ class _ReplyBarState extends State<ReplyBar> {
 
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
-        final buttons = composeReplyButtons(widget.contextualSuggestions);
+        // Prefer the controller's live suggestions (set by the composition root
+        // from the suggestion provider, FR-7.1a) so they repaint on notify;
+        // fall back to the static widget field used by presentation tests.
+        final List<String> contextual = c.contextualSuggestions.isNotEmpty
+            ? c.contextualSuggestions
+            : widget.contextualSuggestions;
+        final buttons = composeReplyButtons(contextual);
         final busy = c.state == ReplyState.synthesizing;
         final String? errorMessage = c.errorMessage;
         final String? played = _playedReply;
@@ -124,7 +132,8 @@ class _ReplyBarState extends State<ReplyBar> {
                     child: played == null
                         ? const SizedBox(width: double.infinity)
                         : Padding(
-                            padding: const EdgeInsets.only(bottom: Spacing.space3),
+                            padding:
+                                const EdgeInsets.only(bottom: Spacing.space3),
                             child: StatusBanner(
                               key: const ValueKey('reply-played'),
                               variant: StatusVariant.success,
@@ -149,7 +158,9 @@ class _ReplyBarState extends State<ReplyBar> {
                       for (final s in buttons)
                         _SuggestionButton(
                           label: s,
-                          onTap: busy ? null : () => _send(s, ReplySource.template),
+                          onTap: busy
+                              ? null
+                              : () => _send(s, ReplySource.template),
                         ),
                     ],
                   ),
@@ -157,55 +168,63 @@ class _ReplyBarState extends State<ReplyBar> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: Semantics(
-                          textField: true,
-                          label: 'Type a reply',
-                          child: TextField(
-                            key: const ValueKey('reply-freetext'),
-                            controller: _text,
-                            enabled: !busy,
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: scheme.onSurface),
-                            decoration: InputDecoration(
-                              hintText: 'Type a reply',
-                              hintStyle: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                              filled: true,
-                              fillColor: scheme.surfaceContainerHighest,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: Spacing.space4,
-                                vertical: Spacing.space3,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: Radii.roundedMedium,
-                                borderSide: BorderSide(color: scheme.outline),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: Radii.roundedMedium,
-                                borderSide: BorderSide(color: scheme.outline),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: Radii.roundedMedium,
-                                borderSide: BorderSide(color: scheme.primary, width: 2),
-                              ),
+                        // One text-field node (MED-04): the TextField already
+                        // exposes a text-field semantics node; the label comes
+                        // from InputDecoration.labelText rather than an outer
+                        // Semantics(textField:) wrapper that added a second node.
+                        child: TextField(
+                          key: const ValueKey('reply-freetext'),
+                          controller: _text,
+                          enabled: !busy,
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: scheme.onSurface),
+                          decoration: InputDecoration(
+                            labelText: 'Type a reply',
+                            hintText: 'Type a reply',
+                            hintStyle: theme.textTheme.bodyMedium
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                            filled: true,
+                            fillColor: scheme.surfaceContainerHighest,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: Spacing.space4,
+                              vertical: Spacing.space3,
                             ),
-                            // Starting a new reply retires the previous one's cue.
-                            onChanged: (_) => _clearPlayedConfirmation(),
-                            onSubmitted: (v) => _send(v, ReplySource.freetext),
+                            border: OutlineInputBorder(
+                              borderRadius: Radii.roundedMedium,
+                              borderSide: BorderSide(color: scheme.outline),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: Radii.roundedMedium,
+                              borderSide: BorderSide(color: scheme.outline),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: Radii.roundedMedium,
+                              borderSide:
+                                  BorderSide(color: scheme.primary, width: 2),
+                            ),
                           ),
+                          // Starting a new reply retires the previous one's cue.
+                          onChanged: (_) => _clearPlayedConfirmation(),
+                          onSubmitted: (v) => _send(v, ReplySource.freetext),
                         ),
                       ),
                       const SizedBox(width: Spacing.space2),
                       Semantics(
                         button: true,
                         label: 'Send reply',
+                        // Real tap action for TalkBack double-tap (HIGH-06);
+                        // null while busy so it matches the disabled button.
+                        onTap: busy
+                            ? null
+                            : () => _send(_text.text, ReplySource.freetext),
                         excludeSemantics: true,
                         child: FilledButton.icon(
                           key: const ValueKey('reply-send'),
                           onPressed: busy
                               ? null
                               : () => _send(_text.text, ReplySource.freetext),
-                          icon: const Icon(Icons.send_rounded, size: Spacing.space5),
+                          icon: const Icon(Icons.send_rounded,
+                              size: Spacing.space5),
                           label: const Text('Send'),
                         ),
                       ),
@@ -225,7 +244,8 @@ class _ReplyBarState extends State<ReplyBar> {
     _clearPlayedConfirmation();
     await widget.controller.send(text, source: source);
     // Read the outcome BEFORE reset(), which returns the bar to composing.
-    final played = widget.controller.state == ReplyState.sent ? text.trim() : null;
+    final played =
+        widget.controller.state == ReplyState.sent ? text.trim() : null;
     if (source == ReplySource.freetext) _text.clear();
     // After a sent/error reply, return to composing so the bar is usable again.
     widget.controller.reset();
@@ -248,6 +268,7 @@ class _SuggestionButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Reply: $label',
+      onTap: onTap,
       excludeSemantics: true,
       child: FilledButton.tonal(
         onPressed: onTap,
@@ -287,7 +308,8 @@ class _SpeakingBanner extends StatelessWidget {
       excludeSemantics: true,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Color.alphaBlend(live.withValues(alpha: 0.18), scheme.surfaceContainerLow),
+          color: Color.alphaBlend(
+              live.withValues(alpha: 0.18), scheme.surfaceContainerLow),
           border: Border(top: BorderSide(color: live, width: 2)),
         ),
         child: Padding(
@@ -310,7 +332,8 @@ class _SpeakingBanner extends StatelessWidget {
               Expanded(
                 child: Text(
                   kSpeakingAtDoorLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(color: scheme.onSurface),
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(color: scheme.onSurface),
                 ),
               ),
             ],

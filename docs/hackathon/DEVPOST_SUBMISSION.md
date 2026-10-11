@@ -2,8 +2,9 @@
 
 > The first video doorbell experience built for the people who cannot hear it.
 > Live captions of what your visitor is actually saying, and a tap-to-speak
-> reply sent back out through the doorbell. A complete two-way conversation, no
-> hearing required.
+> reply sent back out through the doorbell: the two-way conversation at the
+> door, no hearing required. The product logic is built and tested; the device,
+> cloud and Ring adapters are not yet implemented.
 
 Track: Ring. Mini-challenges entered: AWS Builder and Open Source.
 Platform: Flutter (iOS and Android).
@@ -134,11 +135,13 @@ Accessibility is the product, not a feature bolted onto it.
 
 ## Accomplishments that we are proud of
 
-- **A complete two-way conversation at the door**, using the channel the rest of
-  the ecosystem leaves idle.
-- **Over 500 automated tests** in the app suite (567 passing), plus a dedicated
-  package test suite, covering captions, replies, haptics, accessibility, and
-  the design system.
+- **The two-way conversation designed around the channel the rest of the
+  ecosystem leaves idle.** The caption and reply logic is built and tested; the
+  live device, cloud and Ring adapters that carry it to a real doorbell are not
+  yet implemented.
+- **Over 500 automated tests** in the app suite (567 passing), plus 192 backend
+  tests and a dedicated package suite, covering captions, replies, haptics,
+  accessibility, and the design system.
 - **A full design system**, not a pile of screens: shared tokens, themed
   components, and a copy lint wired into CI.
 - **An ABI-split, obfuscated release build** that cuts the real per-device
@@ -195,10 +198,10 @@ half of the pipeline that turns doorbell audio into an accessible conversation.
 
 ## Mini-challenge: Open Source
 
-We published the caption-and-reply bridge as a standalone MIT-licensed Dart
-package, **`flutter_ring_captions`**, so any Flutter developer building on the
-Ring Partner API can reuse the two-way captioning core without adopting the
-whole Threshold app. The main repository is MIT-licensed with the license
+We released the caption-and-reply bridge in-repo as a standalone MIT-licensed
+Dart package, **`flutter_ring_captions`** (under `packages/`, not yet published
+to pub.dev), so any Flutter developer building on the Ring Partner API can reuse
+the two-way captioning core without adopting the whole Threshold app. The main repository is MIT-licensed with the license
 visible in the repository, and the accessibility-oriented video-processor work
 is written against Ring's own `VideoProcessor` plugin contract so it reads as
 native to their ecosystem. Our intended open-source contribution back to the

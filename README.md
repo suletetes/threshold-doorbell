@@ -3,9 +3,10 @@
 **The first video doorbell experience built for the people who can't hear it.**
 
 Live captions of what your visitor is saying, and a tap-to-speak reply spoken aloud out of the
-doorbell: a complete two-way conversation, no hearing required.
+doorbell: the two-way conversation at the door, no hearing required. The product logic is built and
+tested; the device, cloud and Ring adapters are not yet implemented (see Status).
 
-Built for the **Amazon Developer Hackathon 2026** · **Ring** track · **Flutter** (iOS + Android)
+Built for the **Amazon Developer Hackathon 2026** · **Ring** track · **Android** (iOS planned)
 Mini-challenges: **AWS Builder** (Amazon Transcribe + Bedrock) · **Open Source** (`flutter_ring_captions`)
 
 > *threshold*: the audiology term for the quietest sound a person can detect, and the place where a
@@ -61,7 +62,7 @@ Diagram sources and an index are in
 
 | Concern | Technology |
 |---|---|
-| App (iOS + Android) | Flutter / Dart |
+| App (Android; iOS planned) | Flutter / Dart |
 | Live session (video in, two-way audio) | WebView browser WebRTC (decision ARCH-1). Only the browser runtime can inject synthesized audio into the outbound track. |
 | Captions, default (accuracy) | Amazon Transcribe streaming |
 | Captions, Privacy Mode (on-device) | on-device Whisper (`whisper_ggml` / FFI to whisper.cpp, or WASM in the WebView) |
@@ -90,24 +91,35 @@ one doorbell. So there is exactly one peer connection, audio `sendrecv`, video
 ├── .kiro/                          # source of truth: specs + steering
 │   ├── specs/threshold-doorbell/   # requirements.md, design.md, tasks.md
 │   └── steering/                   # product.md, tech.md, structure.md
-├── app/                            # Flutter application
+├── app/                            # Flutter application (Android; iOS planned)
 │   └── lib/
+│       ├── app/                    # composition root, providers, home screen
+│       ├── session/                # live session controller and screens
 │       ├── captions/               # confidence styling, turn segmentation,
 │       │                           #   language selection, model provisioning,
 │       │                           #   on-device ASR engine port
 │       ├── reply/                  # sticky outbound mode, on-device suggestions
 │       ├── alerts/                 # haptic vocabulary, strobe, push receiver
+│       ├── consent/                # recording notice and compliance fallback
+│       ├── permissions/            # notification and microphone prompts
 │       ├── connectivity/           # offline / backend-outage state machine
-│       ├── vision/                 # privacy-zone geometry, presence cues
+│       ├── vision/                 # privacy-zone geometry (on-device only)
+│       ├── ring/                   # Ring app launcher port
+│       ├── perf/                   # latency harness and degradation matrix
+│       ├── settings/               # settings controller and screens
+│       ├── design/                 # design tokens and themed components
+│       ├── ui/                     # shared UI widgets
 │       └── a11y/                   # UI-copy dash lint engine
 ├── backend/                        # Node 20 + Fastify (stateless)
 │   ├── src/routes/                 # oauth, webhook, devices, events, signaling,
 │   │                               #   asr, replies, transcripts
 │   ├── src/services/               # ring, transcribe, bedrock, store (+ fixtures)
+│   ├── src/security/               # oauth-state, session, hmac
+│   ├── src/domain/                 # domain errors
 │   ├── src/observability/          # redacting logger, metrics
 │   └── docs/                       # THREAT_MODEL, PRIVACY_POLICY, OPERATIONS
 ├── packages/
-│   └── flutter_ring_captions/      # extracted MIT package (Open Source challenge)
+│   └── flutter_ring_captions/      # caption and reply package (Open Source challenge)
 ├── docs/hackathon/                 # strategy, research, friction log
 └── LICENSE                         # MIT
 ```
@@ -135,10 +147,12 @@ order everything else.
   gate and a reply-rendering sanitizer. Caption confidence is a semantic signal
   the UI maps to weight and label, never color or audio alone.
 
-- **Privacy by construction.** No raw audio or video is ever persisted. Privacy
-  Mode transcribes entirely on-device with zero egress, proven by fixtures that
-  count transmitted bytes and keep them at zero. Ring tokens are KMS-encrypted on
-  the backend and never touch the device.
+- **Privacy by construction (design intent).** The design keeps raw audio and
+  video off persistent storage, and Privacy Mode is meant to transcribe entirely
+  on-device with zero egress. The current backend encrypts Ring tokens with a
+  local symmetric crypto helper and keeps them in an in-memory store; the
+  KMS-backed token store is planned, not built, and the design keeps Ring tokens
+  on the backend rather than the device.
 
 The extracted, reusable heart of the caption and reply logic ships as a
 standalone MIT package, [`flutter_ring_captions`](packages/flutter_ring_captions/README.md).
@@ -146,13 +160,17 @@ standalone MIT package, [`flutter_ring_captions`](packages/flutter_ring_captions
 ## Status
 
 Under active implementation against `.kiro/specs/threshold-doorbell/tasks.md`.
-The backend (OAuth with PKCE, KMS token store, webhook, devices and events,
-signaling broker, ASR relay, transcripts, replies, observability) and the
-device-independent app logic (captions, alerts, sticky outbound mode,
-connectivity, language, model provisioning, vision) are implemented and covered
-by fixture-based tests. Device-bound work (the live WebView session, real
-permissions, the on-device latency and a11y device passes) is verified on a
-developer machine with Ring credentials, not in CI.
+The device-independent product logic (captions, alerts, sticky outbound mode,
+connectivity, language, model provisioning, vision) and the backend request
+handling (OAuth with PKCE, webhook, devices and events, signaling broker, ASR
+relay, transcripts, replies, observability) are covered by fixture-based tests.
+The production adapters are not built: in a release build the live session,
+speak, Ring launch, smart replies and data erase paths throw, the backend wires
+in-memory fixtures in every environment, and the KMS token store is planned
+rather than implemented. The live WebView session, real permissions and the
+on-device latency and a11y device passes remain to be done on a developer
+machine with Ring credentials, not in CI. The authoritative state is tracked in
+`.kiro/specs/threshold-doorbell/`.
 
 ## Getting started
 
@@ -173,6 +191,9 @@ npm ci
 npm run typecheck && npm run lint && npm test
 npm run dev           # local mode, fixtures only, no AWS or real Ring
 ```
+
+The backend listens on port 8080 by default (override with the `PORT` environment
+variable; see `backend/src/config.ts`).
 
 Full device testing needs a Ring developer account, an OAuth app, and a Ring
 Protection plan. See `docs/hackathon/threshold-spec.md` for the plan and

@@ -7,22 +7,32 @@ threshold-doorbell/
 ├── .kiro/
 │   ├── specs/threshold-doorbell/     # requirements.md · design.md · tasks.md
 │   └── steering/                     # product.md · tech.md · structure.md
-├── app/                              # Flutter application (iOS + Android)
+├── app/                              # Flutter application (Android; iOS planned)
 │   ├── lib/
 │   │   ├── main.dart
-│   │   ├── ring/                     # RingClient, OAuth glue, WebRTC session
+│   │   ├── app/                      # composition root, providers, home screen
+│   │   ├── session/                  # live session controller and screens
+│   │   ├── ring/                     # Ring app launcher port
 │   │   ├── captions/                 # CaptionEngine: Clarity (Transcribe) + Privacy (Whisper)
-│   │   ├── reply/                    # ReplyAudioBridge (WebView pipeline) + TTS; audio_spike.dart
+│   │   ├── reply/                    # ReplyAudioBridge (WebView pipeline) + TTS
 │   │   ├── alerts/                   # push handling, haptic vocabulary, strobe/torch
-│   │   ├── ui/                       # screens: alert, conversation, reply bar, history, settings
+│   │   ├── consent/                  # recording notice and compliance fallback
+│   │   ├── permissions/              # notification and microphone prompts
+│   │   ├── connectivity/             # offline / backend-outage state machine
+│   │   ├── vision/                   # privacy-zone geometry (on-device only)
+│   │   ├── perf/                     # latency harness and degradation matrix
+│   │   ├── settings/                 # settings controller and screens
+│   │   ├── design/                   # design tokens and themed components
+│   │   ├── ui/                       # shared UI widgets
 │   │   └── a11y/                     # accessibility helpers (WCAG 2.2 AA)
+│   ├── spike/                        # WebRTC outbound-audio spike (HTML, RUNBOOK)
 │   ├── test/                         # unit + integration + a11y tests, fixtures
 │   └── pubspec.yaml
 ├── backend/                          # Node 20 + Fastify (stateless)
 │   ├── src/
 │   │   ├── routes/                   # oauth, webhook, devices, events, signaling, asr, replies, transcripts
 │   │   ├── services/                 # ring, transcribe, bedrock, store (+ fixtures)
-│   │   ├── security/                 # hmac, session, secrets
+│   │   ├── security/                 # oauth-state, pkce, session, hmac
 │   │   └── observability/            # logging, metrics
 │   └── package.json
 ├── packages/
@@ -45,9 +55,10 @@ strategy/research context; where they conflict with the spec, the spec wins.
 - **Backend layering:** `routes/` (schema-validated I/O) → `services/` (logic) → adapters. Routes hold no
   business logic; services hold no HTTP concerns.
 - **State:** Riverpod providers only; no `BuildContext`-coupled singletons; no global mutable state.
-- **The spike is quarantined.** `app/lib/reply/audio_spike.dart` is throwaway proof-of-capability. Once the
-  approach is proven, promote the working pieces into `reply/` (bridge) and `ring/` (session) and delete the
-  spike. Do not build UI on top of the spike file.
+- **The spike is quarantined.** The outbound-audio proof-of-capability lives in `app/spike/` (a standalone
+  WebRTC HTML page plus its RUNBOOK), not in `lib/`. Once the approach is proven against a real Ring
+  session, promote the working pieces into `reply/` (bridge) and `session/` (live session). Do not build UI
+  on top of the spike.
 
 ## UI copy rules (hard requirement)
 

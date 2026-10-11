@@ -20,19 +20,42 @@
 #
 set -euo pipefail
 
-# --- Environment (matches the project shell preamble; the Android SDK lives
-#     under /projects after the env reset). Only set values that are missing so
-#     a caller who already exported them is respected. ---
-if command -v mise >/dev/null 2>&1; then
-  : "${JAVA_HOME:=$(mise where java@21)}"
-  FLUTTER_BIN_DIR="$(mise where flutter@3.38.10)/bin"
-else
-  FLUTTER_BIN_DIR=""
+# --- Environment. Respect anything the caller already exported, and otherwise
+#     discover tools rather than hard-coding paths. The project pins Java 17
+#     (see .kiro/ENVIRONMENT.md); mise is optional. ---
+
+# Java: prefer an exported JAVA_HOME, else ask mise for Java 17 if available.
+if [ -z "${JAVA_HOME:-}" ] && command -v mise >/dev/null 2>&1; then
+  if mise where java@17.0.2 >/dev/null 2>&1; then
+    JAVA_HOME="$(mise where java@17.0.2)"
+  elif mise where java@17 >/dev/null 2>&1; then
+    JAVA_HOME="$(mise where java@17)"
+  fi
 fi
+
+# Flutter: prefer a flutter already on PATH; else ask mise for the pinned
+# version if it is installed. Never fail just because mise lacks it.
+FLUTTER_BIN_DIR=""
+if ! command -v flutter >/dev/null 2>&1 && command -v mise >/dev/null 2>&1; then
+  if mise where flutter@3.38.10 >/dev/null 2>&1; then
+    FLUTTER_BIN_DIR="$(mise where flutter@3.38.10)/bin"
+  fi
+fi
+
+# Android SDK: derive from ANDROID_HOME / ANDROID_SDK_ROOT if either is set;
+# keep them in sync. Do not invent a default path (the old /projects/android-sdk
+# default did not exist here); if neither is set the Gradle build reports the
+# missing SDK with its own clear message.
+if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -z "${ANDROID_HOME:-}" ]; then
+  ANDROID_HOME="${ANDROID_SDK_ROOT}"
+elif [ -n "${ANDROID_HOME:-}" ] && [ -z "${ANDROID_SDK_ROOT:-}" ]; then
+  ANDROID_SDK_ROOT="${ANDROID_HOME}"
+fi
+
 export JAVA_HOME
-export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/projects/android-sdk}"
-export ANDROID_HOME="${ANDROID_HOME:-/projects/android-sdk}"
-export PATH="${JAVA_HOME:+$JAVA_HOME/bin:}${FLUTTER_BIN_DIR:+$FLUTTER_BIN_DIR:}${ANDROID_SDK_ROOT}/platform-tools:$PATH"
+[ -n "${ANDROID_HOME:-}" ] && export ANDROID_HOME
+[ -n "${ANDROID_SDK_ROOT:-}" ] && export ANDROID_SDK_ROOT
+export PATH="${JAVA_HOME:+$JAVA_HOME/bin:}${FLUTTER_BIN_DIR:+$FLUTTER_BIN_DIR:}${ANDROID_SDK_ROOT:+$ANDROID_SDK_ROOT/platform-tools:}$PATH"
 export FLUTTER_SUPPRESS_ANALYTICS=true
 ulimit -n 65536 || true
 

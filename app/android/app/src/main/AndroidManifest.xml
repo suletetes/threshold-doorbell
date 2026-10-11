@@ -1,8 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Microphone for the two-way outbound reply over WebRTC sendrecv (FR-13.1, CRIT-09). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Networking to the backend (Ring OAuth/webhooks, ASR, Bedrock). Declared in the
+         main manifest so it survives in release once ML Kit is removed (HIGH-13). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Route WebRTC audio to a Bluetooth hearing aid or headset on Android 12+ (LOW-13). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <application
-        android:label="threshold"
+        android:label="Threshold"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config">
+        <!-- configChanges keeps the Flutter view alive across these changes
+             (including fontScale/density, which an accessibility app must handle
+             in-process rather than letting Android recreate the activity). NIT-12. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

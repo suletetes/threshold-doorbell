@@ -6,6 +6,8 @@
 // detections. The fixture also proves the zero-egress property: it exposes a
 // framesTransmitted counter that stays zero.
 
+import 'dart:async';
+
 import 'privacy_zone_geometry.dart';
 
 /// A detected object cue. Only person and package cues are modeled (N1: no
@@ -13,7 +15,8 @@ import 'privacy_zone_geometry.dart';
 enum CueKind { person, package }
 
 class VisionCue {
-  const VisionCue({required this.kind, required this.box, required this.confidence});
+  const VisionCue(
+      {required this.kind, required this.box, required this.confidence});
   final CueKind kind;
   final Rect box;
   final double confidence;
@@ -41,22 +44,33 @@ class FixtureVision implements VisionPort {
   int framesTransmitted = 0;
   final List<VisionFrame> pushed = <VisionFrame>[];
 
+  // A broadcast controller so a live subscriber receives frames emitted after
+  // it subscribes. The old Stream.fromIterable snapshot replayed only the
+  // already-pushed frames, so later frames were missed (LOW-02).
+  final StreamController<VisionFrame> _controller =
+      StreamController<VisionFrame>.broadcast();
+
   @override
   bool get isAvailable => available;
 
   /// Emit a frame. Recorded locally; never transmitted (FR-11.2).
   void emit(VisionFrame frame) {
     pushed.add(frame);
+    _controller.add(frame);
   }
 
   @override
-  Stream<VisionFrame> get frames => Stream<VisionFrame>.fromIterable(pushed);
+  Stream<VisionFrame> get frames => _controller.stream;
+
+  /// Release the controller (test teardown).
+  Future<void> dispose() => _controller.close();
 }
 
 /// Filter a frame's detections through the privacy zones (FR-11.1): a detection
 /// is kept only if it passes [admitDetection]. Masked detections are discarded
 /// so masked pixels never influence any downstream signal.
-List<VisionCue> admittedCues(VisionFrame frame, List<Rect> zones, {double threshold = 0.5}) {
+List<VisionCue> admittedCues(VisionFrame frame, List<Rect> zones,
+    {double threshold = 0.5}) {
   final out = <VisionCue>[];
   for (final cue in frame.detections) {
     final admitted = admitDetection(cue.box, zones, threshold: threshold);

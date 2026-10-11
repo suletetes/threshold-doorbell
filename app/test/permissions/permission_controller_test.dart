@@ -17,7 +17,8 @@ void main() {
   group('PermissionController flow (Task 20, FR-13.2..13.5; AT-13)', () {
     test('starts by needing the in-context rationale (FR-13.2)', () {
       final c = PermissionController(FakePermissionPort());
-      expect(c.uiStateOf(AppPermission.microphone), PermissionUiState.needsRationale);
+      expect(c.uiStateOf(AppPermission.microphone),
+          PermissionUiState.needsRationale);
     });
 
     test('granting a permission makes the feature available', () async {
@@ -29,7 +30,8 @@ void main() {
       final c = PermissionController(port);
       final state = await c.request(AppPermission.microphone);
       expect(state, PermissionUiState.granted);
-      expect(port.requestedPermissions, <AppPermission>[AppPermission.microphone]);
+      expect(
+          port.requestedPermissions, <AppPermission>[AppPermission.microphone]);
     });
 
     test('denied is retryable and does not block (FR-13.3)', () async {
@@ -43,7 +45,9 @@ void main() {
       expect(state, PermissionUiState.deniedRetryable);
     });
 
-    test('permanently denied routes to settings and does NOT re-prompt (FR-13.4)', () async {
+    test(
+        'permanently denied routes to settings and does NOT re-prompt (FR-13.4)',
+        () async {
       final port = FakePermissionPort(
         initial: <AppPermission, PermissionStatus>{
           AppPermission.microphone: PermissionStatus.permanentlyDenied,
@@ -51,19 +55,40 @@ void main() {
       );
       final c = PermissionController(port);
       await c.refresh(AppPermission.microphone);
-      expect(c.uiStateOf(AppPermission.microphone), PermissionUiState.needsSettings);
+      expect(c.uiStateOf(AppPermission.microphone),
+          PermissionUiState.needsSettings);
       // A request while permanently denied must not re-prompt the OS.
       final state = await c.request(AppPermission.microphone);
       expect(state, PermissionUiState.needsSettings);
       expect(port.requestedPermissions, isEmpty); // never re-prompted
     });
 
-    test('open settings deep link is used for permanent denial (FR-13.4)', () async {
+    test('open settings deep link is used for permanent denial (FR-13.4)',
+        () async {
       final port = FakePermissionPort();
       final c = PermissionController(port);
       final opened = await c.openSettings();
       expect(opened, isTrue);
       expect(port.openSettingsCalls, 1);
+    });
+
+    test('returning from settings refreshes the status (LOW-07)', () async {
+      final port = FakePermissionPort(
+        initial: <AppPermission, PermissionStatus>{
+          AppPermission.microphone: PermissionStatus.permanentlyDenied,
+        },
+      );
+      final c = PermissionController(port);
+      await c.refresh(AppPermission.microphone);
+      expect(c.uiStateOf(AppPermission.microphone),
+          PermissionUiState.needsSettings);
+
+      // The resident grants the permission in the OS settings screen, then
+      // returns. The controller must re-read the status (LOW-07), not keep
+      // showing the stale permanently-denied state.
+      port.setStatus(AppPermission.microphone, PermissionStatus.granted);
+      await c.openSettings(AppPermission.microphone);
+      expect(c.uiStateOf(AppPermission.microphone), PermissionUiState.granted);
     });
 
     test('notification denial activates the poll fallback (FR-13.5)', () async {
@@ -78,7 +103,9 @@ void main() {
       expect(c.pollFallbackActive, isTrue);
     });
 
-    test('notification permanent denial also activates the poll fallback (FR-13.5)', () async {
+    test(
+        'notification permanent denial also activates the poll fallback (FR-13.5)',
+        () async {
       final port = FakePermissionPort(
         initial: <AppPermission, PermissionStatus>{
           AppPermission.notifications: PermissionStatus.permanentlyDenied,

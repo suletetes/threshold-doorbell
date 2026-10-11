@@ -1,0 +1,250 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Backend robustness, privacy, operability, deps and CI-equivalent hardening (HIGH-02, HIGH-21, HIGH-22, HIGH-24, HIGH-25, MED-24, MED-25, MED-26, MED-27, MED-28, MED-29, MED-31, MED-35, MED-36, MED-37, LOW-25, LOW-26, LOW-27, LOW-28, LOW-29, LOW-31, LOW-33, NIT-01..NIT-06). All verifiable with vitest/npm. One atomic commit per finding/cluster. Depends on FEAT-003 (shares backend files; sequence after to avoid conflicts).",
+  "status": "completed",
+  "steps": [
+    "COMMIT A (HIGH-02 + LOW-26): Fix npm start. Add backend/tsconfig.build.json with rootDir 'src' (so test/ is not compiled into dist), or change package.json start to 'node dist/src/server.js'; make them consistent. Add SIGTERM/SIGINT handlers in backend/src/server.ts that call app.close(), and add .catch to main(). Verify npm run build then node dist/<path>/server.js can start (bind to a free PORT) and /health returns 200.",
+    "COMMIT B (HIGH-25 + LOW-27): Upgrade fastify 4->5, @fastify/cookie 9->11, @fastify/websocket 10->11 and adjust code for the v5 API; remove the 5 unused @aws-sdk/* dependencies (real adapters deferred). Upgrade vitest to >=3.2.6 to clear the dev advisory. Run npm install, fix any breakage, and confirm npm audit --omit=dev --audit-level=high is clean and osv-scanner shows the fastify/find-my-way advisories gone.",
+    "COMMIT C (HIGH-24 + MED-36 + LOW-25 + LOW-31): Error handling and observability. backend/src/app.ts: pass through err.statusCode for 4xx (malformed JSON / oversized body must not be 500), log every 5xx through the redacting logger, enable request logging (replace logger:false). Instrument the request paths with metrics.observe and add a real readiness check to /health (MED-36); fix the 'refresh' metric semantics. Request IDs via crypto.randomUUID (LOW-25). Add @fastify/helmet or an onSend hook setting HSTS + X-Content-Type-Options for the browser-facing OAuth routes and document 'no CORS by design' (LOW-31). Tests: malformed body -> 400, oversized -> 413/400 not 500.",
+    "COMMIT D (HIGH-21 + MED-25): Stop retaining raw audio. backend/src/services/fixtures/fixture-transcribe.ts must not keep unbounded received/streams arrays outside tests (cap/disable); fix fixture-push.ts and observability/metrics.ts:148-153 similarly. Reject privacy-mode transcript uploads (transcript-service.ts:109-111) or make the policy explicit per MED-25. Rewrite backend/test/services/fixture-transcribe.test.ts so its 'never persists audio' name matches a real assertion.",
+    "COMMIT E (HIGH-22 + MED-29): Resource-exhaustion hardening on /asr/stream. backend/src/app.ts register websocket with maxPayload ~64KiB; backend/src/routes/asr.ts bound 'pending', add an open timeout, re-check disposed after every await, cap sessions per resident and session duration. Add @fastify/rate-limit and JSON body schemas with maxLength/maxItems; lower bodyLimit (MED-29). Tests for payload cap and pending bound.",
+    "COMMIT F (MED-24 + MED-26 + MED-27 + MED-28 + MED-31 + MED-37): Validation correctness. replies.ts:28 accept exactly 'clarity'|'privacy', 400 otherwise, default privacy (MED-24, fail-closed). transcript-service.ts compute TTL from server receive time and reject future startedAt (MED-26); overwrite protection returning 409 or server-generated IDs (MED-28). memory-stores.ts/webhook-service.ts date filters: parse to epoch, treat date-only 'to' as end-of-day, 400 on unparseable (MED-27). ring-schema.ts validate expires_in range (reject 1e300 / negative) mapping decrypt errors to refresh_failed and serialize refreshes per resident (MED-31). reply-service.ts wrap Bedrock call in Promise.race with a 2s timer (MED-37). Tests for each.",
+    "COMMIT G (MED-35 + LOW-28 + LOW-29 + LOW-33 + NIT cluster): Logger redaction recursive/allowlist so deep tokens and transcript/visitorText/sdp/code/state/sessionUrl are censored (MED-35). devices.ts stable pagination (LOW-28). Validate webhook thumbnail_url against a Ring host allowlist (LOW-29). Correct README.md:146-159 port/adapter table (LOW-33). Clean up NIT-01,02,03,05,06 (dead params, misleading comments, redundant send+return). Tests for redaction depth >2."
+  ],
+  "acceptance_criteria": [
+    "npm audit --omit=dev --audit-level=high exits 0 (no high prod advisories).",
+    "osv-scanner scan source --lockfile backend/package-lock.json no longer reports the fastify/find-my-way advisories.",
+    "npm run build then starting the server yields /health 200.",
+    "A malformed JSON body returns 4xx (not 500); a privacy-mode value other than 'clarity'/'privacy' returns 400.",
+    "Deeply nested tokens are redacted in logs (new logger test).",
+    "npm run typecheck, npm run lint and npx vitest run all pass."
+  ],
+  "verification": [
+    "cd backend && npm run typecheck && npm run lint && npx vitest run && npm run build",
+    "cd backend && npm audit --omit=dev --audit-level=high",
+    "osv-scanner scan source --lockfile backend/package-lock.json || true"
+  ],
+  "blocked_reason": null,
+  "findings": {
+    "summary": "All 24 findings addressed on branch fix/audit-remediation across 7 atomic commits (A-G) authored by suletetes <sulea841@gmail.com> (no AI trailers, no em/en dashes). Backend verification all green on Node 20.20.2: npm run typecheck, npm run lint, npx vitest run (273 tests, up from the 242 baseline, +31 new regression tests), npm run build. npm audit --omit=dev --audit-level=high exits 0 (0 prod advisories). osv-scanner no longer reports any fastify or find-my-way advisory (remaining osv hits are dev-only: vitest/@vitest/mocker/braces/tinypool, excluded by --omit=dev). The built server starts on a PORT override and /health and /ready return 200.",
+    "verification": {
+      "node": "20.20.2 via nvm",
+      "typecheck": "pass",
+      "lint": "pass",
+      "tests": "273 passed (36 files); baseline was 242",
+      "build": "pass (tsc -p tsconfig.build.json emits dist/server.js)",
+      "npm_audit_omit_dev_high": "exit 0, found 0 vulnerabilities",
+      "osv_scanner": "fastify and find-my-way advisories gone; only dev-only advisories remain (vitest/@vitest/mocker/braces/tinypool)",
+      "server_health": "PORT=18092 node dist/server.js -> GET /health 200, GET /ready 200"
+    },
+    "per_finding": {
+      "HIGH-02": {
+        "status": "fixed",
+        "detail": "Build now uses tsconfig.build.json with rootDir src, so dist no longer contains test/ and tsc emits dist/server.js, which matches the start script (node dist/server.js). Verified: build then start binds a PORT override and /health returns 200.",
+        "files": ["backend/tsconfig.build.json", "backend/package.json"],
+        "tests": ["manual: npm run build then PORT=18090 node dist/server.js, curl /health -> 200"],
+        "commit": "f17e614"
+      },
+      "LOW-26": {
+        "status": "fixed",
+        "detail": "server.ts registers SIGTERM/SIGINT handlers that call app.close() and exit, and main() has a .catch so a rejection in loadConfig/buildContainer/buildApp is not an unhandled rejection.",
+        "files": ["backend/src/server.ts"],
+        "tests": ["manual: SIGTERM/SIGINT close path; startup .catch"],
+        "commit": "f17e614"
+      },
+      "HIGH-25": {
+        "status": "fixed",
+        "detail": "Upgraded fastify 4 to 5.12.5, @fastify/cookie 9 to 11.1.3, @fastify/websocket 10 to 11.3.4. No code changes were needed for the v5 API: the route/plugin wiring already used the v10/v11 websocket (socket,request) signature and a v5-compatible content-type parser and error handler. npm audit --omit=dev --audit-level=high is clean and osv-scanner shows the fastify/find-my-way advisories gone. Also upgraded vitest 2 to 3.2.7 to clear the critical dev advisory (GHSA-5xrq-8626-4rwp).",
+        "files": ["backend/package.json", "backend/package-lock.json"],
+        "tests": ["full suite (273) passes under fastify 5 / vitest 3", "npm audit --omit=dev --audit-level=high exit 0"],
+        "commit": "cdbbdd4"
+      },
+      "LOW-27": {
+        "status": "fixed",
+        "detail": "Removed the five unused @aws-sdk/* dependencies (no real adapters yet) to shrink install and audit surface.",
+        "files": ["backend/package.json", "backend/package-lock.json"],
+        "tests": ["grep confirms no @aws-sdk import in src/test; install succeeds"],
+        "commit": "cdbbdd4"
+      },
+      "HIGH-24": {
+        "status": "fixed",
+        "detail": "The error handler passes through a framework 4xx statusCode (malformed JSON, oversized body) as a schema envelope instead of masking it as a 500, and logs every genuine 5xx through the redacting logger. An onResponse hook adds access logging with request latency (logger was previously false).",
+        "files": ["backend/src/app.ts"],
+        "tests": ["backend/test/app/error-and-headers.test.ts (malformed JSON -> 400, oversized -> 413, both < 500)"],
+        "commit": "599945c"
+      },
+      "MED-36": {
+        "status": "fixed",
+        "detail": "Added a /ready readiness probe that checks the token store and config; /health stays pure liveness. The refresh metric was already gated on a successful getAccessToken (set during FEAT-003). The onResponse access-logging hook instruments every request path.",
+        "files": ["backend/src/app.ts"],
+        "tests": ["backend/test/app/error-and-headers.test.ts (readiness ready with tokenStore check)", "backend/test/observability/metrics-wiring.test.ts (refresh counted only on success)"],
+        "commit": "599945c"
+      },
+      "LOW-25": {
+        "status": "fixed",
+        "detail": "genReqId now returns crypto.randomUUID() instead of Math.random; request ids are UUIDs surfaced in error envelopes.",
+        "files": ["backend/src/app.ts"],
+        "tests": ["backend/test/app/error-and-headers.test.ts (UUID request id in 404 envelope)"],
+        "commit": "599945c"
+      },
+      "LOW-31": {
+        "status": "fixed",
+        "detail": "An onSend hook sets X-Content-Type-Options nosniff, X-Frame-Options DENY on every response and HSTS outside local, covering the browser-facing OAuth redirect routes. No CORS is configured by design (documented in the hook comment): the API is consumed by the native app over a Bearer token and by same-site OAuth redirects only.",
+        "files": ["backend/src/app.ts"],
+        "tests": ["backend/test/app/error-and-headers.test.ts (nosniff and X-Frame-Options set)"],
+        "commit": "599945c"
+      },
+      "HIGH-21": {
+        "status": "fixed",
+        "detail": "FixtureTranscribe no longer accumulates audio chunks, streams or opened languages in normal operation; retention is opt-in (constructor flag) and only the test harness enables it. FixturePush retains nothing by default and bounds its history under opt-in. The in-memory metrics sink caps retained latency observations. The fixture-transcribe test named 'never persists audio' now asserts the opposite of its previous assertion: the default fixture keeps no chunks (FR-8.3).",
+        "files": ["backend/src/services/fixtures/fixture-transcribe.ts", "backend/src/services/fixtures/fixture-push.ts", "backend/src/observability/metrics.ts", "backend/test/helpers/test-app.ts"],
+        "tests": ["backend/test/services/fixture-transcribe.test.ts ('never persists audio' now a real assertion; opt-in retention)", "backend/test/services/fixture-push.test.ts (no retention by default; bounded under opt-in)", "backend/test/observability/metrics.test.ts (observations capped at 1024)"],
+        "commit": "8023457"
+      },
+      "MED-25": {
+        "status": "fixed",
+        "detail": "A privacy-mode transcript upload is rejected 400 so the code and PRIVACY_POLICY.md agree that in Privacy Mode neither audio nor transcript text leaves the handset (FR-5.2/NFR-4).",
+        "files": ["backend/src/services/transcript-service.ts"],
+        "tests": ["backend/test/routes/transcripts.test.ts (privacy-mode upload rejected 400, nothing stored)"],
+        "commit": "8023457"
+      },
+      "HIGH-22": {
+        "status": "fixed",
+        "detail": "The websocket transport is registered with a 64 KiB maxPayload (was the ws 100 MiB default). The ASR relay bounds the pending-audio buffer and fails past the cap, races the upstream open against an open timeout, re-checks disposed after the open await (closing a stream opened after disposal), caps concurrent sessions per resident, and enforces a max session duration.",
+        "files": ["backend/src/app.ts", "backend/src/routes/asr.ts", "backend/src/config.ts"],
+        "tests": ["backend/test/routes/asr.test.ts (per-resident session cap and overflow close 4429; another resident unaffected; open-timeout fails the session; pending-buffer cap fails the session; oversized frame closed by the payload cap)"],
+        "commit": "06e330b"
+      },
+      "MED-29": {
+        "status": "fixed",
+        "detail": "Lowered the HTTP body limit to 64 KiB (from Fastify's 1 MiB default) and registered @fastify/rate-limit with a per-IP window (health and readiness exempt). New config knobs cover every limit and reject a non-numeric override.",
+        "files": ["backend/src/app.ts", "backend/src/config.ts", "backend/package.json", "backend/package-lock.json"],
+        "tests": ["backend/test/app/error-and-headers.test.ts (oversized body 4xx)", "backend/test/routes/asr.test.ts (ws payload cap)"],
+        "commit": "06e330b"
+      },
+      "MED-24": {
+        "status": "fixed",
+        "detail": "/replies accepts exactly 'clarity' or 'privacy', defaults a missing mode to privacy, and rejects any other value (including 'Privacy', 'PRIVACY', 'private') with 400, so Privacy Mode fails closed instead of silently reaching Bedrock.",
+        "files": ["backend/src/routes/replies.ts"],
+        "tests": ["backend/test/routes/replies.test.ts (bad mode 400; missing mode defaults to privacy and never calls Bedrock)"],
+        "commit": "d5477b3"
+      },
+      "MED-26": {
+        "status": "fixed",
+        "detail": "The 90-day TTL is anchored to the server receive time (injectable clock), not the client startedAt, and a future startedAt (beyond a 5 minute skew) is rejected, so retention (FR-8.5) cannot be bypassed with startedAt=9999-01-01.",
+        "files": ["backend/src/services/transcript-service.ts"],
+        "tests": ["backend/test/services/transcript-service.test.ts (TTL from server time; future startedAt rejected)"],
+        "commit": "d5477b3"
+      },
+      "MED-27": {
+        "status": "fixed",
+        "detail": "Transcript date filters parse from/to to epoch instants (not lexical ISO string comparison), widen a date-only 'to' to end-of-day so a same-day transcript is inclusive, and return 400 on an unparseable date.",
+        "files": ["backend/src/services/transcript-service.ts", "backend/src/services/stores.ts", "backend/src/services/fixtures/memory-stores.ts"],
+        "tests": ["backend/test/routes/transcripts.test.ts (same-day date-only to includes the transcript; unparseable date 400)", "backend/test/services/memory-stores.test.ts (epoch-bound filter)"],
+        "commit": "d5477b3"
+      },
+      "MED-28": {
+        "status": "fixed",
+        "detail": "A POST /transcripts with a client-supplied conversationId that already exists for the resident returns 409 instead of overwriting the stored turns; a server-generated id (the default) never collides.",
+        "files": ["backend/src/services/transcript-service.ts", "backend/src/domain/errors.ts"],
+        "tests": ["backend/test/routes/transcripts.test.ts (re-post of an existing id -> 409; original turns intact)"],
+        "commit": "d5477b3"
+      },
+      "MED-31": {
+        "status": "fixed",
+        "detail": "parseTokenResponse validates expires_in (rejects non-finite, <=0 and absurdly large values such as 1e300 that would produce a RangeError Invalid time value), so a bad value is contract drift rather than an unlogged 500 or an already-expired token. getAccessToken maps a decrypt failure to refresh_failed, and refreshes are single-flighted per resident so a token rotation cannot log concurrent callers out.",
+        "files": ["backend/src/services/ring-schema.ts", "backend/src/services/ring-token-service.ts"],
+        "tests": ["backend/test/services/ring-schema.test.ts (expires_in range)", "backend/test/services/ring-token-service.test.ts (decrypt failure -> refresh_failed; concurrent refreshes coalesced to one)"],
+        "commit": "d5477b3"
+      },
+      "MED-37": {
+        "status": "fixed",
+        "detail": "The Bedrock call is raced against a timer via Promise.race so the 2 s budget holds even for an adapter that ignores the abort signal; the abort is still signalled for cooperating adapters.",
+        "files": ["backend/src/services/reply-service.ts"],
+        "tests": ["backend/test/services/reply-service.test.ts (times out via Promise.race even when the adapter ignores abort)"],
+        "commit": "d5477b3"
+      },
+      "MED-35": {
+        "status": "fixed",
+        "detail": "Log redaction is now recursive via a pino log formatter that censors any sensitive key at any depth (a token nested three levels deep is redacted), replacing the fixed-depth pino redact paths. The deny list is extended to transcript, visitorText, sdp/sdpOffer/sdpAnswer, OAuth code/state and sessionUrl.",
+        "files": ["backend/src/observability/logger.ts", "backend/test/security/authorization.test.ts"],
+        "tests": ["backend/test/observability/logger.test.ts (depth-3 token redacted; sdp/code/state/sessionUrl/visitorText/transcript redacted)"],
+        "commit": "1d1d66c"
+      },
+      "LOW-28": {
+        "status": "fixed",
+        "detail": "/devices sorts the device list by id into a stable total order before slicing by the offset cursor, so pages no longer skip or duplicate rows when Ring returns devices in an unspecified order.",
+        "files": ["backend/src/routes/devices.ts"],
+        "tests": ["covered by existing devices-events pagination tests under the new stable ordering"],
+        "commit": "1d1d66c"
+      },
+      "LOW-29": {
+        "status": "fixed",
+        "detail": "A webhook thumbnail_url is only kept when it is an HTTPS URL on an allowlisted Ring host (.ring.com / .amazonaws.com); a foreign host, http, javascript: or data: URL is dropped to null.",
+        "files": ["backend/src/services/webhook-service.ts"],
+        "tests": ["backend/test/services/webhook-service.test.ts (Ring host kept; non-Ring host, http and javascript: dropped)"],
+        "commit": "1d1d66c"
+      },
+      "LOW-33": {
+        "status": "already fixed",
+        "detail": "The README port/adapter claims were already corrected in the FEAT-002 docs pass (commit bbf16e6): the current README states the device/cloud/Ring adapters are not yet implemented and the tech-stack table lists Amazon Transcribe and the signaling broker/ASR relay. No further change needed.",
+        "files": ["README.md"],
+        "tests": ["grep confirms Transcribe and signaling broker/ASR relay are listed and adapters are described as not implemented"],
+        "commit": "bbf16e6 (FEAT-002)"
+      },
+      "NIT-01": {
+        "status": "fixed",
+        "detail": "Corrected the stale 'Fresh regex per call site' comment in ui-copy.ts: the regexes are module-level and sharing one instance is safe because String.replace with /g does not read or advance lastIndex.",
+        "files": ["backend/src/domain/ui-copy.ts"],
+        "tests": ["existing ui-copy tests still pass"],
+        "commit": "1d1d66c"
+      },
+      "NIT-02": {
+        "status": "fixed",
+        "detail": "Removed the no-op timingSafeEqual(b, b) on a length mismatch in verifySignature; the hex SHA-256 length is public so it added no real timing protection.",
+        "files": ["backend/src/security/hmac.ts"],
+        "tests": ["existing hmac tests still pass"],
+        "commit": "1d1d66c"
+      },
+      "NIT-03": {
+        "status": "fixed",
+        "detail": "Removed the unused reconnect parameter (previously _sawResult) and the sawResult tracking in pumpResults.",
+        "files": ["backend/src/routes/asr.ts"],
+        "tests": ["backend/test/routes/asr.test.ts (reconnect-with-replay still passes)"],
+        "commit": "1d1d66c"
+      },
+      "NIT-05": {
+        "status": "fixed",
+        "detail": "The /devices, /events and /transcripts list handlers now return the page (default 200) instead of a redundant reply.code(200).send(page) followed by return page.",
+        "files": ["backend/src/routes/devices.ts", "backend/src/routes/events.ts", "backend/src/routes/transcripts.ts"],
+        "tests": ["existing route tests still pass (same 200 + envelope)"],
+        "commit": "1d1d66c"
+      },
+      "NIT-06": {
+        "status": "fixed",
+        "detail": "Dropped the redundant Number.isNaN check after Number.isFinite in normalizeLimit (isFinite already excludes NaN).",
+        "files": ["backend/src/domain/pagination.ts"],
+        "tests": ["existing pagination tests still pass"],
+        "commit": "1d1d66c"
+      },
+      "NIT-04": {
+        "status": "not in scope",
+        "detail": "NIT-04 (session exp semantics) was addressed in FEAT-003 (commit dcd17e7). FEAT-004's step G referenced a NIT cluster of 01/02/03/05/06; NIT-04 is excluded here deliberately."
+      }
+    },
+    "deferred": [
+      {
+        "id": "HIGH-22-distributed",
+        "status": "deferred",
+        "detail": "The per-resident concurrent ASR-session cap (HIGH-22, backend/src/routes/asr.ts `liveByResident`) and the signaling single-session-per-resident invariant (FR-4.7, backend/src/services/signaling-service.ts `active`) are enforced with per-PROCESS in-memory maps. They are correct for the single-process fixture but do NOT hold across a multi-process / multi-pod deployment: a resident could reach the cap (or hold a live session) once per instance. The real Transcribe and signaling adapters MUST carry a cross-instance counter / lock in a shared store (e.g. an atomic DynamoDB/Redis counter or a conditional-write claim row keyed by residentSub, with the existing session TTL as the lease) so the cap and the single-session invariant are enforced globally. The code comments at both sites document this limitation and reference this note.",
+        "files": [
+          "backend/src/routes/asr.ts",
+          "backend/src/services/signaling-service.ts"
+        ],
+        "requires": "A real distributed datastore adapter (deferred: no AWS/Redis in this environment). This is a documentation/tracking item, not a code change, until those adapters land."
+      }
+    ],
+    "notes": "Scope was backend/ only (per the orchestrator briefing). osv-scanner still reports dev-only advisories (vitest 3.2.7 / @vitest/mocker need 4.x, tinypool needs 2.x, braces); these are not production dependencies, are excluded by npm audit --omit=dev, and are outside the HIGH-25 scope (which only required vitest >= 3.2.6 to clear the critical dev advisory and the fastify/find-my-way production advisories). A node >=22 EBADENGINE warning appears during install from a vitest transitive dev dep; it is a warning only, the install and the whole suite succeed on Node 20.20.2, and the backend engines field stays >=20 <21."
+  }
+}

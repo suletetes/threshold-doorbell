@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/app/home_screen.dart';
 import 'package:threshold/app/providers.dart';
 import 'package:threshold/main.dart';
+import 'package:threshold/consent/recording_notice.dart';
 import 'package:threshold/reply/reply_port.dart';
 import 'package:threshold/reply/suggestion_provider.dart';
 import 'package:threshold/session/captions_only_screen.dart';
@@ -19,11 +20,18 @@ import 'package:threshold/settings/settings_controller.dart';
 
 List<Override> _fakeDeviceOverrides({bool probeSucceeds = true}) {
   return <Override>[
-    sessionPortProvider.overrideWithValue(FakeSessionPort(probeSucceeds: probeSucceeds)),
+    sessionPortProvider
+        .overrideWithValue(FakeSessionPort(probeSucceeds: probeSucceeds)),
     replyPortProvider.overrideWithValue(FakeReplyPort()),
     ringAppLauncherProvider.overrideWithValue(FakeRingAppLauncher()),
-    bedrockSuggestionPortProvider.overrideWithValue(FakeBedrockSuggestionPort()),
+    bedrockSuggestionPortProvider
+        .overrideWithValue(FakeBedrockSuggestionPort()),
     dataErasurePortProvider.overrideWithValue(FakeDataErasurePort()),
+    // Pre-acknowledged consent so these navigation tests exercise the session,
+    // not the first-run recording-notice gate (CRIT-06). The gate itself is
+    // covered in home_screen_test.
+    consentStoreProvider
+        .overrideWithValue(FakeConsentStore(acknowledged: true)),
   ];
 }
 
@@ -31,7 +39,8 @@ void main() {
   group('Composition root (P2-1)', () {
     testWidgets('the root app builds without throwing', (tester) async {
       await tester.pumpWidget(
-        ProviderScope(overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
+        ProviderScope(
+            overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
       );
       await tester.pump();
       expect(find.byType(HomeScreen), findsOneWidget);
@@ -40,7 +49,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('answering the door navigates to the two-way Conversation screen', (tester) async {
+    testWidgets(
+        'answering the door navigates to the two-way Conversation screen',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: _fakeDeviceOverrides(probeSucceeds: true),
@@ -54,7 +65,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a failed probe routes to the Captions-Only screen', (tester) async {
+    testWidgets('a failed probe routes to the Captions-Only screen',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: _fakeDeviceOverrides(probeSucceeds: false),
@@ -68,14 +80,56 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('opening settings navigates to the Settings screen', (tester) async {
+    testWidgets('opening settings navigates to the Settings screen',
+        (tester) async {
       await tester.pumpWidget(
-        ProviderScope(overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
+        ProviderScope(
+            overrides: _fakeDeviceOverrides(), child: const ThresholdApp()),
       );
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('home-settings')));
       await tester.pumpAndSettle();
       expect(find.text('Settings'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // MED-11: the group above overrides every device port with a fake, so it
+  // never exercises the real composition. This group pumps ThresholdApp with
+  // the PRODUCTION adapters (only consent is pre-acknowledged, so the first-run
+  // gate does not swallow the Answer tap). The production SessionPort throws
+  // DeviceBindingUnavailable on connect, so answering the door must fail CLOSED
+  // to a visible, dash-free error state rather than crashing or hanging on a
+  // blank surface. If the production SessionPort were changed to fabricate a
+  // successful connect, this test would fail because the error panel would be
+  // gone.
+  group('Composition root with production adapters fails closed (MED-11)', () {
+    testWidgets('answering the door surfaces a visible connect error',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          // Only consent is faked; every device/Ring/network port is the real
+          // production adapter.
+          overrides: <Override>[
+            consentStoreProvider
+                .overrideWithValue(FakeConsentStore(acknowledged: true)),
+          ],
+          child: const ThresholdApp(),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(HomeScreen), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('home-answer')));
+      await tester.pumpAndSettle();
+
+      // The session routed to the Conversation screen and, after the connect
+      // retries all threw, landed on the error panel with its exact dash-free
+      // copy. The connect binding was really invoked and really failed.
+      expect(find.byType(ConversationScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('status-error')), findsOneWidget);
+      expect(find.text("Couldn't connect to your doorbell."), findsOneWidget);
+      // The failure is surfaced, not thrown out of the widget tree.
       expect(tester.takeException(), isNull);
     });
   });

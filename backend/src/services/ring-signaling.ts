@@ -24,6 +24,13 @@ export interface StartSessionInput {
   sdpOffer: string;
   /** The Ring device the session targets. */
   deviceId: string;
+  /**
+   * The resident's Ring access token. A real adapter needs app-level Ring
+   * credentials to open a session; passing it here means the broker always
+   * authorizes through the resident's own grant (HIGH-20) rather than opening a
+   * session for an arbitrary device.
+   */
+  accessToken: string;
 }
 
 export interface RingSignalingPort {

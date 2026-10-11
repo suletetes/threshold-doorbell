@@ -17,7 +17,8 @@ void main() {
     });
 
     test('patterns are distinguishable (distinct timing signatures)', () {
-      final signatures = HapticVocabulary.all.map((p) => p.timings.join(',')).toSet();
+      final signatures =
+          HapticVocabulary.all.map((p) => p.timings.join(',')).toSet();
       // Three distinct signatures => three distinguishable patterns.
       expect(signatures.length, 3);
     });
@@ -46,8 +47,10 @@ void main() {
     });
 
     test('fromEventType maps known types and returns null for drift', () {
-      expect(HapticVocabulary.fromEventType('person_detected'), HapticEvent.personAtDoor);
-      expect(HapticVocabulary.fromEventType('motion_detected'), HapticEvent.motion);
+      expect(HapticVocabulary.fromEventType('person_detected'),
+          HapticEvent.personAtDoor);
+      expect(HapticVocabulary.fromEventType('motion_detected'),
+          HapticEvent.motion);
       expect(
         HapticVocabulary.fromEventType('conversation_started'),
         HapticEvent.conversationStarted,

@@ -4,6 +4,8 @@
 // replaced the audit's findings, and the recovery path that C4 called "the single
 // worst UX defect found".
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/captions/caption_surface.dart';
@@ -28,13 +30,15 @@ Widget _wrap(
         // copyWith, not a fresh MediaQueryData: a fresh one would zero out the
         // surface size and make every orientation look like portrait.
         builder: (context) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(disableAnimations: disableAnimations),
+          data: MediaQuery.of(context)
+              .copyWith(disableAnimations: disableAnimations),
           child: ConversationScreen(controller: c, settings: settings),
         ),
       ),
     );
 
-Future<(SessionController, FakeSessionPort)> _live({bool privacy = false}) async {
+Future<(SessionController, FakeSessionPort)> _live(
+    {bool privacy = false}) async {
   final port = FakeSessionPort();
   final c = SessionController(port: port);
   await c.open(
@@ -55,7 +59,8 @@ Future<(SessionController, FakeSessionPort)> _failed() async {
 
 void main() {
   group('The error state offers a way forward (audit C4)', () {
-    testWidgets('it has an icon, the failure, and a plain-language cause', (tester) async {
+    testWidgets('it has an icon, the failure, and a plain-language cause',
+        (tester) async {
       final (c, port) = await _failed();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
@@ -85,7 +90,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('Try again that fails again returns to the error state, not a crash',
+    testWidgets(
+        'Try again that fails again returns to the error state, not a crash',
         (tester) async {
       final port = FakeSessionPort(
         connectPlan: <ConnectPlan>[
@@ -122,7 +128,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('both recovery actions meet the 48dp minimum target', (tester) async {
+    testWidgets('both recovery actions meet the 48dp minimum target',
+        (tester) async {
       final (c, port) = await _failed();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
@@ -140,7 +147,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('the failure and its cause are announced together, plus two buttons (G4)',
+    testWidgets(
+        'the failure and its cause are announced together, plus two buttons (G4)',
         (tester) async {
       final handle = tester.ensureSemantics();
       final (c, port) = await _failed();
@@ -166,12 +174,14 @@ void main() {
   });
 
   group('State changes are visible (audit C6: zero motion)', () {
-    testWidgets('state panels are wrapped in an AnimatedSwitcher on a motion token',
+    testWidgets(
+        'state panels are wrapped in an AnimatedSwitcher on a motion token',
         (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      final switcher = tester.widget<AnimatedSwitcher>(find.byType(AnimatedSwitcher));
+      final switcher =
+          tester.widget<AnimatedSwitcher>(find.byType(AnimatedSwitcher));
       expect(switcher.duration, Motion.emphasized);
       expect(switcher.switchInCurve, Motion.enterCurve);
       expect(switcher.switchOutCurve, Motion.exitCurve);
@@ -179,7 +189,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('reduced motion collapses the transition to zero', (tester) async {
+    testWidgets('reduced motion collapses the transition to zero',
+        (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c, disableAnimations: true));
       await tester.pump();
@@ -203,7 +214,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('a caption update does not restart the live transition', (tester) async {
+    testWidgets('a caption update does not restart the live transition',
+        (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pumpAndSettle();
@@ -225,23 +237,32 @@ void main() {
   });
 
   group('Nothing moves at all under reduced motion (audit principle 3)', () {
-    testWidgets('the connecting spinner becomes a static marker', (tester) async {
-      final port = FakeSessionPort();
+    testWidgets('the connecting spinner becomes a static marker',
+        (tester) async {
+      // Gate connect so we are deterministically in the connecting state while
+      // we assert, instead of racing the fake to live.
+      final gate = Completer<void>();
+      final port = FakeSessionPort(connectGate: gate.future);
       final c = SessionController(port: port);
       final opening = c.open(deviceId: 'dev-1');
       await tester.pumpWidget(_wrap(c, disableAnimations: true));
       await tester.pump();
-      // A spinning CircularProgressIndicator is the one animation Flutter does
-      // not stop on its own, so the panel substitutes a static marker. The live
-      // region still announces the state in words, so nothing is lost.
+      // The connecting panel is actually on screen...
+      expect(c.state, SessionState.connecting);
+      expect(find.byKey(const ValueKey('status-connecting')), findsOneWidget);
+      // ...and a spinning CircularProgressIndicator is the one animation Flutter
+      // does not stop on its own, so under reduced motion the panel substitutes
+      // a static marker. Reverting that substitution fails this assertion.
       expect(find.byType(CircularProgressIndicator), findsNothing);
+      gate.complete();
       await opening;
       await tester.pumpAndSettle();
       c.dispose();
       await port.dispose();
     });
 
-    testWidgets('the paused panel still shows its own state icon', (tester) async {
+    testWidgets('the paused panel still shows its own state icon',
+        (tester) async {
       final (c, port) = await _live();
       c.onBackgrounded();
       await tester.pumpWidget(_wrap(c, disableAnimations: true));
@@ -260,7 +281,8 @@ void main() {
       final opening = c.open(deviceId: 'dev-1');
       await tester.pumpWidget(_wrap(c, disableAnimations: true));
       await tester.pump();
-      for (final block in tester.widgetList<SkeletonBlock>(find.byType(SkeletonBlock))) {
+      for (final block
+          in tester.widgetList<SkeletonBlock>(find.byType(SkeletonBlock))) {
         expect(block.height, Spacing.space4);
       }
       expect(tester.takeException(), isNull);
@@ -271,21 +293,25 @@ void main() {
     });
   });
 
-  group('Connecting states preview the caption region (perceived performance)', () {
+  group('Connecting states preview the caption region (perceived performance)',
+      () {
     testWidgets('the connecting panel shows skeleton lines', (tester) async {
-      final port = FakeSessionPort();
+      // Gate connect so the connecting panel is deterministically present; the
+      // old version guarded the assertion behind an if, so it passed even when
+      // no skeleton ever rendered.
+      final gate = Completer<void>();
+      final port = FakeSessionPort(connectGate: gate.future);
       final c = SessionController(port: port);
       final opening = c.open(deviceId: 'dev-1');
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      // Either connecting or probing depending on scheduling; both preview.
-      if (find.byType(SkeletonBlock).evaluate().isNotEmpty) {
-        expect(
-          find.byType(SkeletonBlock),
-          findsNWidgets(3),
-          reason: 'three uneven caption lines, not a progress meter',
-        );
-      }
+      expect(c.state, SessionState.connecting);
+      expect(
+        find.byType(SkeletonBlock),
+        findsNWidgets(3),
+        reason: 'three uneven caption lines, not a progress meter',
+      );
+      gate.complete();
       await opening;
       await tester.pumpAndSettle();
       // Gone once captions can actually arrive.
@@ -295,12 +321,14 @@ void main() {
     });
   });
 
-  group('The mode badge is the shared Pill (audit C2, component consistency)', () {
+  group('The mode badge is the shared Pill (audit C2, component consistency)',
+      () {
     testWidgets('it renders a Pill in the live semantic role', (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      final pill = tester.widget<Pill>(find.byKey(const ValueKey('mode-badge')));
+      final pill =
+          tester.widget<Pill>(find.byKey(const ValueKey('mode-badge')));
       // Read the theme from inside the screen: the media surface pins its own.
       final context = tester.element(find.byType(Scaffold));
       expect(pill, isA<Pill>());
@@ -341,7 +369,8 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('it stays clear of the watermark corners (FR-4.5)', (tester) async {
+    testWidgets('it stays clear of the watermark corners (FR-4.5)',
+        (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
@@ -360,12 +389,14 @@ void main() {
       await tester.pump();
       final context = tester.element(find.byType(Scaffold));
       final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-      expect(scaffold.backgroundColor, ThresholdSemanticColors.of(context).captionSurface);
+      expect(scaffold.backgroundColor,
+          ThresholdSemanticColors.of(context).captionSurface);
       c.dispose();
       await port.dispose();
     });
 
-    testWidgets('the media surface pins the dark scheme rather than following the platform',
+    testWidgets(
+        'the media surface pins the dark scheme rather than following the platform',
         (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(
@@ -382,17 +413,21 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('the auth recovery scrim is the theme scrim (replaces 0xB3000000)',
+    testWidgets(
+        'the auth recovery scrim is the theme scrim (replaces 0xB3000000)',
         (tester) async {
       final (c, port) = await _live();
       c.beginAuthRecovery();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      expect(find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
-      final context = tester.element(find.byKey(const ValueKey('auth-recovery-prompt')));
-      final scrim = tester.widgetList<ColoredBox>(find.byType(ColoredBox)).firstWhere(
-            (box) => box.color.a > 0 && box.color.a < 1,
-          );
+      expect(
+          find.byKey(const ValueKey('auth-recovery-prompt')), findsOneWidget);
+      final context =
+          tester.element(find.byKey(const ValueKey('auth-recovery-prompt')));
+      final scrim =
+          tester.widgetList<ColoredBox>(find.byType(ColoredBox)).firstWhere(
+                (box) => box.color.a > 0 && box.color.a < 1,
+              );
       expect(scrim.color.r, Theme.of(context).colorScheme.scrim.r);
       expect(scrim.color.g, Theme.of(context).colorScheme.scrim.g);
       expect(scrim.color.b, Theme.of(context).colorScheme.scrim.b);
@@ -402,18 +437,21 @@ void main() {
     });
   });
 
-  group('The caption container strengthens the contrast floor (FR-10.2, NFR-2)', () {
+  group('The caption container strengthens the contrast floor (FR-10.2, NFR-2)',
+      () {
     testWidgets('the fill is opaque, so video no longer bleeds through it',
         (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      final container = tester.widget<Container>(find.byKey(const ValueKey('caption-region')));
+      final container = tester
+          .widget<Container>(find.byKey(const ValueKey('caption-region')));
       final decoration = container.decoration! as BoxDecoration;
       expect(
         decoration.color!.a,
         1.0,
-        reason: 'the 4.5:1 floor is computed against the caption background, so '
+        reason:
+            'the 4.5:1 floor is computed against the caption background, so '
             'the surface has to actually paint it',
       );
       c.dispose();
@@ -426,8 +464,10 @@ void main() {
       final settings = ThresholdSettings.defaults();
       await tester.pumpWidget(_wrap(c, settings: settings));
       await tester.pump();
-      final container = tester.widget<Container>(find.byKey(const ValueKey('caption-region')));
-      expect((container.decoration! as BoxDecoration).color, settings.captionBackground);
+      final container = tester
+          .widget<Container>(find.byKey(const ValueKey('caption-region')));
+      expect((container.decoration! as BoxDecoration).color,
+          settings.captionBackground);
       c.dispose();
       await port.dispose();
     });
@@ -438,8 +478,10 @@ void main() {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      final container = tester.widget<Container>(find.byKey(const ValueKey('caption-region')));
-      expect((container.decoration! as BoxDecoration).borderRadius, Radii.roundedLarge);
+      final container = tester
+          .widget<Container>(find.byKey(const ValueKey('caption-region')));
+      expect((container.decoration! as BoxDecoration).borderRadius,
+          Radii.roundedLarge);
       expect(find.bySemanticsLabel(RegExp('Visitor captions')), findsOneWidget);
       handle.dispose();
       c.dispose();
@@ -468,7 +510,8 @@ void main() {
       await setSurface(tester, const Size(800, 400));
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      final landscape = tester.getRect(find.byKey(const ValueKey('caption-region')));
+      final landscape =
+          tester.getRect(find.byKey(const ValueKey('caption-region')));
       expect(tester.takeException(), isNull);
       expect(
         landscape.height,
@@ -511,19 +554,22 @@ void main() {
       await port.dispose();
     });
 
-    testWidgets('landscape still clears the watermark band (FR-4.5)', (tester) async {
+    testWidgets('landscape still clears the watermark band (FR-4.5)',
+        (tester) async {
       final (c, port) = await _live();
       await setSurface(tester, const Size(800, 400));
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
-      final region = tester.getRect(find.byKey(const ValueKey('caption-region')));
+      final region =
+          tester.getRect(find.byKey(const ValueKey('caption-region')));
       expect(region.top, greaterThanOrEqualTo(kWatermarkBandHeight));
       expect(clearsWatermarkCorners(region, const Size(800, 400)), isTrue);
       c.dispose();
       await port.dispose();
     });
 
-    testWidgets('the end control stays reachable and 48dp in landscape', (tester) async {
+    testWidgets('the end control stays reachable and 48dp in landscape',
+        (tester) async {
       final (c, port) = await _live();
       await setSurface(tester, const Size(800, 400));
       await tester.pumpWidget(_wrap(c));
@@ -539,7 +585,8 @@ void main() {
   });
 
   group('The end control gained an icon (audit section 4, iconography)', () {
-    testWidgets('it shows an end-call icon and keeps its label and key', (tester) async {
+    testWidgets('it shows an end-call icon and keeps its label and key',
+        (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();
@@ -552,7 +599,8 @@ void main() {
   });
 
   group('Caption surface still renders inside the region', () {
-    testWidgets('the caption subtree lives under the keyed region', (tester) async {
+    testWidgets('the caption subtree lives under the keyed region',
+        (tester) async {
       final (c, port) = await _live();
       await tester.pumpWidget(_wrap(c));
       await tester.pump();

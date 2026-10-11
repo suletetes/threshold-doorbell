@@ -11,33 +11,27 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # --- Ring live stream: video in, audio both ways (the core capability) ---
-  flutter_webrtc: ^0.12.0
-
-  # --- Reply spoken aloud at the door ---
-  flutter_tts: ^4.2.0
-
-  # --- Haptic vocabulary: distinct vibration patterns per event ---
-  vibration: ^2.0.0
-
-  # --- Visual context on the live frame (person count, package/uniform cues) ---
-  google_mlkit_object_detection: ^0.14.0
-
-  # --- Networking to the backend (Ring OAuth/webhooks, Transcribe, Bedrock) ---
-  http: ^1.2.0
-  web_socket_channel: ^3.0.0
-
   # --- State + storage ---
   flutter_riverpod: ^2.6.0
   shared_preferences: ^2.3.0
 
-  # --- Push / alerts ---
-  flutter_local_notifications: ^18.0.0
+  # --- Value-type equality helpers (immutable settings, LOW-06) ---
+  collection: ^1.18.0
 
-  # NOTE (stretch goal, Privacy Mode): on-device Whisper.
-  # Add when the audio spike + Clarity Mode are working. Options:
-  #   whisper_ggml: ^1.3.0        # or FFI bindings to whisper.cpp
-  # Kept out of the default build so the skeleton resolves cleanly.
+  # NOTE: runtime plugins for the deferred device/cloud adapters are NOT declared
+  # here yet, because nothing imports them and each ships tens of MB of native
+  # code that bloats the APK (HIGH-01) and pulls in silent Firebase IID/telemetry
+  # (MED-17). Add each one back only when its real adapter is wired:
+  #   webview_flutter        # ARCH-1 Ring live stream (task 2)
+  #   flutter_tts            # reply spoken aloud at the door (FR-6.2)
+  #   vibration              # haptic vocabulary
+  #   http / web_socket_channel  # backend OAuth/webhooks, ASR stream
+  #   flutter_local_notifications  # visitor alerts (FR-3.3); re-enable the
+  #                                # core-library desugaring in android/app/build.gradle.kts
+  #   whisper_ggml / FFI to whisper.cpp  # on-device Privacy Mode ASR
+  # Note: flutter_webrtc and google_mlkit_object_detection were removed outright;
+  # design.md decided webview_flutter (not flutter_webrtc) is the ARCH-1 runtime,
+  # and there is no object-detection feature in the spec.
 
 dev_dependencies:
   flutter_test:

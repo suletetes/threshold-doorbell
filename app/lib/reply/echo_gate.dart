@@ -110,7 +110,8 @@ class EchoGate {
     if (endedAt == null || openedAt == null) return null;
     if (_nowMs() - endedAt < kEchoTail.inMilliseconds) return null;
     // Tail elapsed: reopen the gate and record the gap (reply start .. tail end).
-    final gap = TranscriptGap(startMs: openedAt, endMs: endedAt + kEchoTail.inMilliseconds);
+    final gap = TranscriptGap(
+        startMs: openedAt, endMs: endedAt + kEchoTail.inMilliseconds);
     _gaps.add(gap);
     _gateOpenedAtMs = null;
     _playbackEndedAtMs = null;

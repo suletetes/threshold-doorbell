@@ -34,13 +34,18 @@ export interface EventStorePort {
    * session (FR-8.7); the store never returns another resident's events.
    */
   listOrdered(residentSub: string, since?: string): Promise<DoorEvent[]>;
+  /** Erase every event for a resident (erasure, FR-8.6). Returns count removed. */
+  deleteAllForResident(residentSub: string): Promise<number>;
 }
 
 // --- Conversation store (Task 9, FR-8) ---
 export interface ConversationQuery {
   query?: string; // free-text search over turn text
-  from?: string; // ISO date lower bound (inclusive), matched on startedAt
-  to?: string; // ISO date upper bound (inclusive), matched on startedAt
+  // MED-27: inclusive bounds as epoch ms, parsed and validated by the service so
+  // the store compares instants (not ISO strings lexically). A date-only `to`
+  // is widened to end-of-day by the service before it reaches the store.
+  fromMs?: number; // lower bound (inclusive), matched on startedAt instant
+  toMs?: number; // upper bound (inclusive), matched on startedAt instant
 }
 
 export interface ConversationStorePort {
@@ -50,5 +55,24 @@ export interface ConversationStorePort {
   listOrdered(residentSub: string, filter: ConversationQuery): Promise<Conversation[]>;
   delete(residentSub: string, conversationId: string): Promise<boolean>;
   /** Erase every conversation for a resident. Returns count removed (FR-8.6). */
+  deleteAllForResident(residentSub: string): Promise<number>;
+}
+
+// --- Device -> account mapping (Task 5/6, CRIT-04) ---
+/**
+ * Maps a Ring deviceId to the residentSub that owns it. Populated server-side
+ * when OAuth completes or the device list is fetched; the webhook route uses it
+ * to attribute an inbound event to the correct resident instead of a hard-coded
+ * account (CRIT-04). A device that is not present is unmapped: its events are
+ * quarantined rather than attributed to any real resident (FR-8.7).
+ */
+export interface DeviceAccountStorePort {
+  /** Record that `deviceId` belongs to `residentSub`. Idempotent (last write wins). */
+  map(deviceId: string, residentSub: string): Promise<void>;
+  /** Record every device for a resident in one call (used after a device-list fetch). */
+  mapAll(deviceIds: string[], residentSub: string): Promise<void>;
+  /** The owning resident for a device, or null when the device is unmapped. */
+  resolve(deviceId: string): Promise<string | null>;
+  /** Remove every mapping for a resident (erasure, FR-8.6). Returns count removed. */
   deleteAllForResident(residentSub: string): Promise<number>;
 }

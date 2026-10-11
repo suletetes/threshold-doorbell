@@ -1,20 +1,26 @@
 name: flutter_ring_captions
 description: Accessibility-oriented, dependency-light pure logic for live captions and a reply bridge on a Ring style video doorbell, extracted from the Threshold project.
 version: 0.1.0
-repository: https://github.com/suletetes/aws
+repository: https://github.com/suletetes/threshold-doorbell
 publish_to: "none"
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
-  flutter: ">=3.24.0"
+  # Aligned to what the lockfile dependency graph actually requires rather than
+  # an untested lower floor (LOW-24). flutter_lints 6 and the current resolved
+  # packages need Dart >=3.8.0.
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.32.0"
 
 dependencies:
-  flutter:
-    sdk: flutter
+  # The library source depends only on package:meta for @immutable, not on the
+  # Flutter SDK (LOW-17). The Flutter SDK is still pulled in by flutter_test for
+  # the widget-free unit tests; a future change can move to package:test and
+  # dart test to drop Flutter entirely.
+  meta: ^1.15.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
 
 flutter:

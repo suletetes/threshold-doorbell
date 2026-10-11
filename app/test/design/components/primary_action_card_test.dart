@@ -28,21 +28,27 @@ PrimaryActionCard _card({VoidCallback? onPressed, String? supporting}) =>
 
 void main() {
   group('PrimaryActionCard weight (audit C5)', () {
-    testWidgets('renders the label, the icon, and the supporting line', (tester) async {
-      await tester.pumpWidget(_host(_card(supporting: 'Captions appear as your visitor speaks.')));
+    testWidgets('renders the label, the icon, and the supporting line',
+        (tester) async {
+      await tester.pumpWidget(
+          _host(_card(supporting: 'Captions appear as your visitor speaks.')));
       expect(find.text('Answer the door'), findsOneWidget);
-      expect(find.text('Captions appear as your visitor speaks.'), findsOneWidget);
+      expect(
+          find.text('Captions appear as your visitor speaks.'), findsOneWidget);
       expect(find.byIcon(Icons.doorbell_outlined), findsOneWidget);
     });
 
     testWidgets('is at least two touch targets tall', (tester) async {
       await tester.pumpWidget(_host(_card()));
       final size = tester.getSize(find.byKey(const ValueKey('hero')));
-      expect(size.height, greaterThanOrEqualTo(PrimaryActionCard.minimumHeight));
-      expect(PrimaryActionCard.minimumHeight, greaterThanOrEqualTo(TouchTarget.minimum * 2));
+      expect(
+          size.height, greaterThanOrEqualTo(PrimaryActionCard.minimumHeight));
+      expect(PrimaryActionCard.minimumHeight,
+          greaterThanOrEqualTo(TouchTarget.minimum * 2));
     });
 
-    testWidgets('uses the headline role for the label, not a raw font size', (tester) async {
+    testWidgets('uses the headline role for the label, not a raw font size',
+        (tester) async {
       await tester.pumpWidget(_host(_card()));
       final context = tester.element(find.byType(PrimaryActionCard));
       final expected = Theme.of(context).textTheme.headlineSmall!;
@@ -51,7 +57,8 @@ void main() {
       expect(label.style?.fontWeight, expected.fontWeight);
     });
 
-    testWidgets('omitting the supporting line renders only the label', (tester) async {
+    testWidgets('omitting the supporting line renders only the label',
+        (tester) async {
       await tester.pumpWidget(_host(_card()));
       expect(find.text('Answer the door'), findsOneWidget);
       expect(find.byType(Text), findsOneWidget);
@@ -67,7 +74,8 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('press scales the card down, release restores it', (tester) async {
+    testWidgets('press scales the card down, release restores it',
+        (tester) async {
       await tester.pumpWidget(_host(_card()));
       final gesture = await tester.startGesture(
         tester.getCenter(find.byKey(const ValueKey('hero'))),
@@ -79,11 +87,13 @@ void main() {
       );
       await gesture.up();
       await tester.pumpAndSettle();
-      expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1.0);
+      expect(
+          tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1.0);
     });
   });
 
-  group('PrimaryActionCard motion respects reduced motion (audit principle 3)', () {
+  group('PrimaryActionCard motion respects reduced motion (audit principle 3)',
+      () {
     testWidgets('the press duration collapses to zero when animations are off',
         (tester) async {
       await tester.pumpWidget(_host(_card(), disableAnimations: true));
@@ -93,7 +103,8 @@ void main() {
       );
     });
 
-    testWidgets('the press duration is a motion token otherwise', (tester) async {
+    testWidgets('the press duration is a motion token otherwise',
+        (tester) async {
       await tester.pumpWidget(_host(_card()));
       expect(
         tester.widget<AnimatedScale>(find.byType(AnimatedScale)).duration,
@@ -128,7 +139,8 @@ void main() {
           ),
         ),
       );
-      expect(find.bySemanticsLabel('Answer the door and show captions'), findsOneWidget);
+      expect(find.bySemanticsLabel('Answer the door and show captions'),
+          findsOneWidget);
       handle.dispose();
     });
   });

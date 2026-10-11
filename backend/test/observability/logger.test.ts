@@ -92,6 +92,44 @@ describe('Redacting logger (Task 28, NFR-3, design.md §7, §10)', () => {
     expect(serialized).not.toContain('nested transcript');
   });
 
+  it('redacts a token nested three levels deep (MED-35 recursive)', () => {
+    const c = capture();
+    const log = createLogger('info', c.stream);
+    log.info({ a: { b: { accessToken: 'DEPTH3-TOKEN' } } }, 'deep');
+    const line = c.lines()[0]!;
+    const serialized = JSON.stringify(line);
+    expect(serialized).not.toContain('DEPTH3-TOKEN');
+    // The censor marker is present at the deep location.
+    expect((((line.a as Record<string, unknown>).b) as Record<string, unknown>).accessToken).toBe(
+      '[redacted]',
+    );
+  });
+
+  it('redacts sdp, OAuth code/state, sessionUrl, visitorText and transcript (MED-35)', () => {
+    const c = capture();
+    const log = createLogger('info', c.stream);
+    log.info(
+      {
+        sdp: 'v=0 secret-sdp',
+        code: 'oauth-code-abc',
+        state: 'oauth-state-xyz',
+        sessionUrl: 'https://ring.example/session/secret',
+        visitorText: 'the visitor said something private',
+        transcript: 'full private transcript',
+        nested: { sdpOffer: 'deep-sdp-offer' },
+      },
+      'signaling',
+    );
+    const serialized = JSON.stringify(c.lines()[0]);
+    expect(serialized).not.toContain('secret-sdp');
+    expect(serialized).not.toContain('oauth-code-abc');
+    expect(serialized).not.toContain('oauth-state-xyz');
+    expect(serialized).not.toContain('ring.example/session/secret');
+    expect(serialized).not.toContain('the visitor said something private');
+    expect(serialized).not.toContain('full private transcript');
+    expect(serialized).not.toContain('deep-sdp-offer');
+  });
+
   it('correlatedLogger stamps every line with the requestId (design.md §10)', () => {
     const c = capture();
     const base = createLogger('info', c.stream);

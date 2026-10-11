@@ -206,10 +206,11 @@ Yes
 - Contribution URL: `<paste your PR URL to AmazonAppDev/ring-api-helloworld once opened; see OSS_PR_GUIDE.md>`
 - Project repository URL: `https://github.com/suletetes/threshold-doorbell`
 - GitHub username: `suletetes`
-- What we did, how it works, why it matters: We published the caption-and-reply
-  bridge as a standalone MIT-licensed Dart package, `flutter_ring_captions`, so
-  any Flutter developer building on the Ring Partner API can reuse the two-way
-  captioning core without adopting the whole Threshold app. The main repository
+- What we did, how it works, why it matters: We released the caption-and-reply
+  bridge in-repo as a standalone MIT-licensed Dart package, `flutter_ring_captions`
+  (under `packages/`, not yet published to pub.dev), so any Flutter developer
+  building on the Ring Partner API can reuse the two-way captioning core without
+  adopting the whole Threshold app. The main repository
   is MIT-licensed with the license visible. We also open a focused,
   accessibility-oriented pull request to Amazon's `AmazonAppDev/ring-api-helloworld`
   sample (a `VideoProcessor` that demonstrates a caption or high-contrast overlay

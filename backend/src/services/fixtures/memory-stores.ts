@@ -47,6 +47,17 @@ export class MemoryEventStore implements EventStorePort {
     return { created: true, event: { ...event } };
   }
 
+  async deleteAllForResident(residentSub: string): Promise<number> {
+    let removed = 0;
+    for (const [requestId, event] of this.byRequestId) {
+      if (event.residentSub === residentSub) {
+        this.byRequestId.delete(requestId);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   async listOrdered(residentSub: string, since?: string): Promise<DoorEvent[]> {
     // Scope to the requesting resident: another resident's events are never
     // returned even though the idempotency map is global (FR-8.7, AT-19).
@@ -92,11 +103,22 @@ export class MemoryConversationStore implements ConversationStorePort {
     if (!bucket) return [];
     let rows = [...bucket.values()];
 
-    if (filter.from !== undefined) {
-      rows = rows.filter((c) => c.startedAt >= filter.from!);
+    // MED-27: compare instants, not ISO strings, so a transcript on the same
+    // day as a date-only bound is included (the service widened `toMs` to the
+    // end of that day). A startedAt that cannot be parsed is excluded.
+    if (filter.fromMs !== undefined) {
+      const from = filter.fromMs;
+      rows = rows.filter((c) => {
+        const t = Date.parse(c.startedAt);
+        return Number.isFinite(t) && t >= from;
+      });
     }
-    if (filter.to !== undefined) {
-      rows = rows.filter((c) => c.startedAt <= filter.to!);
+    if (filter.toMs !== undefined) {
+      const to = filter.toMs;
+      rows = rows.filter((c) => {
+        const t = Date.parse(c.startedAt);
+        return Number.isFinite(t) && t <= to;
+      });
     }
     if (filter.query !== undefined && filter.query.trim() !== '') {
       const needle = filter.query.toLowerCase();

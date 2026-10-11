@@ -2,8 +2,9 @@
 // Ciphertext format: base64url(version(1) | iv(12) | authTag(16) | ciphertext).
 // Used in "local"/"demo" environments and in all tests (Task 4, FR-1.6).
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import type { CryptoPort } from '../crypto.js';
+import { deriveKey } from '../../security/keys.js';
 
 const VERSION = 0x01;
 const IV_LEN = 12;
@@ -13,14 +14,16 @@ export class LocalCrypto implements CryptoPort {
   private readonly key: Buffer;
 
   /**
-   * Derive a stable 32-byte key from a secret string. In local/demo this is the
-   * session/app secret; it never leaves the process and never touches storage.
+   * Derive a stable 32-byte token-encryption key from the root secret via HKDF
+   * with a dedicated info label (MED-33), so the encryption key is independent
+   * of the session- and state-signing keys. The key never leaves the process
+   * and never touches storage.
    */
   constructor(secret: string) {
     if (!secret || secret.length < 8) {
       throw new Error('LocalCrypto requires a secret of at least 8 characters');
     }
-    this.key = createHash('sha256').update(secret, 'utf8').digest();
+    this.key = deriveKey(secret, 'tokenEncryption');
   }
 
   async encrypt(plaintext: string): Promise<string> {

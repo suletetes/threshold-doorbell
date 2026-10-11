@@ -10,17 +10,20 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../captions/asr_client.dart';
 import '../captions/model_provisioning.dart';
 import '../consent/recording_notice.dart';
 import '../consent/recording_notice_controller.dart';
 import '../reply/reply_controller.dart';
 import '../reply/reply_port.dart';
 import '../reply/suggestion_provider.dart';
+import '../session/auth_port.dart';
 import '../session/ring_app_launcher.dart';
 import '../session/session_controller.dart';
 import '../session/session_port.dart';
 import '../session/session_start_coordinator.dart';
 import '../settings/settings_controller.dart';
+import '../settings/settings_store.dart';
 import 'production_adapters.dart';
 
 /// The on-device model download size disclosed before download (FR-5.2a). A
@@ -41,22 +44,55 @@ final replyPortProvider = Provider<ReplyPort>((ref) => ProductionReplyPort());
 final ringAppLauncherProvider =
     Provider<RingAppLauncher>((ref) => ProductionRingAppLauncher());
 
+/// The app-to-backend re-authentication binding (FR-1.5, FR-4.8; HIGH-09). The
+/// real backend session client is deferred; the production adapter fails closed.
+final authPortProvider = Provider<AuthPort>((ref) => ProductionAuthPort());
+
 final bedrockSuggestionPortProvider =
     Provider<BedrockSuggestionPort>((ref) => ProductionBedrockSuggestionPort());
 
+/// The caption source for the live session (CRIT-07). Clarity Mode uses the
+/// cloud /asr/stream client; the real socket is deferred and fails closed. A
+/// test overrides this with a scripted fake so captions provably reach the
+/// screen. The session host attaches a CaptionPump from this source to the
+/// SessionController when a session goes live.
+final captionSourceProvider =
+    Provider<CaptionSource>((ref) => ProductionAsrStreamClient());
+
+/// The persisted consent store (FR-14.1, HIGH-10). In production main() loads a
+/// shared_preferences-backed [ProductionConsentStore] before the first frame and
+/// overrides this provider, so consent survives a relaunch. The default here is
+/// an in-memory fake, used only under `flutter test` and never in a release
+/// build (release always goes through bootstrapOverrides in main.dart).
 final consentStoreProvider =
-    Provider<ConsentStore>((ref) => ProductionConsentStore());
+    Provider<ConsentStore>((ref) => FakeConsentStore());
+
+/// The persisted settings store (HIGH-10). As with [consentStoreProvider],
+/// production overrides this with a shared_preferences-backed store before the
+/// first frame; the in-memory default is used only in tests.
+final settingsStoreProvider =
+    Provider<SettingsStore>((ref) => InMemorySettingsStore());
 
 final dataErasurePortProvider =
     Provider<DataErasurePort>((ref) => ProductionDataErasurePort());
 
 // --- Controllers / machines ---
 
-final settingsControllerProvider = ChangeNotifierProvider<SettingsController>((ref) {
-  return SettingsController(erasure: ref.watch(dataErasurePortProvider));
+/// The settings controller, seeded from the persisted store (HIGH-10). main()
+/// loads the saved settings before the first frame and overrides this provider
+/// with the hydrated controller; the fallback here builds an unpersisted
+/// controller so widget tests that only override the store or supply their own
+/// controller still work.
+final settingsControllerProvider =
+    ChangeNotifierProvider<SettingsController>((ref) {
+  return SettingsController(
+    erasure: ref.watch(dataErasurePortProvider),
+    store: ref.watch(settingsStoreProvider),
+  );
 });
 
-final sessionControllerProvider = ChangeNotifierProvider<SessionController>((ref) {
+final sessionControllerProvider =
+    ChangeNotifierProvider<SessionController>((ref) {
   return SessionController(port: ref.watch(sessionPortProvider));
 });
 
@@ -79,7 +115,8 @@ final suggestionProvider = Provider<SuggestionProvider>((ref) {
 
 /// The pre-session coordinator that consults model provisioning + the recording
 /// notice fallback (FR-5.2a, FR-14.3a).
-final sessionStartCoordinatorProvider = Provider<SessionStartCoordinator>((ref) {
+final sessionStartCoordinatorProvider =
+    Provider<SessionStartCoordinator>((ref) {
   return SessionStartCoordinator(
     provisioning: ref.watch(modelProvisioningProvider),
     recordingNotice: ref.watch(recordingNoticeControllerProvider),
@@ -88,11 +125,29 @@ final sessionStartCoordinatorProvider = Provider<SessionStartCoordinator>((ref) 
 
 /// The reply controller for the active session. Bound to the session's sticky
 /// outbound-mode machine so the reply bar reflects the current capability.
+///
+/// This reads the session controller through `.notifier` rather than watching
+/// the ChangeNotifierProvider directly (HIGH-03). Watching the provider re-ran
+/// this builder on EVERY `notifyListeners()` (every caption, reconnect or
+/// haptic tick), disposing and recreating the reply controller mid-send and
+/// throwing "used after being disposed". `.notifier` gives a stable controller
+/// reference without subscribing to its change stream, so a reply in flight
+/// survives a caption or notification tick. The reply controller is rebuilt only
+/// when the session identity changes, which is what rebinds it to a new
+/// session's fresh outbound-mode machine (FR-6.4b).
 final replyControllerProvider = ChangeNotifierProvider<ReplyController>((ref) {
-  final session = ref.watch(sessionControllerProvider);
-  return ReplyController(
+  final session = ref.watch(sessionControllerProvider.notifier);
+  final reply = ReplyController(
     port: ref.watch(replyPortProvider),
     outbound: session.outbound,
     echoGate: ProductionEchoGate.build(),
   );
+  // Gate the caption pipeline on the reply's echo gate so our own reply audio
+  // returning on the doorbell mic is never captioned as the visitor (FR-5.6,
+  // HIGH-05). Cleared when this reply controller is disposed.
+  session.shouldTranscribe = () => reply.shouldTranscribe;
+  ref.onDispose(() {
+    if (session.shouldTranscribe != null) session.shouldTranscribe = null;
+  });
+  return reply;
 });

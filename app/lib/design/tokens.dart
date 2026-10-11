@@ -78,12 +78,18 @@ abstract final class Radii {
     full,
   ];
 
-  static const BorderRadius roundedExtraSmall = BorderRadius.all(Radius.circular(extraSmall));
-  static const BorderRadius roundedSmall = BorderRadius.all(Radius.circular(small));
-  static const BorderRadius roundedMedium = BorderRadius.all(Radius.circular(medium));
-  static const BorderRadius roundedLarge = BorderRadius.all(Radius.circular(large));
-  static const BorderRadius roundedExtraLarge = BorderRadius.all(Radius.circular(extraLarge));
-  static const BorderRadius roundedFull = BorderRadius.all(Radius.circular(full));
+  static const BorderRadius roundedExtraSmall =
+      BorderRadius.all(Radius.circular(extraSmall));
+  static const BorderRadius roundedSmall =
+      BorderRadius.all(Radius.circular(small));
+  static const BorderRadius roundedMedium =
+      BorderRadius.all(Radius.circular(medium));
+  static const BorderRadius roundedLarge =
+      BorderRadius.all(Radius.circular(large));
+  static const BorderRadius roundedExtraLarge =
+      BorderRadius.all(Radius.circular(extraLarge));
+  static const BorderRadius roundedFull =
+      BorderRadius.all(Radius.circular(full));
 }
 
 /// Elevation scale, the Material 3 tonal elevation levels (audit section 4: the
@@ -98,7 +104,14 @@ abstract final class Elevations {
   static const double level5 = 12;
 
   /// The scale in ascending order, for scale integrity tests.
-  static const List<double> scale = <double>[level0, level1, level2, level3, level4, level5];
+  static const List<double> scale = <double>[
+    level0,
+    level1,
+    level2,
+    level3,
+    level4,
+    level5
+  ];
 }
 
 /// Motion tokens (audit C6: the app currently has zero motion, and any motion
@@ -124,7 +137,13 @@ abstract final class Motion {
   static const Duration slow = Duration(milliseconds: 480);
 
   /// The duration scale in ascending order, for scale integrity tests.
-  static const List<Duration> scale = <Duration>[instant, fast, standard, emphasized, slow];
+  static const List<Duration> scale = <Duration>[
+    instant,
+    fast,
+    standard,
+    emphasized,
+    slow
+  ];
 
   /// The default easing for a change that both enters and exits.
   static const Curve standardCurve = Curves.easeInOutCubic;
@@ -155,7 +174,8 @@ abstract final class TouchTarget {
 ///
 /// This is the single place the app reads that preference. Every animated
 /// surface goes through here or through [motionDuration].
-bool prefersReducedMotion(BuildContext context) => MediaQuery.disableAnimationsOf(context);
+bool prefersReducedMotion(BuildContext context) =>
+    MediaQuery.disableAnimationsOf(context);
 
 /// [base] normally, or [Motion.instant] when the platform asks for reduced
 /// motion. Wrap every animation duration in this so a reduced-motion user gets

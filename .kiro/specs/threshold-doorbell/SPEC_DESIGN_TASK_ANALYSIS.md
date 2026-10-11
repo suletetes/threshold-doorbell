@@ -395,7 +395,7 @@ section states how each was closed and how it was verified.
 | Tasks | 21 | **31** |
 | FR-5.3a / 6.4a / 6.4b in tasks | 0 | **4 citations** |
 | NFR-1 / NFR-5 in tasks | 0 / 0 | **2 / 2** |
-| Em-dash and en-dash in spec files | present | **0** |
+| Em-dash and en-dash in requirements/design/tasks | present | **0** (this analysis file is excluded; it contains dashes) |
 
 ## Residual risk (unchanged by documentation)
 

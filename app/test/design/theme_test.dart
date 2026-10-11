@@ -43,7 +43,8 @@ void main() {
 
     test('the scaffold background follows the scheme surface', () {
       _themes().forEach((name, theme) {
-        expect(theme.scaffoldBackgroundColor, theme.colorScheme.surface, reason: name);
+        expect(theme.scaffoldBackgroundColor, theme.colorScheme.surface,
+            reason: name);
       });
     });
 
@@ -54,8 +55,10 @@ void main() {
           ThresholdTypography.base.bodyLarge!.fontSize,
           reason: '$name bodyLarge is not from the app scale',
         );
-        expect(theme.textTheme.bodyLarge!.height, isNotNull, reason: '$name has no leading');
-        expect(theme.textTheme.bodyLarge!.color, theme.colorScheme.onSurface, reason: name);
+        expect(theme.textTheme.bodyLarge!.height, isNotNull,
+            reason: '$name has no leading');
+        expect(theme.textTheme.bodyLarge!.color, theme.colorScheme.onSurface,
+            reason: name);
       });
     });
   });
@@ -64,8 +67,10 @@ void main() {
     test('both themes expose ThresholdSemanticColors', () {
       _themes().forEach((name, theme) {
         final semantic = theme.extension<ThresholdSemanticColors>();
-        expect(semantic, isNotNull, reason: '$name does not register the extension');
-        expect(semantic!.all, hasLength(8), reason: '$name is missing semantic roles');
+        expect(semantic, isNotNull,
+            reason: '$name does not register the extension');
+        expect(semantic!.all, hasLength(8),
+            reason: '$name is missing semantic roles');
       });
     });
 
@@ -80,7 +85,8 @@ void main() {
       );
     });
 
-    testWidgets('ThresholdSemanticColors.of reads the registered extension', (tester) async {
+    testWidgets('ThresholdSemanticColors.of reads the registered extension',
+        (tester) async {
       late ThresholdSemanticColors resolved;
       await tester.pumpWidget(
         MaterialApp(
@@ -96,7 +102,8 @@ void main() {
       expect(resolved, ThresholdSemanticColors.dark);
     });
 
-    testWidgets('of() falls back by brightness when no extension is registered', (tester) async {
+    testWidgets('of() falls back by brightness when no extension is registered',
+        (tester) async {
       late ThresholdSemanticColors resolved;
       await tester.pumpWidget(
         MaterialApp(
@@ -112,10 +119,12 @@ void main() {
       expect(resolved, ThresholdSemanticColors.dark);
     });
 
-    testWidgets('the extension interpolates across a theme change', (tester) async {
+    testWidgets('the extension interpolates across a theme change',
+        (tester) async {
       // ThemeData.lerp routes through the extension's lerp, so a theme animation
       // must not drop the semantic roles halfway through.
-      final mid = ThemeData.lerp(ThresholdTheme.light(), ThresholdTheme.dark(), 0.5);
+      final mid =
+          ThemeData.lerp(ThresholdTheme.light(), ThresholdTheme.dark(), 0.5);
       final semantic = mid.extension<ThresholdSemanticColors>();
       expect(semantic, isNotNull);
       expect(semantic!.all, hasLength(8));
@@ -135,7 +144,8 @@ void main() {
         styles.forEach((which, style) {
           expect(style, isNotNull, reason: '$name $which has no style');
           final minimumSize = style!.minimumSize?.resolve(<WidgetState>{});
-          expect(minimumSize, isNotNull, reason: '$name $which has no minimumSize');
+          expect(minimumSize, isNotNull,
+              reason: '$name $which has no minimumSize');
           expect(
             minimumSize!.height,
             greaterThanOrEqualTo(TouchTarget.minimum),
@@ -150,7 +160,8 @@ void main() {
       });
     });
 
-    testWidgets('a rendered FilledButton is at least 48dp tall', (tester) async {
+    testWidgets('a rendered FilledButton is at least 48dp tall',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThresholdTheme.light(),
@@ -163,10 +174,12 @@ void main() {
       );
       final size = tester.getSize(find.byType(FilledButton));
       expect(size.height, greaterThanOrEqualTo(TouchTarget.minimum));
-      expect(size.width, greaterThanOrEqualTo(TouchTarget.minimumButtonSize.width));
+      expect(size.width,
+          greaterThanOrEqualTo(TouchTarget.minimumButtonSize.width));
     });
 
-    testWidgets('a rendered OutlinedButton is at least 48dp tall', (tester) async {
+    testWidgets('a rendered OutlinedButton is at least 48dp tall',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThresholdTheme.dark(),
@@ -201,38 +214,57 @@ void main() {
     });
   });
 
-  group('Component themes are defined, so screens stop inheriting stock defaults', () {
+  group(
+      'Component themes are defined, so screens stop inheriting stock defaults',
+      () {
     test('every component the audit listed is themed in both schemes', () {
       _themes().forEach((name, theme) {
-        expect(theme.filledButtonTheme.style, isNotNull, reason: '$name FilledButton');
-        expect(theme.outlinedButtonTheme.style, isNotNull, reason: '$name OutlinedButton');
-        expect(theme.textButtonTheme.style, isNotNull, reason: '$name TextButton');
+        expect(theme.filledButtonTheme.style, isNotNull,
+            reason: '$name FilledButton');
+        expect(theme.outlinedButtonTheme.style, isNotNull,
+            reason: '$name OutlinedButton');
+        expect(theme.textButtonTheme.style, isNotNull,
+            reason: '$name TextButton');
         expect(theme.cardTheme.shape, isNotNull, reason: '$name Card');
-        expect(theme.appBarTheme.titleTextStyle, isNotNull, reason: '$name AppBar');
-        expect(theme.snackBarTheme.contentTextStyle, isNotNull, reason: '$name SnackBar');
+        expect(theme.appBarTheme.titleTextStyle, isNotNull,
+            reason: '$name AppBar');
+        expect(theme.snackBarTheme.contentTextStyle, isNotNull,
+            reason: '$name SnackBar');
         expect(theme.switchTheme.thumbColor, isNotNull, reason: '$name Switch');
-        expect(theme.sliderTheme.activeTrackColor, isNotNull, reason: '$name Slider');
+        expect(theme.sliderTheme.activeTrackColor, isNotNull,
+            reason: '$name Slider');
         expect(theme.dialogTheme.shape, isNotNull, reason: '$name Dialog');
-        expect(theme.listTileTheme.titleTextStyle, isNotNull, reason: '$name ListTile');
+        expect(theme.listTileTheme.titleTextStyle, isNotNull,
+            reason: '$name ListTile');
       });
     });
 
     test('component colors come from the scheme, not from literals', () {
       _themes().forEach((name, theme) {
-        expect(theme.appBarTheme.backgroundColor, theme.colorScheme.surface, reason: name);
-        expect(theme.appBarTheme.foregroundColor, theme.colorScheme.onSurface, reason: name);
-        expect(theme.cardTheme.color, theme.colorScheme.surfaceContainerLow, reason: name);
-        expect(theme.snackBarTheme.backgroundColor, theme.colorScheme.inverseSurface, reason: name);
-        expect(theme.sliderTheme.activeTrackColor, theme.colorScheme.primary, reason: name);
+        expect(theme.appBarTheme.backgroundColor, theme.colorScheme.surface,
+            reason: name);
+        expect(theme.appBarTheme.foregroundColor, theme.colorScheme.onSurface,
+            reason: name);
+        expect(theme.cardTheme.color, theme.colorScheme.surfaceContainerLow,
+            reason: name);
+        expect(theme.snackBarTheme.backgroundColor,
+            theme.colorScheme.inverseSurface,
+            reason: name);
+        expect(theme.sliderTheme.activeTrackColor, theme.colorScheme.primary,
+            reason: name);
       });
     });
 
     test('component radii and elevations come from the token scales', () {
       _themes().forEach((name, theme) {
-        expect(Elevations.scale, contains(theme.cardTheme.elevation), reason: '$name Card');
-        expect(Elevations.scale, contains(theme.appBarTheme.elevation), reason: '$name AppBar');
-        expect(Elevations.scale, contains(theme.dialogTheme.elevation), reason: '$name Dialog');
-        expect(Elevations.scale, contains(theme.snackBarTheme.elevation), reason: '$name SnackBar');
+        expect(Elevations.scale, contains(theme.cardTheme.elevation),
+            reason: '$name Card');
+        expect(Elevations.scale, contains(theme.appBarTheme.elevation),
+            reason: '$name AppBar');
+        expect(Elevations.scale, contains(theme.dialogTheme.elevation),
+            reason: '$name Dialog');
+        expect(Elevations.scale, contains(theme.snackBarTheme.elevation),
+            reason: '$name SnackBar');
 
         final cardShape = theme.cardTheme.shape! as RoundedRectangleBorder;
         expect(
@@ -265,15 +297,18 @@ void main() {
 
     test('the slider track is thick enough to drag one-handed', () {
       _themes().forEach((name, theme) {
-        expect(theme.sliderTheme.trackHeight, greaterThanOrEqualTo(4), reason: name);
+        expect(theme.sliderTheme.trackHeight, greaterThanOrEqualTo(4),
+            reason: name);
       });
     });
 
     test('the outlined button border is visible, not a hairline', () {
       _themes().forEach((name, theme) {
-        final side = theme.outlinedButtonTheme.style!.side?.resolve(<WidgetState>{});
+        final side =
+            theme.outlinedButtonTheme.style!.side?.resolve(<WidgetState>{});
         expect(side, isNotNull, reason: '$name has no outlined button border');
-        expect(side!.width, greaterThan(1.0), reason: '$name border is a hairline');
+        expect(side!.width, greaterThan(1.0),
+            reason: '$name border is a hairline');
       });
     });
   });
@@ -283,7 +318,9 @@ void main() {
       'light': ThresholdTheme.light(),
       'dark': ThresholdTheme.dark(),
     }.entries) {
-      testWidgets('${entry.key}: a scaffold with themed components builds clean', (tester) async {
+      testWidgets(
+          '${entry.key}: a scaffold with themed components builds clean',
+          (tester) async {
         await tester.pumpWidget(
           MaterialApp(
             theme: entry.value,
@@ -291,9 +328,13 @@ void main() {
               appBar: AppBar(title: const Text('Threshold')),
               body: ListView(
                 children: <Widget>[
-                  const Card(child: ListTile(title: Text('A row'), subtitle: Text('Detail'))),
-                  FilledButton(onPressed: () {}, child: const Text('Answer the door')),
-                  OutlinedButton(onPressed: () {}, child: const Text('Settings')),
+                  const Card(
+                      child: ListTile(
+                          title: Text('A row'), subtitle: Text('Detail'))),
+                  FilledButton(
+                      onPressed: () {}, child: const Text('Answer the door')),
+                  OutlinedButton(
+                      onPressed: () {}, child: const Text('Settings')),
                   TextButton(onPressed: () {}, child: const Text('Not now')),
                   Switch(value: true, onChanged: (bool _) {}),
                   Slider(value: 0.5, onChanged: (double _) {}),

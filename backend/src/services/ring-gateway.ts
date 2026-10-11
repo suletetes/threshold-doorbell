@@ -13,6 +13,11 @@ import { backoffWithJitter, TokenBucket } from './rate-limiter.js';
 export interface RingGatewayOptions {
   maxRetries?: number; // 5xx retries (default 2, design.md §6)
   bucket?: TokenBucket;
+  // Per-resident bucket parameters for fairness (MED-30). Each resident gets
+  // their own bucket so one noisy resident cannot starve the others.
+  perResidentCapacity?: number;
+  perResidentRefillPerSecond?: number;
+  now?: () => number;
   // Injectable sleep so backoff is instant in tests.
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
@@ -25,6 +30,10 @@ export class RingGateway {
   private readonly maxRetries: number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly random: () => number;
+  private readonly now: () => number;
+  private readonly perResidentCapacity: number;
+  private readonly perResidentRefillPerSecond: number;
+  private readonly residentBuckets = new Map<string, TokenBucket>();
 
   constructor(
     private readonly ring: RingPort,
@@ -35,26 +44,47 @@ export class RingGateway {
     this.maxRetries = opts.maxRetries ?? 2;
     this.sleep = opts.sleep ?? defaultSleep;
     this.random = opts.random ?? Math.random;
+    this.now = opts.now ?? Date.now;
+    // A per-resident share well under the global 100 rps so no single resident
+    // can monopolise the global bucket (MED-30, NFR-7).
+    this.perResidentCapacity = opts.perResidentCapacity ?? 10;
+    this.perResidentRefillPerSecond = opts.perResidentRefillPerSecond ?? 10;
+  }
+
+  private residentBucket(residentSub: string): TokenBucket {
+    let bucket = this.residentBuckets.get(residentSub);
+    if (!bucket) {
+      bucket = new TokenBucket({
+        capacity: this.perResidentCapacity,
+        refillPerSecond: this.perResidentRefillPerSecond,
+        now: this.now,
+      });
+      this.residentBuckets.set(residentSub, bucket);
+    }
+    return bucket;
   }
 
   /**
-   * List devices with throttle + retry policy. Throws rate_limited if the local
-   * bucket is exhausted, ring_unavailable after exhausting 5xx retries, or
-   * ring_contract_invalid immediately on schema drift (no retry).
+   * List devices with throttle + retry policy. A token is taken PER ATTEMPT
+   * (MED-30), from both the resident's own bucket (fairness) and the global
+   * bucket (the 100 rps cap), so a retry never buys extra upstream calls for
+   * free. Throws rate_limited when a bucket is exhausted, ring_unavailable after
+   * exhausting 5xx retries, or ring_contract_invalid immediately on drift.
    */
-  async listDevices(accessToken: string): Promise<Device[]> {
-    return this.run(() => this.ring.listDevices(accessToken));
+  async listDevices(residentSub: string, accessToken: string): Promise<Device[]> {
+    return this.run(residentSub, () => this.ring.listDevices(accessToken));
   }
 
-  private async run<T>(op: () => Promise<T>): Promise<T> {
-    // Local throttle first so we never even attempt to exceed 100 rps.
-    if (!this.bucket.tryRemove()) {
-      throw errors.rateLimited();
-    }
+  private async run<T>(residentSub: string, op: () => Promise<T>): Promise<T> {
+    const residentBucket = this.residentBucket(residentSub);
 
     let attempt = 0;
-    // Total attempts = 1 + maxRetries.
+    // Total attempts = 1 + maxRetries. Each attempt costs one token from the
+    // per-resident bucket AND one from the global bucket (MED-30).
     for (;;) {
+      if (!residentBucket.tryRemove() || !this.bucket.tryRemove()) {
+        throw errors.rateLimited();
+      }
       try {
         return await op();
       } catch (err) {

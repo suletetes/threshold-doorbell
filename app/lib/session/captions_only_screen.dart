@@ -21,8 +21,10 @@
 // shared with the conversation screen, so 0xFF0B0B0F and 0xFF15151B are gone.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
+import '../captions/caption_announcer.dart';
 import '../captions/caption_surface.dart';
 import '../design/colors.dart';
 import '../design/components/components.dart';
@@ -57,6 +59,16 @@ class CaptionsOnlyScreen extends StatelessWidget {
 
   ThresholdSettings get _settings => settings ?? ThresholdSettings.defaults();
 
+  /// The session states Captions-Only renders its own receive-only layout for.
+  /// Every other state (connecting, probing, reconnecting, error, closing, auth
+  /// recovery, idle) is delegated to the shared conversation screen state
+  /// switcher so Captions-Only is not stuck showing the live layout in every
+  /// state and does not stay up after End (MED-07).
+  static const Set<SessionState> _ownLayoutStates = <SessionState>{
+    SessionState.live,
+    SessionState.backgrounded,
+  };
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -71,9 +83,25 @@ class CaptionsOnlyScreen extends StatelessWidget {
   }
 
   Widget _build(BuildContext context, SessionSnapshot snap) {
+    // Share the conversation screen's error/reconnecting/auth/idle switcher for
+    // every state other than the live receive-only ones (MED-07). The reply bar
+    // stays absent, so this remains Captions-Only; only the transient and
+    // terminal states are handled consistently with the two-way screen.
+    if (!_ownLayoutStates.contains(snap.state)) {
+      return ConversationScreen(
+        controller: controller,
+        settings: _settings,
+        videoSurfaceBuilder: videoSurfaceBuilder,
+      );
+    }
+    return _liveBuild(context, snap);
+  }
+
+  Widget _liveBuild(BuildContext context, SessionSnapshot snap) {
     final builder = videoSurfaceBuilder ?? defaultVideoSurface;
     final semantic = ThresholdSemanticColors.of(context);
-    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -102,7 +130,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _banner(),
+        _banner(context),
         // Caption region: the visitor's speech, receive-only (FR-12.1).
         Expanded(
           child: Column(
@@ -131,7 +159,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _banner(),
+              _banner(context),
               const Spacer(),
               _endControl(),
             ],
@@ -150,7 +178,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
     );
   }
 
-  Widget _banner() {
+  Widget _banner(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(Spacing.space3),
       child: StatusBanner(
@@ -164,7 +192,31 @@ class CaptionsOnlyScreen extends StatelessWidget {
           label: 'Open Ring app',
           icon: Icons.open_in_new,
           buttonKey: const ValueKey('open-ring-app'),
-          onPressed: () => launcher.openRingApp(),
+          onPressed: () => _openRingApp(context),
+        ),
+      ),
+    );
+  }
+
+  /// Open the Ring app, honoring the launch result (MED-07). The old code
+  /// discarded the result, so an "app not installed" outcome was silently
+  /// ignored. When the app cannot be launched the resident is told to install
+  /// it from the store (the store fallback), via a dash-free snackbar.
+  Future<void> _openRingApp(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    bool launched;
+    try {
+      launched = await launcher.openRingApp();
+    } catch (_) {
+      launched = false;
+    }
+    if (launched) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        key: ValueKey('ring-app-fallback'),
+        content: Text(
+          'The Ring app is not installed. Please install it from your app store '
+          'to reply by voice.',
         ),
       ),
     );
@@ -191,6 +243,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
         child: Semantics(
           button: true,
           label: 'End session',
+          onTap: () => controller.end(),
           excludeSemantics: true,
           child: FilledButton.tonalIcon(
             key: const ValueKey('captions-only-end'),
@@ -209,7 +262,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
 /// caption background composited over the `captionSurface` role, which is opaque
 /// so inbound video cannot bleed through the surface the 4.5:1 floor was computed
 /// against (FR-10.2, NFR-2).
-class _CaptionsOnlyRegion extends StatelessWidget {
+class _CaptionsOnlyRegion extends StatefulWidget {
   const _CaptionsOnlyRegion({
     required this.controller,
     required this.settings,
@@ -221,20 +274,40 @@ class _CaptionsOnlyRegion extends StatelessWidget {
   final bool fillHeight;
 
   @override
+  State<_CaptionsOnlyRegion> createState() => _CaptionsOnlyRegionState();
+}
+
+class _CaptionsOnlyRegionState extends State<_CaptionsOnlyRegion> {
+  final CaptionAnnouncer _announcer = CaptionAnnouncer();
+
+  @override
   Widget build(BuildContext context) {
     final semantic = ThresholdSemanticColors.of(context);
     final scheme = Theme.of(context).colorScheme;
+
+    // Announce each newly finalized turn once, throttled, rather than marking
+    // the whole container as a live region (LOW-09).
+    final announcement =
+        _announcer.announcementFor(widget.controller.captionTurns);
+    if (announcement != null) {
+      final view = View.of(context);
+      final direction = Directionality.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SemanticsService.sendAnnouncement(view, announcement, direction);
+      });
+    }
+
     return Semantics(
-      liveRegion: true,
       label: 'Visitor captions',
       child: Container(
         key: const ValueKey('captions-only-region'),
-        constraints: fillHeight
+        constraints: widget.fillHeight
             ? null
             : const BoxConstraints(minHeight: kCaptionRegionMinHeight),
         padding: const EdgeInsets.all(Spacing.space4),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(settings.captionBackground, semantic.captionSurface),
+          color: Color.alphaBlend(
+              widget.settings.captionBackground, semantic.captionSurface),
           borderRadius: Radii.roundedLarge,
           border: Border.all(
             color: semantic.captionOnSurface.withValues(alpha: 0.12),
@@ -252,8 +325,8 @@ class _CaptionsOnlyRegion extends StatelessWidget {
         child: SingleChildScrollView(
           reverse: true,
           child: CaptionSurface(
-            turns: controller.captionTurns,
-            settings: settings,
+            turns: widget.controller.captionTurns,
+            settings: widget.settings,
           ),
         ),
       ),

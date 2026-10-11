@@ -30,19 +30,35 @@ export class ReplyService {
    */
   async suggest(request: SmartReplyRequest): Promise<SmartReplyResult> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    // MED-37: the 2 s budget must hold even for an adapter that ignores the
+    // abort signal. Race the Bedrock call against a timer so a non-cooperating
+    // adapter cannot make the reply bar wait past timeoutMs. The abort is still
+    // signalled so a cooperating adapter also cancels its upstream work.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        resolve('timeout');
+      }, this.timeoutMs);
+    });
     try {
-      const raw = await this.bedrock.suggest(request, controller.signal);
-      const cleaned = sanitize(raw);
+      const outcome = await Promise.race([
+        this.bedrock.suggest(request, controller.signal),
+        timeout,
+      ]);
+      if (outcome === 'timeout') {
+        return { suggestions: fixedSet(), fallback: true };
+      }
+      const cleaned = sanitize(outcome);
       if (cleaned.length === 0) {
         return { suggestions: fixedSet(), fallback: true };
       }
       return { suggestions: cleaned, fallback: false };
     } catch {
-      // Timeout or Bedrock error: never block the reply bar (FR-7.3, 7.5).
+      // Bedrock error: never block the reply bar (FR-7.3, 7.5).
       return { suggestions: fixedSet(), fallback: true };
     } finally {
-      clearTimeout(timer);
+      if (timer !== undefined) clearTimeout(timer);
     }
   }
 }

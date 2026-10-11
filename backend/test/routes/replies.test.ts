@@ -54,8 +54,10 @@ describe('POST /replies (Task 10, AT-7)', () => {
   it('never calls Bedrock in Privacy Mode and returns the fixed safe set (FR-7.1a)', async () => {
     const t = await buildTestApp();
     app = t.app;
-    // Even if Bedrock would error, Privacy Mode must not touch it.
-    t.bedrock.setError();
+    // Leave Bedrock in its normal OK mode so a wrongly routed Privacy request
+    // would actually hit it and bump the counter. The old test set it to error,
+    // so an implementation that DID call Bedrock in Privacy Mode still returned
+    // the safe set via the fallback and passed: the assertion could not fail.
     const res = await app.inject({
       method: 'POST',
       url: '/replies',
@@ -64,6 +66,8 @@ describe('POST /replies (Task 10, AT-7)', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestions).toEqual(FIXED_SAFE_REPLIES.map((x) => x));
+    // The real guarantee: Bedrock was never consulted at all in Privacy Mode.
+    expect(t.bedrock.suggestInvocations).toBe(0);
   });
 
   it('reply bar is never empty even with no visitor text', async () => {
@@ -77,6 +81,35 @@ describe('POST /replies (Task 10, AT-7)', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestions.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a mode other than clarity or privacy with 400 (MED-24)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    for (const mode of ['Privacy', 'PRIVACY', 'private', 'Clarity', 'x']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/replies',
+        headers: auth(t.config.sessionSecret),
+        payload: { visitorText: 'hello', mode },
+      });
+      expect(res.statusCode, `mode=${mode}`).toBe(400);
+      expect(res.json().error.code).toBe('schema');
+    }
+  });
+
+  it('defaults a missing mode to privacy and never calls Bedrock (MED-24 fail-closed)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    t.bedrock.setError(); // would throw if Bedrock were called
+    const res = await app.inject({
+      method: 'POST',
+      url: '/replies',
+      headers: auth(t.config.sessionSecret),
+      payload: { visitorText: 'anything' }, // no mode
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestions).toEqual(FIXED_SAFE_REPLIES.map((x) => x));
   });
 
   it('rejects non-string visitorText (FR-7.4 text-only)', async () => {

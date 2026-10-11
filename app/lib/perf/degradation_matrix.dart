@@ -59,7 +59,8 @@ Degradation degradationFor(Dependency dependency) {
       return const Degradation(
         dependency: Dependency.bedrock,
         sessionSurvives: true,
-        userMessage: 'Suggested replies are limited right now. The safe replies '
+        userMessage:
+            'Suggested replies are limited right now. The safe replies '
             'are still available.',
         fallbackDescription: 'Fixed safe reply set within 2 seconds (FR-7.3).',
       );

@@ -87,6 +87,13 @@ class FakePermissionPort implements PermissionPort {
     return result;
   }
 
+  /// Simulate the resident changing a permission in the OS settings screen
+  /// (used by the LOW-07 test to prove the controller re-reads status on
+  /// return from settings).
+  void setStatus(AppPermission permission, PermissionStatus status) {
+    _status[permission] = status;
+  }
+
   @override
   Future<bool> openSettings() async {
     openSettingsCalls++;

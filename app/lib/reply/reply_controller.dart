@@ -46,7 +46,8 @@ enum ReplySource { template, freetext }
 /// A resident turn appended to the transcript (FR-6.5).
 @immutable
 class ResidentTurn {
-  const ResidentTurn({required this.text, required this.source, required this.atMs});
+  const ResidentTurn(
+      {required this.text, required this.source, required this.atMs});
   final String text;
   final ReplySource source;
   final int atMs;
@@ -81,16 +82,32 @@ class ReplyController extends ChangeNotifier {
   /// The transcript gaps recorded by the echo gate across this controller's
   /// replies (FR-5.6, AT-18). Exposed so the transcript/session can persist and
   /// tests can assert the gate marking actually fired in production.
-  List<TranscriptGap> get echoGaps => _echoGate?.gaps ?? const <TranscriptGap>[];
+  List<TranscriptGap> get echoGaps =>
+      _echoGate?.gaps ?? const <TranscriptGap>[];
 
   ReplyState _state = ReplyState.composing;
   String? _inFlightText; // the reply currently being spoken (FR-6.3)
   String? _errorMessage;
   final List<ResidentTurn> _turns = <ResidentTurn>[];
+  List<String> _contextualSuggestions = const <String>[];
 
   ReplyState get state => _state;
   String? get inFlightText => _inFlightText;
   String? get errorMessage => _errorMessage;
+
+  /// The contextual reply suggestions for the latest visitor turn (FR-7.1a,
+  /// MED-13). Set by the composition root from the suggestion provider; held
+  /// here so the reply bar (which already rebuilds on this controller) renders
+  /// them, rather than being passed as a widget field that the conversation
+  /// screen's state switcher would not propagate.
+  List<String> get contextualSuggestions =>
+      List.unmodifiable(_contextualSuggestions);
+
+  /// Replace the contextual suggestions and notify so the reply bar repaints.
+  void setContextualSuggestions(List<String> suggestions) {
+    _contextualSuggestions = List<String>.from(suggestions);
+    notifyListeners();
+  }
 
   /// Resident turns appended so far (FR-6.5). The transcript source of truth.
   List<ResidentTurn> get turns => List.unmodifiable(_turns);
@@ -99,12 +116,19 @@ class ReplyController extends ChangeNotifier {
   /// (Captions-Only banner shown instead, FR-6.4 / design §5.3 last bullet).
   bool get replyBarVisible => _outbound.outboundAvailable;
 
+  /// Whether inbound audio should be transcribed right now (FR-5.6). False while
+  /// our own reply is playing at the door (and for the 300 ms echo tail), so the
+  /// composition root can gate SessionController.ingestCaption on this and never
+  /// caption our synthesized speech as the visitor. True when there is no gate.
+  bool get shouldTranscribe => _echoGate?.shouldTranscribe ?? true;
+
   /// Whether a given [text] can be submitted right now. False while a reply is
   /// in flight (no duplicate/parallel send, FR-6.3) or when outbound is
   /// unavailable.
   bool canSend(String text) {
     if (!_outbound.outboundAvailable) return false;
-    if (_state == ReplyState.synthesizing || _state == ReplyState.speakingAtDoor) {
+    if (_state == ReplyState.synthesizing ||
+        _state == ReplyState.speakingAtDoor) {
       return false;
     }
     return text.trim().isNotEmpty;
@@ -124,13 +148,30 @@ class ReplyController extends ChangeNotifier {
     // visitor (FR-5.6). The gate stays closed through synthesis and playback.
     _echoGate?.onReplyPlaybackStart();
 
-    // SYNTHESIZING (with retry-once on TTS failure, design §5.3). speak()
-    // resolves only after the reply audio has finished playing at the door.
+    // SYNTHESIZING: shown while TTS runs. SPEAKING_AT_DOOR is entered only when
+    // the port signals playback actually started (HIGH-05), so the bar does not
+    // claim to be speaking before any audio reached the door.
     _set(ReplyState.synthesizing);
-    _set(ReplyState.speakingAtDoor);
-    var outcome = await _port.speak(trimmed);
-    if (outcome == SpeakOutcome.ttsFailed) {
-      outcome = await _port.speak(trimmed); // retry exactly once
+
+    SpeakOutcome outcome;
+    try {
+      // speak() resolves only after reply audio has finished playing. On a TTS
+      // failure, retry exactly once (design §5.3).
+      outcome = await _port.speak(trimmed, onPlaybackStart: _onPlaybackStarted);
+      if (outcome == SpeakOutcome.ttsFailed) {
+        outcome =
+            await _port.speak(trimmed, onPlaybackStart: _onPlaybackStarted);
+      }
+    } catch (_) {
+      // The binding threw (e.g. no device). Treat it as a reply that never
+      // played: reopen the gate, clear the in-flight text, and surface an error
+      // instead of leaving the gate closed and the bar stuck at speaking
+      // forever (HIGH-05, probe P2).
+      _abandonGate();
+      _inFlightText = null;
+      _errorMessage = 'Could not play the reply. Please try again.';
+      _set(ReplyState.error);
+      return;
     }
 
     switch (outcome) {
@@ -146,7 +187,8 @@ class ReplyController extends ChangeNotifier {
         _abandonGate();
         _outbound.recordInjection(success: false);
         _inFlightText = null;
-        _errorMessage = 'Spoken replies are no longer available in this session.';
+        _errorMessage =
+            'Spoken replies are no longer available in this session.';
         _set(ReplyState.error);
         return;
       case SpeakOutcome.spoken:
@@ -167,6 +209,13 @@ class ReplyController extends ChangeNotifier {
     _turns.add(ResidentTurn(text: trimmed, source: source, atMs: _nowMs()));
     _inFlightText = null;
     _set(ReplyState.sent);
+  }
+
+  /// Enter SPEAKING_AT_DOOR when the port reports reply audio actually began
+  /// playing (HIGH-05). Only transitions from SYNTHESIZING so a late or spurious
+  /// callback cannot move a failed/reset reply back to speaking.
+  void _onPlaybackStarted() {
+    if (_state == ReplyState.synthesizing) _set(ReplyState.speakingAtDoor);
   }
 
   /// Hold the gate closed for the 300 ms echo tail, then settle it so the gap is

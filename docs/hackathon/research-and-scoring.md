@@ -43,7 +43,8 @@ Read from official docs and from Amazon's own canonical sample source, not assum
 
 **From the [Ring API Development Guide](https://developer.amazon.com/docs/ring/develop.html):**
 
-- Base URL `https://api.amazonvision.com`, JSON:API spec, OAuth 2.0 Bearer via account linking.
+- Base URL `https://api.ring.com` (the backend default in `backend/src/config.ts`; confirm against Ring's
+  partner docs before relying on it), JSON:API spec, OAuth 2.0 Bearer via account linking.
 - Webhooks POST to your endpoint; must return **HTTP 200 within 5 seconds**; idempotency via `request_id`.
 - Rate limit **100 requests/second**; exponential backoff expected.
 - Live video via **WebRTC/WHEP**; `developer.ring.com` also lists **RTSP**.

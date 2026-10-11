@@ -21,6 +21,22 @@ void main() {
       expect(kRecordingNoticeText.contains('\u2014'), isFalse);
       expect(kRecordingNoticeText.contains('\u2013'), isFalse);
     });
+
+    test(
+        'notice is informed consent: names cloud processing, retention and erase (HIGH-11)',
+        () {
+      final lower = kRecordingNoticeText.toLowerCase();
+      // Clarity Mode cloud ASR + cloud assistant are disclosed.
+      expect(lower, contains('clarity mode'));
+      expect(lower, contains('cloud'));
+      // Privacy Mode on device is disclosed.
+      expect(lower, contains('privacy mode'));
+      // 90 day retention is stated.
+      expect(kRecordingNoticeText, contains('90 days'));
+      // The erase path is named.
+      expect(lower, contains('erase'));
+      expect(lower, contains('settings'));
+    });
   });
 
   group('Audible door notice toggle (Task 21, FR-14.3; AT-14)', () {
@@ -41,7 +57,8 @@ void main() {
   });
 
   group('Session-start resolution (Task 21, FR-14.3, FR-14.3a; AT-14)', () {
-    test('no audible notice: transcribe normally regardless of outbound', () async {
+    test('no audible notice: transcribe normally regardless of outbound',
+        () async {
       final c = RecordingNoticeController(FakeConsentStore());
       await c.load();
       c.beginSession();
@@ -55,8 +72,11 @@ void main() {
       );
     });
 
-    test('audible notice enabled + outbound available: play then transcribe (FR-14.3)', () async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    test(
+        'audible notice enabled + outbound available: play then transcribe (FR-14.3)',
+        () async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       expect(
@@ -65,8 +85,11 @@ void main() {
       );
     });
 
-    test('audible notice enabled + outbound unavailable + no default: prompt (FR-14.3a)', () async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    test(
+        'audible notice enabled + outbound unavailable + no default: prompt (FR-14.3a)',
+        () async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       expect(
@@ -75,8 +98,10 @@ void main() {
       );
     });
 
-    test('the chosen fallback is honored for the whole session (FR-14.3a)', () async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    test('the chosen fallback is honored for the whole session (FR-14.3a)',
+        () async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await c.chooseComplianceFallback(ComplianceChoice.continueWithoutNotice);
@@ -91,8 +116,10 @@ void main() {
       );
     });
 
-    test('disable-transcription choice is honored for the session (FR-14.3a)', () async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    test('disable-transcription choice is honored for the session (FR-14.3a)',
+        () async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await c.chooseComplianceFallback(ComplianceChoice.disableTranscription);
@@ -102,7 +129,8 @@ void main() {
       );
     });
 
-    test('a remembered default applies to future sessions (FR-14.3a)', () async {
+    test('a remembered default applies to future sessions (FR-14.3a)',
+        () async {
       final store = FakeConsentStore(audibleNotice: true);
       final c = RecordingNoticeController(store);
       await c.load();
@@ -121,8 +149,10 @@ void main() {
       );
     });
 
-    test('beginSession clears the per-session choice so it is re-evaluated', () async {
-      final c = RecordingNoticeController(FakeConsentStore(audibleNotice: true));
+    test('beginSession clears the per-session choice so it is re-evaluated',
+        () async {
+      final c =
+          RecordingNoticeController(FakeConsentStore(audibleNotice: true));
       await c.load();
       c.beginSession();
       await c.chooseComplianceFallback(

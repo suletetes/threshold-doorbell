@@ -1,0 +1,22 @@
+# Release signing template for Threshold (HIGH-12).
+#
+# Copy this file to android/key.properties (which is gitignored) and fill in the
+# values for your upload keystore. NEVER commit key.properties or the keystore
+# itself. In CI, set the equivalent environment variables instead of this file:
+#
+#   THRESHOLD_KEYSTORE_FILE      -> storeFile      (absolute path to the .jks)
+#   THRESHOLD_KEYSTORE_PASSWORD  -> storePassword
+#   THRESHOLD_KEY_ALIAS          -> keyAlias
+#   THRESHOLD_KEY_PASSWORD       -> keyPassword
+#
+# A release build (flutter build apk/appbundle --release) fails if none of these
+# are provided; there is no debug-key fallback.
+#
+# Generate an upload keystore with:
+#   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 \
+#     -validity 10000 -alias upload
+
+storeFile=/absolute/path/to/upload-keystore.jks
+storePassword=changeit
+keyAlias=upload
+keyPassword=changeit

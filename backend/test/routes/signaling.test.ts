@@ -4,6 +4,22 @@ import { buildTestApp, sessionFor } from '../helpers/test-app.js';
 import { collectUntilClose, nextJson, waitFor } from '../helpers/ws.js';
 import { SIGNALING_CLOSE } from '../../src/routes/signaling.js';
 import { FIXTURE_SDP_ANSWER } from '../../src/services/fixtures/fixture-ring-signaling.js';
+import { WS_SESSION_PROTOCOL_PREFIX } from '../../src/security/ws-auth.js';
+
+/**
+ * Open a signaling WS carrying the session via Sec-WebSocket-Protocol (MED-34),
+ * never via the URL query. Optional extra headers (for example an Origin) are
+ * merged in.
+ */
+function connect(
+  instance: FastifyInstance,
+  token: string,
+  extraHeaders: Record<string, string> = {},
+) {
+  return instance.injectWS('/signaling', {
+    headers: { 'sec-websocket-protocol': `${WS_SESSION_PROTOCOL_PREFIX}${token}`, ...extraHeaders },
+  });
+}
 
 let app: FastifyInstance | undefined;
 afterEach(async () => {
@@ -12,8 +28,26 @@ afterEach(async () => {
 });
 
 const SUB = 'resident-signaling';
+const DEVICE = 'ring-front-door';
 
-function offer(deviceId = 'ring-front-door'): string {
+/**
+ * Authorize a resident for a device: persist a Ring token (so withAccessToken
+ * can vend one) and map the device to the resident (HIGH-20 ownership check).
+ */
+async function authorize(
+  t: Awaited<ReturnType<typeof buildTestApp>>,
+  sub: string,
+  deviceId = DEVICE,
+): Promise<void> {
+  await t.container.ringTokens.persist(sub, {
+    accessToken: 'a',
+    refreshToken: 'r',
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  await t.deviceAccountStore.map(deviceId, sub);
+}
+
+function offer(deviceId = DEVICE): string {
   return JSON.stringify({
     type: 'offer',
     deviceId,
@@ -35,8 +69,9 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
   it('relays a WHEP offer to a canned SDP answer and session URL (AT-3)', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     const token = sessionFor(SUB, t.config.sessionSecret);
-    const ws = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const ws = await connect(app, token);
     ws.send(offer());
     const answer = await nextJson(ws);
     expect(answer).toMatchObject({ type: 'answer', sdpAnswer: FIXTURE_SDP_ANSWER });
@@ -50,6 +85,7 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
   it('authenticates via the session cookie as well as the token query', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     const token = sessionFor(SUB, t.config.sessionSecret);
     const ws = await app.injectWS('/signaling', {
       headers: { cookie: `threshold_session=${token}` },
@@ -63,16 +99,17 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
   it('rejects a second concurrent session with close code 4409 and keeps the first (FR-4.7, AT-11)', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     const token = sessionFor(SUB, t.config.sessionSecret);
 
-    const first = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const first = await connect(app, token);
     first.send(offer());
     const firstAnswer = await nextJson(first);
     expect(firstAnswer).toMatchObject({ type: 'answer' });
     expect(t.signalingService.hasActiveSession(SUB)).toBe(true);
 
     // A second socket for the SAME resident tries to open a session.
-    const second = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const second = await connect(app, token);
     second.send(offer('ring-back-door'));
     const { frames, code } = await collectUntilClose(second);
     expect(code).toBe(SIGNALING_CLOSE.sessionAlreadyActive);
@@ -88,8 +125,9 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
   it('releases the Ring session URL when the socket closes (FR-4.3)', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     const token = sessionFor(SUB, t.config.sessionSecret);
-    const ws = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const ws = await connect(app, token);
     ws.send(offer());
     const answer = await nextJson<{ sessionUrl: string }>(ws);
     const url = answer.sessionUrl;
@@ -103,14 +141,24 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
   it('an explicit end frame releases the session and closes normally (FR-4.3)', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     const token = sessionFor(SUB, t.config.sessionSecret);
-    const ws = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const ws = await connect(app, token);
     ws.send(offer());
     const answer = await nextJson<{ sessionUrl: string }>(ws);
     const url = answer.sessionUrl;
     ws.send(JSON.stringify({ type: 'end' }));
     await new Promise<void>((resolve) => ws.on('close', () => resolve()));
-    await new Promise((r) => setTimeout(r, 20));
+    // Poll for the server-side release instead of sleeping a fixed 20ms and
+    // hoping. waitFor now throws on timeout, so if the end frame stopped
+    // releasing the Ring session this test fails rather than passing on the
+    // stale fixed sleep.
+    await waitFor(() => t.ringSignaling.wasReleased(url), {
+      message: 'the Ring session was never released after the end frame',
+    });
+    await waitFor(() => !t.signalingService.hasActiveSession(SUB), {
+      message: 'the signaling slot was never freed after the end frame',
+    });
     expect(t.ringSignaling.wasReleased(url)).toBe(true);
     expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
   });
@@ -118,44 +166,139 @@ describe('WS /signaling (Task 7, FR-4.1, 4.6, 4.7; AT-3, AT-11)', () => {
   it('after a session ends, a new session for the same resident can open (single-slot reuse)', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     const token = sessionFor(SUB, t.config.sessionSecret);
 
-    const a = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const a = await connect(app, token);
     a.send(offer());
     await nextJson(a);
     a.terminate();
     await waitFor(() => !t.signalingService.hasActiveSession(SUB));
     expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
 
-    const b = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const b = await connect(app, token);
     b.send(offer());
     const answerB = await nextJson(b);
     expect(answerB).toMatchObject({ type: 'answer' });
     b.close();
   });
 
+  it('releases the slot when the socket disconnects during the Ring handshake (HIGH-19, P3)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    await authorize(t, SUB);
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    // Make the Ring handshake slow so we can disconnect while open() is pending.
+    t.ringSignaling.setStartDelay(80);
+
+    const first = await connect(app, token);
+    first.send(offer());
+    // Terminate before the delayed startSession resolves (mid-handshake).
+    first.terminate();
+
+    // The slot must be released once the pending open settles; it must NOT stay
+    // reserved and lock the resident out.
+    await waitFor(() => !t.signalingService.hasActiveSession(SUB));
+    expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
+
+    // A fresh attempt for the same resident must succeed, not be closed 4409.
+    t.ringSignaling.setStartDelay(0);
+    const second = await connect(app, token);
+    second.send(offer());
+    const answer = await nextJson(second);
+    expect(answer).toMatchObject({ type: 'answer' });
+    second.close();
+  });
+
   it('a Ring relay failure surfaces a connect error and frees the slot for retry (FR-4.4)', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, SUB);
     t.ringSignaling.setError();
     const token = sessionFor(SUB, t.config.sessionSecret);
-    const ws = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const ws = await connect(app, token);
     ws.send(offer());
     const { frames } = await collectUntilClose(ws);
     expect(frames[0]).toMatchObject({ type: 'error', code: 'ring_unavailable' });
     expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
   });
 
+  it('ignores a session token passed in the URL query (MED-34)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    await authorize(t, SUB);
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    // The token is ONLY in the URL query; it must not authenticate.
+    const ws = await app.injectWS(`/signaling?token=${encodeURIComponent(token)}`);
+    const { code } = await collectUntilClose(ws);
+    expect(code).toBe(SIGNALING_CLOSE.unauthorized);
+  });
+
+  it('rejects a WebSocket from a disallowed Origin (MED-34)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    await authorize(t, SUB);
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    // config.wsAllowedOrigins is empty by default, so any Origin is disallowed.
+    const ws = await connect(t.app, token, { origin: 'https://evil.example' });
+    const { code } = await collectUntilClose(ws);
+    expect(code).toBe(SIGNALING_CLOSE.unauthorized);
+  });
+
+  it('allows a WebSocket from an allowlisted Origin (MED-34)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    t.config.wsAllowedOrigins.push('https://app.threshold.example');
+    await authorize(t, SUB);
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    const ws = await connect(t.app, token, { origin: 'https://app.threshold.example' });
+    ws.send(offer());
+    const answer = await nextJson(ws);
+    expect(answer).toMatchObject({ type: 'answer' });
+    ws.close();
+  });
+
+  it('rejects a session for a device the resident does not own (HIGH-20)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // The resident is authorized for DEVICE but requests someone else's device.
+    await authorize(t, SUB);
+    await t.deviceAccountStore.map('someone-elses-device', 'resident-other');
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    const ws = await connect(app, token);
+    ws.send(offer('someone-elses-device'));
+    const { frames, code } = await collectUntilClose(ws);
+    expect(code).toBe(SIGNALING_CLOSE.unauthorized);
+    expect(frames[0]).toMatchObject({ type: 'error', code: 'unauthorized' });
+    // No session was opened and no Ring URL was issued for the foreign device.
+    expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
+    expect(t.ringSignaling.issuedUrls()).toHaveLength(0);
+  });
+
+  it('rejects a session for an unmapped device (HIGH-20)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    await authorize(t, SUB);
+    const token = sessionFor(SUB, t.config.sessionSecret);
+    const ws = await connect(app, token);
+    ws.send(offer('never-registered'));
+    const { code } = await collectUntilClose(ws);
+    expect(code).toBe(SIGNALING_CLOSE.unauthorized);
+    expect(t.signalingService.hasActiveSession(SUB)).toBe(false);
+  });
+
   it('two different residents each hold their own single session concurrently', async () => {
     const t = await buildTestApp();
     app = t.app;
+    await authorize(t, 'resident-a', 'device-a');
+    await authorize(t, 'resident-b', 'device-b');
     const tokenA = sessionFor('resident-a', t.config.sessionSecret);
     const tokenB = sessionFor('resident-b', t.config.sessionSecret);
-    const a = await app.injectWS(`/signaling?token=${encodeURIComponent(tokenA)}`);
-    a.send(offer());
+    const a = await connect(app, tokenA);
+    a.send(offer('device-a'));
     await nextJson(a);
-    const b = await app.injectWS(`/signaling?token=${encodeURIComponent(tokenB)}`);
-    b.send(offer());
+    const b = await connect(app, tokenB);
+    b.send(offer('device-b'));
     await nextJson(b);
     expect(t.signalingService.hasActiveSession('resident-a')).toBe(true);
     expect(t.signalingService.hasActiveSession('resident-b')).toBe(true);

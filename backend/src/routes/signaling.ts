@@ -17,8 +17,12 @@
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
-import { SESSION_COOKIE, verifySession, type SessionClaims } from '../security/session.js';
-import { SessionAlreadyActiveError, SignalingService } from '../services/signaling-service.js';
+import { authenticateWs } from '../security/ws-auth.js';
+import {
+  DeviceNotAuthorizedError,
+  SessionAlreadyActiveError,
+  SignalingService,
+} from '../services/signaling-service.js';
 
 /** Close codes used by the signaling broker (design.md §4). */
 export const SIGNALING_CLOSE = {
@@ -37,12 +41,21 @@ interface OfferMessage {
 }
 
 export async function registerSignalingRoutes(app: FastifyInstance): Promise<void> {
-  const service = new SignalingService(app.container.ringSignaling);
+  const service = new SignalingService(app.container.ringSignaling, {
+    withAccessToken: (residentSub, call) =>
+      app.container.ringTokens.withAccessToken(residentSub, call),
+    // A device belongs to a resident when the server-side device->account
+    // mapping (populated from the resident's Ring device list) resolves to them
+    // (HIGH-20). An unmapped or foreign device is rejected.
+    ownsDevice: async (residentSub, deviceId) =>
+      (await app.container.deviceAccountStore.resolve(deviceId)) === residentSub,
+  });
   // Expose for tests and for other routes that must know the single-session state.
   app.decorate('signalingService', service);
 
   app.get('/signaling', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
-    const claims = authenticate(request, app.container.config.sessionSecret);
+    const { sessionSecret, wsAllowedOrigins } = app.container.config;
+    const claims = authenticateWs(request, sessionSecret, wsAllowedOrigins);
     if (!claims) {
       // Send a typed error frame then close 4401 so the app runs the unified
       // auth-recovery flow (FR-1.5). Deferred so the client has attached its
@@ -60,7 +73,11 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
     const residentSub = claims.sub;
 
     let settled = false; // an offer was processed (answer sent or rejected)
-    let opened = false; // this socket owns the resident's active session
+    let owns = false; // this socket reserved the resident's slot (open in flight or done)
+    // The in-flight open, tracked so a close during the handshake can await it
+    // and then release the slot (HIGH-19). Null until an offer is accepted.
+    let openInFlight: Promise<unknown> | null = null;
+    let closedEarly = false; // the socket closed before the open resolved
 
     // 4408: close if no offer arrives within the window.
     const timeout = setTimeout(() => {
@@ -75,11 +92,22 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
 
     socket.on('close', () => {
       clearTimeout(timeout);
-      // Release the Ring session URL on disconnect (FR-4.3). Only this socket's
+      // Release the Ring session URL on disconnect (FR-4.3, HIGH-19). If the
+      // open is still in flight, await it first so the reserved slot is always
+      // released even when the socket closed mid-handshake. Only this socket's
       // owner releases, so a rejected 4409 attempt never closes the incumbent.
-      if (opened) {
-        void service.close(residentSub);
-      }
+      closedEarly = true;
+      if (!owns) return;
+      void (async () => {
+        if (openInFlight) {
+          try {
+            await openInFlight;
+          } catch {
+            // A failed open already freed the slot in the service.
+          }
+        }
+        await service.close(residentSub);
+      })();
     });
 
     async function handleMessage(raw: Buffer | ArrayBuffer | Buffer[]): Promise<void> {
@@ -89,9 +117,16 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
         return;
       }
       if (message.type === 'end') {
-        if (opened) {
+        if (owns) {
+          if (openInFlight) {
+            try {
+              await openInFlight;
+            } catch {
+              // open failed; slot already freed.
+            }
+          }
           await service.close(residentSub);
-          opened = false;
+          owns = false;
         }
         socket.close(1000, 'ended');
         return;
@@ -102,14 +137,26 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
       clearTimeout(timeout);
 
       try {
-        const handle = await service.open(residentSub, message.deviceId, message.sdp);
-        opened = true;
+        // Mark ownership BEFORE awaiting so a close during the handshake knows
+        // to release the slot once the open settles (HIGH-19).
+        owns = true;
+        const openPromise = service.open(residentSub, message.deviceId, message.sdp);
+        openInFlight = openPromise;
+        const handle = await openPromise;
+        openInFlight = null;
+        if (closedEarly) {
+          // The socket already closed while the handshake was in flight; the
+          // close handler will release this slot. Do not send a stale answer.
+          return;
+        }
         safeSend(socket, {
           type: 'answer',
           sdpAnswer: handle.sdpAnswer,
           sessionUrl: handle.sessionUrl,
         });
       } catch (err) {
+        openInFlight = null;
+        owns = false;
         if (err instanceof SessionAlreadyActiveError) {
           // FR-4.7: reject the second concurrent session with 4409 and do NOT
           // touch the incumbent session.
@@ -119,6 +166,17 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
             message: 'A live session is already active.',
           });
           socket.close(SIGNALING_CLOSE.sessionAlreadyActive, 'session_already_active');
+          return;
+        }
+        if (err instanceof DeviceNotAuthorizedError) {
+          // HIGH-20: the resident does not own this device. Reject with the
+          // unauthorized close code; the incumbent (if any) is untouched.
+          safeSend(socket, {
+            type: 'error',
+            code: 'unauthorized',
+            message: "That doorbell isn't on your account.",
+          });
+          socket.close(SIGNALING_CLOSE.unauthorized, 'device_not_authorized');
           return;
         }
         // Ring relay failure: surface a connect error (FR-4.4) and close normally.
@@ -131,23 +189,6 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
       }
     }
   });
-}
-
-/**
- * Authenticate a WS upgrade. Browsers cannot set the Authorization header on a
- * WebSocket, so the session credential may arrive as the `token` query param,
- * the session cookie, or a Bearer header (used by injectWS tests). residentSub
- * is always derived from the verified credential, never from client input.
- */
-function authenticate(request: FastifyRequest, secret: string): SessionClaims | null {
-  const query = request.query as { token?: unknown } | undefined;
-  const queryToken = typeof query?.token === 'string' ? query.token : undefined;
-  const cookieToken = request.cookies?.[SESSION_COOKIE];
-  const auth = request.headers.authorization;
-  const bearer =
-    typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : undefined;
-  const token = queryToken ?? bearer ?? cookieToken;
-  return verifySession(token, secret);
 }
 
 type IncomingMessage = OfferMessage | { type: 'end' };

@@ -37,7 +37,54 @@ void main() {
     });
 
     test('injecting before the probe throws', () {
-      expect(() => OutboundModeMachine().recordInjection(success: true), throwsStateError);
+      expect(
+        () => OutboundModeMachine().recordInjection(success: true),
+        throwsStateError,
+      );
     });
+
+    test(
+      'recordInjection in captionsOnlyFromProbe is a documented no-op (MED-22, LOW-23)',
+      () {
+        final m = OutboundModeMachine()..applyProbe(ProbeResult.failure);
+        expect(m.state, OutboundState.captionsOnlyFromProbe);
+        // A late or racing injection callback must neither throw nor change state.
+        m.recordInjection(success: false);
+        m.recordInjection(success: true);
+        expect(m.state, OutboundState.captionsOnlyFromProbe);
+      },
+    );
+
+    test(
+      'recordInjection in captionsOnlyDegraded stays terminal (MED-22, LOW-23)',
+      () {
+        final m = OutboundModeMachine()..applyProbe(ProbeResult.success);
+        m.recordInjection(success: false);
+        expect(m.state, OutboundState.captionsOnlyDegraded);
+        m.recordInjection(success: false);
+        m.recordInjection(success: true);
+        expect(m.state, OutboundState.captionsOnlyDegraded);
+      },
+    );
+
+    test(
+      'OutboundModeSnapshot.outboundAvailable reflects the state (MED-22)',
+      () {
+        expect(
+          const OutboundModeSnapshot(OutboundState.twoWay).outboundAvailable,
+          isTrue,
+        );
+        expect(
+          const OutboundModeSnapshot(OutboundState.unprobed).outboundAvailable,
+          isFalse,
+        );
+        expect(
+          const OutboundModeSnapshot(
+            OutboundState.captionsOnlyFromProbe,
+          ).outboundAvailable,
+          isFalse,
+        );
+      },
+    );
   });
 }

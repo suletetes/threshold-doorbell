@@ -60,7 +60,8 @@ import 'turn_segmentation.dart';
 /// section 8.2): it is the type scale's largest title role, which is the optical
 /// size the scale reserves for text that has to be read at a glance. Derived
 /// rather than restated so captions cannot drift off the scale (audit C3).
-final double kBaseCaptionFontSize = ThresholdTypography.base.titleLarge!.fontSize!;
+final double kBaseCaptionFontSize =
+    ThresholdTypography.base.titleLarge!.fontSize!;
 
 /// The maximum OS text scale applied on the caption subtree (NFR-2): 200%.
 const double kMaxCaptionTextScale = 2.0;
@@ -126,6 +127,19 @@ class CaptionSurface extends StatelessWidget {
     final double fontSize = kBaseCaptionFontSize * settings.captionScale;
     final semantic = ThresholdSemanticColors.of(context);
 
+    // The de-emphasized caption color (provisional + low confidence) used to be
+    // `fg.withValues(alpha: 0.6)` applied AFTER the floor was enforced on the
+    // opaque fg, so the color actually painted dropped to about 2.2:1 (HIGH-07,
+    // probe P4). Instead derive a de-emphasized color that stays visibly softer
+    // (reduced alpha, AT-4) but whose composite over the opaque caption
+    // background meets the 4.5:1 floor: the alpha is raised only as far as the
+    // floor requires.
+    final Color deEmphasized = deEmphasizedCaptionColor(
+      fg,
+      settings.captionBackground,
+      targetAlpha: kDeEmphasizedCaptionAlpha,
+    );
+
     // The caption semantic roles, pushed through the SAME enforcement the
     // caption foreground already goes through (FR-10.2, NFR-2). The roles decide
     // the intent; enforceContrastFloor decides whether that intent is legible on
@@ -139,12 +153,20 @@ class CaptionSurface extends StatelessWidget {
       settings.captionBackground,
     );
 
-    // Clamp OS dynamic type to 200% on this subtree so a large system setting
-    // stacked on top of the caption scale never exceeds the NFR-2 ceiling.
+    // Clamp the COMBINED caption scale to the 200% ceiling (NFR-2, MED-03). The
+    // caption font is already scaled by the resident's captionScale (up to 2x);
+    // the OS dynamic-type scaler then multiplies on top of that. Clamping the OS
+    // scaler to 2.0 independently let the two compound to as much as 4x. Instead
+    // the OS scaler is clamped so captionScale times the OS scaler never exceeds
+    // kMaxCaptionTextScale, so the text can grow to the ceiling but no further.
     final MediaQueryData mq = MediaQuery.of(context);
+    final double captionScale = settings.captionScale;
+    final double maxOsScale = captionScale <= 0
+        ? kMaxCaptionTextScale
+        : kMaxCaptionTextScale / captionScale;
     final TextScaler clamped = mq.textScaler.clamp(
       minScaleFactor: 1.0,
-      maxScaleFactor: kMaxCaptionTextScale,
+      maxScaleFactor: maxOsScale < 1.0 ? 1.0 : maxOsScale,
     );
 
     final Widget content = turns.isEmpty
@@ -180,6 +202,7 @@ class CaptionSurface extends StatelessWidget {
                         key: ValueKey('caption-turn-$i'),
                         turn: turns[i],
                         foreground: fg,
+                        deEmphasized: deEmphasized,
                         fontSize: fontSize,
                         provisionalChrome: provisionalChromeColor,
                       ),
@@ -218,7 +241,8 @@ class _SpeakerAttribution extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = CaptionSurface.speakerLabel(turn.speaker);
-    final style = Theme.of(context).textTheme.labelMedium?.copyWith(color: color);
+    final style =
+        Theme.of(context).textTheme.labelMedium?.copyWith(color: color);
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.space1),
       child: Row(
@@ -238,10 +262,8 @@ class _SpeakerAttribution extends StatelessWidget {
             Text(
               kProvisionalTurnMarker,
               key: const ValueKey('caption-provisional-marker'),
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(color: provisionalColor, fontStyle: FontStyle.italic),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: provisionalColor, fontStyle: FontStyle.italic),
             ),
           ],
         ],
@@ -258,12 +280,19 @@ class _CaptionTurnText extends StatelessWidget {
     super.key,
     required this.turn,
     required this.foreground,
+    required this.deEmphasized,
     required this.fontSize,
     required this.provisionalChrome,
   });
 
   final CaptionTurn turn;
   final Color foreground;
+
+  /// The de-emphasized color that already meets the 4.5:1 floor against the
+  /// opaque caption background (HIGH-07). Used for provisional and
+  /// low-confidence tokens instead of a raw alpha reduction.
+  final Color deEmphasized;
+
   final double fontSize;
 
   /// The enforced color used for the provisional underline.
@@ -278,9 +307,19 @@ class _CaptionTurnText extends StatelessWidget {
         ? const <String>[]
         : turn.text.trim().split(RegExp(r'\s+'));
 
+    // Per-word confidences when the engine reports them (FR-5.3a, MED-02),
+    // falling back to the turn-level confidence when it does not. This replaces
+    // painting every token with the turn's own value, which made the per-token
+    // emphasis identical across a turn.
+    final List<double>? wordConfidences = turn.wordConfidences;
+
     final List<InlineSpan> spans = <InlineSpan>[];
     for (var i = 0; i < words.length; i++) {
-      final token = CaptionToken(text: words[i], confidence: turn.confidence);
+      final double? tokenConfidence =
+          (wordConfidences != null && i < wordConfidences.length)
+              ? wordConfidences[i]
+              : turn.confidence;
+      final token = CaptionToken(text: words[i], confidence: tokenConfidence);
       final emphasis = emphasisForToken(token, isFinal: turn.isFinal);
       spans.add(
         TextSpan(
@@ -305,9 +344,12 @@ class _CaptionTurnText extends StatelessWidget {
       case CaptionEmphasis.provisional:
         // Whole-fragment provisional: de-emphasized, italic, never "certain",
         // and now explicitly marked as unsettled with a dotted underline rather
-        // than relying on alpha alone to carry that meaning (audit C7).
+        // than relying on alpha alone to carry that meaning (audit C7). The
+        // de-emphasized color meets the 4.5:1 floor against the opaque caption
+        // background (HIGH-07): it is an opaque, floor-enforced color, not a raw
+        // 0.6-alpha reduction that dropped provisional text below the floor.
         return TextStyle(
-          color: foreground.withValues(alpha: kDeEmphasizedCaptionAlpha),
+          color: deEmphasized,
           fontStyle: FontStyle.italic,
           fontWeight: FontWeight.w400,
           decoration: TextDecoration.underline,
@@ -315,9 +357,10 @@ class _CaptionTurnText extends StatelessWidget {
           decorationColor: provisionalChrome,
         );
       case CaptionEmphasis.lowConfidence:
-        // Finalized but low confidence (< 0.6): de-emphasized.
+        // Finalized but low confidence (< 0.6): de-emphasized but still at or
+        // above the 4.5:1 floor against the opaque background (HIGH-07).
         return TextStyle(
-          color: foreground.withValues(alpha: kDeEmphasizedCaptionAlpha),
+          color: deEmphasized,
           fontWeight: FontWeight.w400,
         );
       case CaptionEmphasis.normal:

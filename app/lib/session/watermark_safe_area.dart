@@ -27,7 +27,8 @@ EdgeInsets watermarkSafeInsets({bool fullWidth = true}) {
 /// True when a [rect] within a video surface of [size] avoids both watermark
 /// corners (FR-4.5). Used by the widget test to assert overlays stay clear.
 bool clearsWatermarkCorners(Rect rect, Size size) {
-  const topLeftCorner = Rect.fromLTWH(0, 0, kWatermarkCornerInset, kWatermarkBandHeight);
+  const topLeftCorner =
+      Rect.fromLTWH(0, 0, kWatermarkCornerInset, kWatermarkBandHeight);
   final topRightCorner = Rect.fromLTWH(
     size.width - kWatermarkCornerInset,
     0,

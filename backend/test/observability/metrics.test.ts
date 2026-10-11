@@ -14,6 +14,18 @@ describe('InMemoryMetricsSink (Task 28, design.md §10)', () => {
     expect(s!.avg).toBe(1000);
   });
 
+  it('bounds retained observations so memory cannot grow without bound (HIGH-21)', () => {
+    const m = new InMemoryMetricsSink();
+    for (let i = 0; i < 5000; i += 1) {
+      m.observe('g2_partial_latency_ms', i);
+    }
+    const s = m.latency('g2_partial_latency_ms');
+    expect(s).not.toBeNull();
+    // Capped at 1024 and keeps the most recent observations.
+    expect(s!.count).toBe(1024);
+    expect(s!.max).toBe(4999);
+  });
+
   it('records all four latency goals G1a/G1b/G2/G3 and webhook ack', () => {
     const m = new InMemoryMetricsSink();
     m.observe('g1a_webhook_to_push_ms', 1);

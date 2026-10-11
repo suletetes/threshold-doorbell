@@ -66,6 +66,7 @@ class FixtureAsrEngine implements AsrEngine {
 
   static List<OnDeviceResult> _defaultScript() => const <OnDeviceResult>[
         OnDeviceResult(isFinal: false, transcript: 'hello there'),
-        OnDeviceResult(isFinal: true, transcript: 'hello there', confidence: 0.88),
+        OnDeviceResult(
+            isFinal: true, transcript: 'hello there', confidence: 0.88),
       ];
 }

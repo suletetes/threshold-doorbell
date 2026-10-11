@@ -30,11 +30,13 @@ void main() {
     test('anchors at zero and every other value is positive', () {
       expect(Spacing.scale.first, 0);
       for (final value in Spacing.scale.skip(1)) {
-        expect(value, greaterThan(0), reason: 'spacing values above the anchor must be positive');
+        expect(value, greaterThan(0),
+            reason: 'spacing values above the anchor must be positive');
       }
     });
 
-    test('every value above the anchor is a whole multiple of the 4dp step', () {
+    test('every value above the anchor is a whole multiple of the 4dp step',
+        () {
       expect(Spacing.step, 4);
       for (final value in Spacing.scale.skip(1)) {
         expect(
@@ -173,13 +175,15 @@ void main() {
     });
 
     test('the minimum button size is at least 48dp tall', () {
-      expect(TouchTarget.minimumButtonSize.height, greaterThanOrEqualTo(TouchTarget.minimum));
+      expect(TouchTarget.minimumButtonSize.height,
+          greaterThanOrEqualTo(TouchTarget.minimum));
       expect(TouchTarget.minimumButtonSize.width, greaterThan(0));
     });
   });
 
   group('Reduced motion (audit section 4, accessibility gap)', () {
-    testWidgets('prefersReducedMotion is false when animations are enabled', (tester) async {
+    testWidgets('prefersReducedMotion is false when animations are enabled',
+        (tester) async {
       late bool reduced;
       late Duration resolved;
       await tester.pumpWidget(
@@ -198,7 +202,8 @@ void main() {
       expect(resolved, Motion.standard);
     });
 
-    testWidgets('prefersReducedMotion is true when disableAnimations is set', (tester) async {
+    testWidgets('prefersReducedMotion is true when disableAnimations is set',
+        (tester) async {
       late bool reduced;
       await tester.pumpWidget(
         MediaQuery(
@@ -214,7 +219,8 @@ void main() {
       expect(reduced, isTrue);
     });
 
-    testWidgets('every duration collapses to zero under reduced motion', (tester) async {
+    testWidgets('every duration collapses to zero under reduced motion',
+        (tester) async {
       final resolved = <Duration>[];
       await tester.pumpWidget(
         MediaQuery(
