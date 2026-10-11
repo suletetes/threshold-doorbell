@@ -35,6 +35,13 @@ export interface ErasureDeps {
 
 export const RETENTION_DAYS = 90;
 const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+// M-2: bound the per-request transcript size well below the 64 KiB global body
+// limit. A conversation is a handful of short turns; these caps reject a
+// pathological payload (thousands of turns, or a single multi-kilobyte turn)
+// with the uniform 400 'schema' envelope instead of parsing and storing it.
+const MAX_TURNS_PER_TRANSCRIPT = 500;
+const MAX_TURN_TEXT_CHARS = 2048;
 // Allowance for client/server clock skew when rejecting a future startedAt (MED-26).
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
@@ -92,6 +99,8 @@ function parseTurn(raw: unknown): Turn {
     throw errors.schema('Invalid turn speaker.');
   }
   if (typeof raw.text !== 'string') throw errors.schema('Turn text must be a string.');
+  // M-2: cap a single turn's text so one oversized turn cannot bloat storage.
+  if (raw.text.length > MAX_TURN_TEXT_CHARS) throw errors.schema('Turn text is too long.');
   if (typeof raw.source !== 'string' || !SOURCES.includes(raw.source as TurnSource)) {
     throw errors.schema('Invalid turn source.');
   }
@@ -191,6 +200,12 @@ export class TranscriptService {
     const turnsRaw = input.turns;
     if (turnsRaw !== undefined && !Array.isArray(turnsRaw)) {
       throw errors.schema('turns must be an array.');
+    }
+    // M-2: cap the number of turns before mapping so a huge array cannot be
+    // parsed and stored. The global body limit is a coarse backstop; this is the
+    // precise per-field bound.
+    if (Array.isArray(turnsRaw) && turnsRaw.length > MAX_TURNS_PER_TRANSCRIPT) {
+      throw errors.schema('Too many turns in one transcript.');
     }
     const turns: Turn[] = Array.isArray(turnsRaw) ? turnsRaw.map(parseTurn) : [];
 

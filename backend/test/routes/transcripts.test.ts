@@ -150,6 +150,76 @@ describe('Transcript routes (Task 9, AT-15, AT-19)', () => {
     expect(res.json().error.code).toBe('schema');
   });
 
+  it('rejects an over-long turns array with 400 schema (M-2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const turns = Array.from({ length: 501 }, () => ({
+      speaker: 'visitor',
+      text: 'hi',
+      source: 'transcribe',
+      confidence: 0.9,
+    }));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, turns },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
+  });
+
+  it('rejects an over-long turn.text with 400 schema (M-2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: {
+        ...body,
+        turns: [{ speaker: 'visitor', text: 'a'.repeat(2049), source: 'transcribe', confidence: 0.9 }],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
+  });
+
+  it('accepts a transcript at the turns count cap (M-2 boundary)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    // 500 short turns stays well under the 64 KiB body limit while sitting
+    // exactly at the turns-count cap.
+    const turns = Array.from({ length: 500 }, () => ({
+      speaker: 'visitor',
+      text: 'hi',
+      source: 'transcribe',
+      confidence: 0.9,
+    }));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: { ...body, turns },
+    });
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('accepts a transcript with a turn.text at the length cap (M-2 boundary)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/transcripts',
+      headers: auth(t.config.sessionSecret),
+      payload: {
+        ...body,
+        turns: [{ speaker: 'visitor', text: 'a'.repeat(2048), source: 'transcribe', confidence: 0.9 }],
+      },
+    });
+    expect(res.statusCode).toBe(201);
+  });
+
   it('rejects a schema-invalid body with 400', async () => {
     const t = await buildTestApp();
     app = t.app;

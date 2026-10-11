@@ -124,4 +124,29 @@ describe('POST /replies (Task 10, AT-7)', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('schema');
   });
+
+  it('rejects an over-long visitorText with 400 schema (M-2)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/replies',
+      headers: auth(t.config.sessionSecret),
+      payload: { visitorText: 'a'.repeat(4097), mode: 'clarity' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('schema');
+  });
+
+  it('accepts a visitorText at the length cap (M-2 boundary)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/replies',
+      headers: auth(t.config.sessionSecret),
+      payload: { visitorText: 'a'.repeat(4096), mode: 'clarity' },
+    });
+    expect(res.statusCode).toBe(200);
+  });
 });
