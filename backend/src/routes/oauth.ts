@@ -42,6 +42,17 @@ function deepLinkWith(base: string, params: Record<string, string>): string {
   return query === '' ? base : `${base}${sep}${query}`;
 }
 
+// L-1: every cookie below is set with `secure: config.env !== 'local'`. This
+// env-name coupling is intentional and relies on the deployment invariant that
+// every non-local environment terminates TLS at the edge (design.md section 5
+// "Transport: TLS 1.2 or higher" and section 11 "containerized Fastify on AWS"),
+// so the browser connection is always HTTPS in staging/demo even though the
+// in-process request behind the load balancer may be plain HTTP. Deriving
+// `secure` from request.protocol would WRONGLY drop the flag behind a
+// TLS-terminating proxy. If a future topology cannot guarantee TLS at the edge,
+// prefer x-forwarded-proto === 'https' with env !== 'local' as the fallback.
+// local/test stay plain HTTP for the loopback test harness; sameSite is kept
+// strict (lax for the short-lived OAuth state cookie that survives the redirect).
 export async function registerOAuthRoutes(app: FastifyInstance): Promise<void> {
   const { config } = app.container;
 

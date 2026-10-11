@@ -92,6 +92,18 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-content-type-options', 'nosniff');
     // HSTS only matters over TLS; outside local the deployment terminates HTTPS.
+    //
+    // L-1: the `env !== 'local'` key here (and on the oauth.ts cookie `secure`
+    // flags) is intentional and relies on a DEPLOYMENT INVARIANT: every non-local
+    // environment terminates TLS at the edge (design.md section 5 "Transport:
+    // TLS 1.2 or higher" and section 11 "containerized Fastify on AWS"), so the
+    // connection the browser made is always HTTPS in staging/demo even though
+    // the in-process request Fastify sees may be plain HTTP behind the load
+    // balancer. Keying on the actual request.protocol or socket encryption would
+    // therefore WRONGLY drop HSTS/secure behind a TLS-terminating proxy. If a
+    // future topology does not guarantee TLS at the edge, prefer the forwarded
+    // scheme: set HSTS/secure when x-forwarded-proto === 'https' and fall back to
+    // env !== 'local'. local/test stay plain HTTP for the loopback harness.
     if (container.config.env !== 'local') {
       reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
     }
