@@ -40,6 +40,12 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
   );
 
   app.post('/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+    // M-6: measure the webhook acknowledgement time (design.md section 10). The
+    // 200 ack is sent before the fire-and-forget push, so we measure to the ack
+    // (the SLA-relevant latency), not to the async delivery. Record it on the
+    // happy path right before the ack is sent; a 401/400 short-circuits earlier
+    // and is not an "acknowledged" delivery, so it is intentionally not timed.
+    const ackStart = performance.now();
     const rawBody = typeof request.body === 'string' ? request.body : '';
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const timestamp = request.headers[TIMESTAMP_HEADER] as string | undefined;
@@ -70,6 +76,9 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
 
     // Idempotent conditional put by requestId (FR-3.2). Cheap; inside the budget.
     const outcome = await service.record(event);
+
+    // M-6: record the ack latency just before sending the 200.
+    app.container.metrics.observe('webhook_ack_ms', performance.now() - ackStart);
 
     // Acknowledge 200 FIRST (design.md §4). Push is enqueued asynchronously so
     // the 5 s budget is never at risk, and only for first deliveries.

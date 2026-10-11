@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, sessionFor } from '../helpers/test-app.js';
+import { computeTimestampedSignature } from '../../src/security/hmac.js';
 
 let app: FastifyInstance | undefined;
 afterEach(async () => {
@@ -73,5 +74,33 @@ describe('Metrics wiring (Task 28, design.md §10)', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(t.metrics.counter('refresh')).toBe(1);
+  });
+
+  it('observes webhook_ack_ms on a valid signed webhook delivery (M-6)', async () => {
+    const t = await buildTestApp();
+    app = t.app;
+    await t.deviceAccountStore.map('ring-doorbell-001', 'resident-account-1');
+    const ts = new Date().toISOString();
+    const raw = JSON.stringify({
+      request_id: 'ack-metric-1',
+      event_type: 'person_detected',
+      device_id: 'ring-doorbell-001',
+      timestamp: '2026-01-01T00:00:00.000Z',
+    });
+    const sig = computeTimestampedSignature(ts, raw, t.config.webhookHmacKey);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook',
+      headers: {
+        'content-type': 'application/json',
+        'x-ring-signature': sig,
+        'x-ring-timestamp': ts,
+      },
+      payload: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    const summary = t.metrics.latency('webhook_ack_ms');
+    expect(summary).not.toBeNull();
+    expect(summary!.count).toBeGreaterThanOrEqual(1);
   });
 });
