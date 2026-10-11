@@ -386,5 +386,26 @@ Principle: fully usable with sound off and a screen reader on. No information co
 
 ## 12. Known open items
 
-None as of this revision. ARCH-1 and the §5.1 probe close the two previously blocking questions. Any new
-ambiguity must be recorded here and in requirements §7 with a date and owner before code depends on it.
+ARCH-1 and the §5.1 probe close the two previously blocking architectural questions. The items below are
+the deferred work that remains open. Any new ambiguity must be recorded here and in requirements §7 with a
+date and owner before code depends on it.
+
+- **Production device, cloud and Ring adapters are deferred** (2026-10-11). The device-independent product
+  logic and the backend request handling are implemented and covered by fixture-based tests, but the
+  production adapters that bind to a real device and the live cloud are not built. In a release build the
+  live WebView session, TTS reply injection into the outbound audio track, Ring app launch, the backend
+  HTTP and WebSocket client, data erasure, re-authentication, and the KMS-backed token store either throw
+  (`DeviceBindingUnavailable`) or run against fixtures today. These paths must be bound to real devices and
+  cloud services before an end-to-end release.
+- **Android OAuth deep-link handoff and ProductionAuthPort are deferred (H-2)** (2026-10-11). Sign-in is not
+  yet end-to-end on device. The backend OAuth-with-PKCE flow is implemented and tested, and the app now
+  ships the Android manifest intent-filter for the `threshold://auth/complete` scheme together with a tested
+  deep-link parser and the `/oauth/exchange` contract, so the server-side handoff is wired. What remains
+  deferred is the live step on the device: launching the system browser, listening for the returning link,
+  and running the HTTPS exchange transport through `ProductionAuthPort` to establish a real session.
+- **Per-resident ASR cap and single-live-session invariant are per-process only (M-3)** (2026-10-11). The
+  per-resident ASR concurrency cap and the single-live-session guarantee are enforced in memory within a
+  single backend process. The deployment topology (§11) runs at least two stateless instances, so these
+  invariants do not hold across instances. A shared store (an atomic DynamoDB or Redis counter, or a lease
+  keyed by `residentSub`) is needed to enforce the cap and the single-session invariant in the
+  multi-instance topology.
