@@ -81,6 +81,22 @@ describe('RingTokenService', () => {
     });
   });
 
+  it('forces a refresh when expiresAt is unparseable (L-4)', async () => {
+    const { ring, svc } = build();
+    // Persist a record whose expiry cannot be parsed. The refresh token is
+    // encrypted by the service so the forced refresh path can decrypt it.
+    await svc.persist('resident-a', {
+      accessToken: 'stale-access',
+      refreshToken: 'plain-refresh',
+      expiresAt: 'not-a-date',
+    });
+    const token = await svc.getAccessToken('resident-a');
+    // A refresh issues a fresh, opaque access token, not the stored stale one.
+    expect(token).toMatch(/^access-/);
+    expect(token).not.toBe('stale-access');
+    expect(ring.refreshInvocations).toBe(1);
+  });
+
   it('surfaces refresh_failed when no token record exists', async () => {
     const { svc } = build();
     await expect(svc.getAccessToken('unknown')).rejects.toBeInstanceOf(AppError);
