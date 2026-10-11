@@ -53,9 +53,16 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
   // Expose for tests and for other routes that must know the single-session state.
   app.decorate('signalingService', service);
 
-  app.get('/signaling', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
+  app.get('/signaling', { websocket: true }, async (socket: WebSocket, request: FastifyRequest) => {
     const { sessionSecret, wsAllowedOrigins } = app.container.config;
-    const claims = authenticateWs(request, sessionSecret, wsAllowedOrigins);
+    // HIGH-23 / H-1: authenticateWs also consults the erasure deny-list so a
+    // pre-erasure bearer cannot open a live session after DELETE /me/data.
+    const claims = await authenticateWs(
+      request,
+      sessionSecret,
+      wsAllowedOrigins,
+      app.container.sessionInvalidation,
+    );
     if (!claims) {
       // Send a typed error frame then close 4401 so the app runs the unified
       // auth-recovery flow (FR-1.5). Deferred so the client has attached its

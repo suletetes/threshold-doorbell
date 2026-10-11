@@ -15,6 +15,7 @@
 
 import type { FastifyRequest } from 'fastify';
 import { SESSION_COOKIE, verifySession, type SessionClaims } from './session.js';
+import type { SessionInvalidationPort } from '../services/session-invalidation.js';
 
 /** Subprotocol prefix carrying the session token on a WebSocket (MED-34). */
 export const WS_SESSION_PROTOCOL_PREFIX = 'threshold.session.';
@@ -44,15 +45,24 @@ export function isOriginAllowed(request: FastifyRequest, allowedOrigins: readonl
 }
 
 /**
- * Authenticate a WS upgrade: validate Origin, then verify the session token
- * from an allowed source. Returns the claims or null. residentSub is always
- * derived from the verified credential, never from client input.
+ * Authenticate a WS upgrade: validate Origin, verify the session token from an
+ * allowed source, then deny any session issued at or before an erasure cutoff
+ * (HIGH-23 / H-1). Returns the claims or null. residentSub is always derived
+ * from the verified credential, never from client input.
+ *
+ * The erasure deny-list is consulted here (mirroring the HTTP guard in
+ * app.ts requireSession) so a still-valid pre-erasure bearer cannot open a
+ * live /signaling session or an /asr/stream relay after DELETE /me/data.
  */
-export function authenticateWs(
+export async function authenticateWs(
   request: FastifyRequest,
   secret: string,
   allowedOrigins: readonly string[],
-): SessionClaims | null {
+  sessionInvalidation: SessionInvalidationPort,
+): Promise<SessionClaims | null> {
   if (!isOriginAllowed(request, allowedOrigins)) return null;
-  return verifySession(extractWsToken(request), secret);
+  const claims = verifySession(extractWsToken(request), secret);
+  if (!claims) return null;
+  if (await sessionInvalidation.isRevoked(claims.sub, claims.iat)) return null;
+  return claims;
 }
