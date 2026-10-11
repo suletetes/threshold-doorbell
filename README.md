@@ -164,6 +164,13 @@ The device-independent product logic (captions, alerts, sticky outbound mode,
 connectivity, language, model provisioning, vision) and the backend request
 handling (OAuth with PKCE, webhook, devices and events, signaling broker, ASR
 relay, transcripts, replies, observability) are covered by fixture-based tests.
+The backend OAuth-with-PKCE flow is implemented and tested, but sign-in is not
+yet end-to-end on device: the native Android deep-link handoff that delivers the
+one-time code to the app (threshold://auth/complete to POST /oauth/exchange) and
+the live backend session client (ProductionAuthPort) are part of the deferred
+device adapters. The app ships the deep-link parser and exchange contract, so
+the server-side handoff is wired, while the live link listener and HTTPS client
+remain to be bound on a device.
 The production adapters are not built: in a release build the live session,
 speak, Ring launch, smart replies and data erase paths throw, the backend wires
 in-memory fixtures in every environment, and the KMS token store is planned
