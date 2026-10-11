@@ -34,6 +34,14 @@ export async function registerDeviceRoutes(app: FastifyInstance): Promise<void> 
 
       // Record the device->account mapping so inbound webhooks can be attributed
       // to the owning resident instead of a hard-coded account (CRIT-04).
+      //
+      // L-5: this is the point at which a previously-unmapped device becomes
+      // owned. Events delivered before this mapping were quarantined under
+      // UNMAPPED_RESIDENT (see webhook-service.ts) and are NOT retroactively
+      // re-attributed here: re-attribution needs an event-store scan-and-rewrite
+      // by deviceId that the EventStorePort does not expose, so quarantined
+      // events live only until the 7-day event TTL. This is a deliberate,
+      // documented limitation, not an oversight.
       await app.container.deviceAccountStore.mapAll(
         devices.map((d) => d.id),
         residentSub,

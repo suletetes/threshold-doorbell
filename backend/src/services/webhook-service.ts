@@ -132,6 +132,22 @@ export function parseWebhook(raw: unknown): DoorEvent {
  * resident (LOW-30). It is an explicit, non-empty marker so the event is never
  * silently stored under '' (which would be unreachable and unerasable) and is
  * never confused with a real resident.
+ *
+ * L-5: retention and erasure semantics of a quarantined event. An event stored
+ * under this marker:
+ *   - is NEVER pushed (enqueuePush returns false for UNMAPPED_RESIDENT),
+ *   - is NEVER attributable to a real resident, so it is NOT removed by any
+ *     resident's DELETE /me/data (which erases only that resident's own rows),
+ *   - is removed ONLY by the 7-day event TTL, which is the sole lifetime bound
+ *     on an unmapped event.
+ * This is intentional: a device with no owner has no resident whose erasure
+ * could claim it. A FUTURE device-mapping event (deviceAccountStore.map / the
+ * device-list fetch in devices.ts) SHOULD re-attribute any still-quarantined
+ * events for that device to the newly mapped resident, so they become part of
+ * that resident's erasable data. Re-attribution is deferred here because it
+ * needs an event-store scan-and-rewrite keyed by deviceId that the current
+ * EventStorePort does not expose; the 7-day TTL bounds the quarantine until
+ * then.
  */
 export const UNMAPPED_RESIDENT = '__unmapped__';
 
