@@ -1,0 +1,30 @@
+# flutter_launcher_icons configuration for Threshold.
+#
+# Run ONCE after generating the source PNG:
+#   cd app
+#   python scripts/generate_icon.py   # produces assets/icon/app_icon.png
+#   dart run flutter_launcher_icons
+#
+# This generates all Android mipmap densities and the iOS AppIcon asset
+# set from the single 1024x1024 source PNG.
+
+flutter_launcher_icons:
+  # Android adaptive icon (API 26+). The foreground is the doorbell mark
+  # on a transparent background; the background layer is the dark navy brand
+  # colour so any launcher shape (circle, squircle, etc.) looks intentional.
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+
+  # Adaptive icon layers (Android 8+).
+  adaptive_icon_background: "#0C0E13"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+  # Minimum Android SDK the icon targets. Adaptive icons require API 26;
+  # the legacy PNG fallback is generated for older devices automatically.
+  min_sdk_android: 21
+
+  # iOS is planned but not in scope for this build.
+  remove_alpha_ios: false
+  web:
+    generate: false

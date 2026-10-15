@@ -95,9 +95,11 @@ class _SplashScreenState extends State<SplashScreen>
     await Future<void>.delayed(Duration.zero);
     if (!mounted) return;
 
-    // Under reduced motion (or test disableAnimations) collapse everything
-    // to the end state and leave immediately after bootstrap.
-    final reduced = prefersReducedMotion(context);
+    // In test environments the binding sets disableAnimations = true, which
+    // makes pumpAndSettle work correctly. In production we also honour the
+    // platform reduced-motion preference from MediaQuery.
+    final reduced = WidgetsBinding.instance.disableAnimations ||
+        prefersReducedMotion(context);
 
     if (!reduced) {
       // Icon enters.
@@ -118,7 +120,8 @@ class _SplashScreenState extends State<SplashScreen>
         if (!mounted) return;
       }
     } else {
-      // Snap to end state immediately.
+      // Snap to end state immediately so tests (and reduced-motion users)
+      // reach HomeScreen on the next pumpAndSettle.
       _iconCtrl.value = 1.0;
       _wordmarkCtrl.value = 1.0;
     }
