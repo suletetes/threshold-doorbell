@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
-<!-- Use the themed window background so the splash follows light/dark mode and
-     does not flash white in dark mode (LOW-12). Matches drawable-v21. -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
+<!--
+  Threshold launch/splash background (light mode).
 
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+  The window fills with the brand dark-navy (#0C0E13) while the Flutter engine
+  boots. This is the same color as ThresholdColors.dark.surface so the
+  transition from native splash to the Flutter frame is invisible in dark mode,
+  and barely perceptible in light mode (the Flutter frame fades in via the
+  SplashScreen widget). The value must stay in sync with ThresholdColors in
+  lib/design/colors.dart.
+
+  No XML-drawable logo is placed here because Android's XML bitmap layer has no
+  vector scaling above API 26, and placing a large PNG here would cause a
+  resolution mismatch. The brand mark is rendered by the Flutter SplashScreen
+  widget instead.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Brand dark-navy background: matches ThresholdColors.dark.surface and the
+         adaptive icon background (#0C0E13) so the icon composites cleanly. -->
+    <item android:drawable="@color/splash_background" />
 </layer-list>

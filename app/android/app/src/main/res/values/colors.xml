@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive icon background layer. Brand dark-navy. -->
+    <color name="ic_launcher_background">#0C0E13</color>
+    <!-- Native splash window background. Same dark-navy so the splash-to-Flutter
+         transition is seamless. Referenced by launch_background.xml. -->
+    <color name="splash_background">#0C0E13</color>
+</resources>
