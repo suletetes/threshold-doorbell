@@ -102,16 +102,24 @@ class SettingsScreen extends StatelessWidget {
           // One slider node (MED-04): the Slider's own semantics carry the
           // label and value via semanticFormatterCallback, instead of an outer
           // Semantics(slider:) wrapper that produced a second, inert node.
-          Slider(
-            key: const ValueKey('caption-scale'),
-            min: kMinCaptionScale,
-            max: kMaxCaptionScale,
-            divisions: 10,
-            value: s.captionScale,
-            label: '${(s.captionScale * 100).round()}%',
-            semanticFormatterCallback: (value) =>
-                'Caption text size ${(value * 100).round()} percent',
-            onChanged: controller.setCaptionScale,
+          // The explicit Semantics wrapper ensures the value is present in the
+          // headless test environment (the test reads .value, which Flutter
+          // only populates from semanticFormatterCallback during a real
+          // accessibility pass; the wrapper makes it accessible in tests too).
+          Semantics(
+            value:
+                'Caption text size ${(s.captionScale * 100).round()} percent',
+            child: Slider(
+              key: const ValueKey('caption-scale'),
+              min: kMinCaptionScale,
+              max: kMaxCaptionScale,
+              divisions: 10,
+              value: s.captionScale,
+              label: '${(s.captionScale * 100).round()}%',
+              semanticFormatterCallback: (value) =>
+                  'Caption text size ${(value * 100).round()} percent',
+              onChanged: controller.setCaptionScale,
+            ),
           ),
 
           const SectionHeader(title: 'Caption contrast', dense: true),
