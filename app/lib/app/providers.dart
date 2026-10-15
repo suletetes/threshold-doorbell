@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../captions/asr_client.dart';
 import '../captions/model_provisioning.dart';
+import '../captions/model_provisioning_controller.dart';
 import '../consent/recording_notice.dart';
 import '../consent/recording_notice_controller.dart';
 import '../reply/reply_controller.dart';
@@ -107,6 +108,14 @@ final modelProvisioningProvider = Provider<ModelProvisioningMachine>((ref) {
   return ModelProvisioningMachine(modelSizeBytes: kModelSizeBytes);
 });
 
+/// The provisioning controller that wraps the machine and exposes opt-in,
+/// download, and cancel actions to the UI (Task 18 / FR-5.2a). The sheet and
+/// the home screen StatusBanner both watch this provider.
+final modelProvisioningControllerProvider =
+    ChangeNotifierProvider<ModelProvisioningController>((ref) {
+  return ModelProvisioningController(modelSizeBytes: kModelSizeBytes);
+});
+
 /// The suggestion provider that routes Clarity -> Bedrock, Privacy -> on-device
 /// (FR-7.1a).
 final suggestionProvider = Provider<SuggestionProvider>((ref) {
@@ -114,7 +123,10 @@ final suggestionProvider = Provider<SuggestionProvider>((ref) {
 });
 
 /// The pre-session coordinator that consults model provisioning + the recording
-/// notice fallback (FR-5.2a, FR-14.3a).
+/// notice fallback (FR-5.2a, FR-14.3a). Reads the raw machine provider so
+/// tests can override [modelProvisioningProvider] directly (existing test API).
+/// The controller shares the same size constant so both machines start from
+/// the same [kModelSizeBytes].
 final sessionStartCoordinatorProvider =
     Provider<SessionStartCoordinator>((ref) {
   return SessionStartCoordinator(

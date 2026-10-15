@@ -30,6 +30,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../captions/asr_client.dart';
 import '../captions/language_selection.dart';
+import '../captions/model_download_sheet.dart';
 import '../captions/turn_segmentation.dart';
 import '../consent/recording_notice.dart';
 import '../consent/recording_notice_screen.dart';
@@ -104,10 +105,19 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: Spacing.space4),
                 // Out of the action group, and now one of the four shared
                 // status treatments rather than a fifth ad hoc one.
+                // The action opens the model download sheet so the resident
+                // can immediately act on the unavailability (Task 18, FR-5.2a).
                 StatusBanner(
                   message: coordinator.privacyUnavailableLabel,
                   messageKey: const ValueKey('home-privacy-unavailable'),
                   variant: StatusVariant.warning,
+                  action: StatusBannerAction(
+                    label: 'Set up',
+                    icon: Icons.download_outlined,
+                    buttonKey: const ValueKey('home-privacy-setup'),
+                    semanticsLabel: 'Set up on device model download',
+                    onPressed: () => showModelDownloadSheet(context),
+                  ),
                 ),
               ],
               const SizedBox(height: Spacing.space6),

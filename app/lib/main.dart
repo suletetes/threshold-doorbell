@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/home_screen.dart';
 import 'app/production_adapters.dart';
 import 'app/providers.dart';
+import 'app/splash_screen.dart';
 import 'consent/recording_notice.dart';
 import 'design/theme.dart';
 import 'settings/settings_controller.dart';
@@ -60,6 +61,10 @@ class ThresholdApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Threshold',
+      // Suppress the debug ribbon: this is a hackathon demo and an
+      // accessibility product; the ribbon is noisy and obscures the top-right
+      // corner that carries the settings action.
+      debugShowCheckedModeBanner: false,
       // Accessibility is core to this product, not an afterthought:
       // large text, high contrast, full screen-reader support (WCAG 2.2 AA).
       // Both schemes are designed and contrast-tested in lib/design/; dark is
@@ -67,7 +72,7 @@ class ThresholdApp extends StatelessWidget {
       theme: ThresholdTheme.light(),
       darkTheme: ThresholdTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }
