@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="580" viewBox="0 0 1160 580" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/></linearGradient>
+    <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eafaf1"/><stop offset="1" stop-color="#d8f3e4"/></linearGradient>
+    <linearGradient id="gAws" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeef0"/><stop offset="1" stop-color="#fbdfe3"/></linearGradient>
+    <linearGradient id="gCap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2030"/><stop offset="1" stop-color="#0d1017"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1a2540" flood-opacity="0.14"/></filter>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1b7f4b"/></marker>
+    <style>
+      .title{font-size:25px;font-weight:800;fill:#12151b}
+      .sub{font-size:14px;fill:#5b6472}
+      .lbl{font-size:15px;font-weight:700;fill:#12151b}
+      .lbll{font-size:15px;font-weight:700;fill:#ffffff}
+      .desc{font-size:11.5px;fill:#5b6472}
+      .descl{font-size:11.5px;fill:#c4ccd8}
+      .step{font-size:11px;font-weight:800;letter-spacing:.8px;fill:#1565c0}
+      .stepg{font-size:11px;font-weight:800;letter-spacing:.8px;fill:#1b7f4b}
+      .legend{font-size:12.5px;fill:#3a4150}
+      .e{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eg{stroke:#1b7f4b;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+  <rect width="1160" height="580" fill="url(#bg)"/>
+  <text x="44" y="46" class="title">Inbound Flow &#183; Visitor Speech to On-screen Captions</text>
+  <text x="44" y="70" class="sub">Two engines. Clarity Mode uses Amazon Transcribe (default). Privacy Mode transcribes on-device and sends nothing off the phone.</text>
+
+  <g filter="url(#sh)"><rect x="44" y="204" width="150" height="98" rx="16" fill="url(#gRing)" stroke="#1565c0" stroke-width="1.5"/>
+    <rect x="62" y="224" width="22" height="34" rx="6" fill="#1565c0" opacity="0.85"/></g>
+  <text x="119" y="252" class="lbl" text-anchor="middle">Visitor speaks</text>
+  <text x="119" y="274" class="desc" text-anchor="middle">at the Ring doorbell</text>
+
+  <g filter="url(#sh)"><rect x="244" y="204" width="164" height="98" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
+  <text x="326" y="236" class="lbl" text-anchor="middle">WebView audio tap</text>
+  <text x="326" y="260" class="desc" text-anchor="middle">16 kHz mono PCM</text>
+  <text x="326" y="278" class="desc" text-anchor="middle">AudioWorklet</text>
+
+  <g filter="url(#sh)"><rect x="470" y="112" width="210" height="96" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/>
+    <rect x="488" y="130" width="18" height="18" rx="5" fill="#b3261e" opacity="0.85"/></g>
+  <text x="575" y="100" class="step" text-anchor="middle">CLARITY MODE &#183; DEFAULT</text>
+  <text x="585" y="146" class="lbl" text-anchor="middle">Amazon Transcribe</text>
+  <text x="585" y="168" class="desc" text-anchor="middle">streaming, partial</text>
+  <text x="585" y="186" class="desc" text-anchor="middle">results stabilization</text>
+
+  <g filter="url(#sh)"><rect x="470" y="352" width="210" height="96" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
+  <text x="575" y="340" class="stepg" text-anchor="middle">PRIVACY MODE &#183; OPT-IN</text>
+  <text x="585" y="386" class="lbl" text-anchor="middle">On-device Whisper</text>
+  <text x="585" y="408" class="desc" text-anchor="middle">whisper.cpp + VAD</text>
+  <text x="585" y="426" class="desc" text-anchor="middle">zero egress</text>
+
+  <g filter="url(#sh)"><rect x="740" y="204" width="176" height="98" rx="16" fill="#ffffff" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="828" y="236" class="lbl" text-anchor="middle">Turn segmentation</text>
+  <text x="828" y="258" class="desc" text-anchor="middle">speaker turns,</text>
+  <text x="828" y="276" class="desc" text-anchor="middle">confidence per token</text>
+
+  <g filter="url(#sh)"><rect x="956" y="204" width="160" height="98" rx="16" fill="url(#gCap)" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="1036" y="236" class="lbll" text-anchor="middle">Caption surface</text>
+  <text x="1036" y="258" class="descl" text-anchor="middle">provisional vs</text>
+  <text x="1036" y="276" class="descl" text-anchor="middle">confident styling</text>
+
+  <path class="eg" d="M194,253 C220,253 222,253 244,253" marker-end="url(#ag)"/>
+  <path class="e" d="M408,236 C440,236 440,166 460,160 L470,160" marker-end="url(#a)"/>
+  <path class="eg" d="M408,270 C440,270 440,394 460,400 L470,400" marker-end="url(#ag)"/>
+  <path class="e" d="M680,160 C712,160 712,230 730,240 L740,244" marker-end="url(#a)"/>
+  <path class="eg" d="M680,400 C712,400 712,272 730,262 L740,258" marker-end="url(#ag)"/>
+  <path class="e" d="M916,253 C936,253 938,253 956,253" marker-end="url(#a)"/>
+
+  <g filter="url(#sh)"><rect x="44" y="468" width="1072" height="86" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="60" y="494" class="lbl">Caption rules (FR-5.3 / 5.3a, AT-4)</text>
+  <text x="60" y="518" class="legend">A partial result renders provisional, because Amazon Transcribe gives no per-token confidence on partials.</text>
+  <text x="60" y="538" class="legend">A finalized token below 0.6 renders de-emphasized; at or above 0.6 renders normal. Foreground is the enforced 4.5:1 color; OS text scale is clamped to 200%.</text>
+</svg>
