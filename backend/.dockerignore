@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+test/
+*.log
+.env
+.env.*
+.env.demo
+.eslintrc.cjs
+tsconfig.json
+tsconfig.build.json
+README.md
+docs/
