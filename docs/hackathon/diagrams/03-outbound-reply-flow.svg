@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="510" viewBox="0 0 1160 510" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafc"/><stop offset="1" stop-color="#eef1f6"/></linearGradient>
+    <linearGradient id="gRing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f0ff"/><stop offset="1" stop-color="#d6e4ff"/></linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eafaf1"/><stop offset="1" stop-color="#d8f3e4"/></linearGradient>
+    <linearGradient id="gAws" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeef0"/><stop offset="1" stop-color="#fbdfe3"/></linearGradient>
+    <linearGradient id="gBk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf6e3"/><stop offset="1" stop-color="#f7ecc9"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1a2540" flood-opacity="0.14"/></filter>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1565c0"/></marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1b7f4b"/></marker>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#b3261e"/></marker>
+    <style>
+      .title{font-size:25px;font-weight:800;fill:#12151b}
+      .sub{font-size:14px;fill:#5b6472}
+      .lbl{font-size:15px;font-weight:700;fill:#12151b}
+      .desc{font-size:11.5px;fill:#5b6472}
+      .legend{font-size:12.5px;fill:#3a4150}
+      .e{stroke:#1565c0;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .eg{stroke:#1b7f4b;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .er{stroke:#b3261e;stroke-width:2.4;fill:none;stroke-dasharray:6 4;stroke-linecap:round}
+    </style>
+  </defs>
+  <rect width="1160" height="510" fill="url(#bg)"/>
+  <text x="44" y="46" class="title">Outbound Flow &#183; Tap a Reply to a Voice at the Door (ARCH-1)</text>
+  <text x="44" y="70" class="sub">The defining capability. A probe decides once per session whether spoken replies work; if not, the session degrades to Captions-Only.</text>
+
+  <g filter="url(#sh)"><rect x="44" y="158" width="150" height="92" rx="16" fill="#ffffff" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="119" y="190" class="lbl" text-anchor="middle">Resident</text>
+  <text x="119" y="212" class="desc" text-anchor="middle">taps a reply</text>
+  <text x="119" y="230" class="desc" text-anchor="middle">or types text</text>
+
+  <g filter="url(#sh)"><rect x="44" y="300" width="150" height="86" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/>
+    <rect x="60" y="316" width="16" height="16" rx="4" fill="#b3261e" opacity="0.85"/></g>
+  <text x="119" y="340" class="lbl" text-anchor="middle">Bedrock</text>
+  <text x="119" y="360" class="desc" text-anchor="middle">up to 3 suggestions</text>
+  <text x="119" y="377" class="desc" text-anchor="middle">Clarity Mode only</text>
+
+  <g filter="url(#sh)"><rect x="244" y="158" width="160" height="92" rx="16" fill="#ffffff" stroke="#1565c0" stroke-width="1.5"/></g>
+  <text x="324" y="190" class="lbl" text-anchor="middle">TTS synthesize</text>
+  <text x="324" y="212" class="desc" text-anchor="middle">flutter_tts to</text>
+  <text x="324" y="230" class="desc" text-anchor="middle">PCM buffer</text>
+
+  <g filter="url(#sh)"><rect x="454" y="158" width="184" height="92" rx="16" fill="url(#gApp)" stroke="#1b7f4b" stroke-width="1.5"/></g>
+  <text x="546" y="186" class="lbl" text-anchor="middle">WebView inject</text>
+  <text x="546" y="206" class="desc" text-anchor="middle">AudioContext to</text>
+  <text x="546" y="222" class="desc" text-anchor="middle">replaceTrack on the</text>
+  <text x="546" y="238" class="desc" text-anchor="middle">outbound audio track</text>
+
+  <g filter="url(#sh)"><rect x="688" y="158" width="160" height="92" rx="16" fill="url(#gRing)" stroke="#1565c0" stroke-width="1.5"/>
+    <rect x="704" y="176" width="20" height="30" rx="6" fill="#1565c0" opacity="0.85"/></g>
+  <text x="778" y="190" class="lbl" text-anchor="middle">Ring doorbell</text>
+  <text x="778" y="212" class="desc" text-anchor="middle">speaker plays</text>
+  <text x="778" y="230" class="desc" text-anchor="middle">the reply</text>
+
+  <g filter="url(#sh)"><rect x="898" y="158" width="218" height="92" rx="16" fill="#ffffff" stroke="#c4ccd8" stroke-width="1.5"/>
+    <circle cx="928" cy="192" r="9" fill="#c4ccd8"/><path d="M914,220 q14,-16 28,0" fill="none" stroke="#c4ccd8" stroke-width="5" stroke-linecap="round"/></g>
+  <text x="1015" y="190" class="lbl" text-anchor="middle">Visitor hears it</text>
+  <text x="1015" y="212" class="desc" text-anchor="middle">and replies,</text>
+  <text x="1015" y="230" class="desc" text-anchor="middle">captions continue</text>
+
+  <g filter="url(#sh)"><rect x="454" y="312" width="184" height="90" rx="16" fill="url(#gBk)" stroke="#b6892b" stroke-width="1.5"/></g>
+  <text x="546" y="342" class="lbl" text-anchor="middle">Capability probe</text>
+  <text x="546" y="362" class="desc" text-anchor="middle">near-silent test,</text>
+  <text x="546" y="380" class="desc" text-anchor="middle">sticky per session</text>
+
+  <g filter="url(#sh)"><rect x="688" y="312" width="160" height="90" rx="16" fill="url(#gAws)" stroke="#b3261e" stroke-width="1.5"/></g>
+  <text x="768" y="342" class="lbl" text-anchor="middle">Captions-Only</text>
+  <text x="768" y="362" class="desc" text-anchor="middle">reply bar hidden,</text>
+  <text x="768" y="380" class="desc" text-anchor="middle">receive-only</text>
+
+  <path class="e" d="M194,204 C220,204 222,204 244,204" marker-end="url(#a)"/>
+  <path class="e" d="M119,300 C119,280 119,270 119,250" marker-end="url(#a)"/>
+  <path class="e" d="M404,204 C430,204 432,204 454,204" marker-end="url(#a)"/>
+  <path class="eg" d="M638,204 C664,204 666,204 688,204" marker-end="url(#ag)"/>
+  <path class="eg" d="M848,204 C874,204 876,204 898,204" marker-end="url(#ag)"/>
+  <path class="er" d="M546,312 C546,290 546,280 546,250" marker-end="url(#ar)"/>
+  <path class="er" d="M638,357 C664,357 666,357 688,357" marker-end="url(#ar)"/>
+  <text x="556" y="300" class="legend" fill="#b6892b">probe result</text>
+  <text x="663" y="350" class="legend" fill="#b3261e" text-anchor="middle">on fail</text>
+
+  <g filter="url(#sh)"><rect x="44" y="428" width="1072" height="62" rx="12" fill="#ffffff" stroke="#e0e5ec"/></g>
+  <text x="60" y="452" class="legend">flutter_webrtc lacks Insertable Streams on every platform, so the outbound audio is injected inside a WebView (browser WebRTC). This is ARCH-1.</text>
+  <text x="60" y="474" class="legend">The probe runs once after connect; a later injection failure degrades that session to Captions-Only with no auto-recovery, and the next session re-probes.</text>
+</svg>

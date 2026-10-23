@@ -1,3 +1,4 @@
 # Local project source-of-truth and working context (kept out of the public repo)
 .kiro/
-docs/hackathon/
+docs/hackathon/*
+!docs/hackathon/diagrams/
