@@ -22,6 +22,7 @@ import { FixtureRing } from './services/fixtures/fixture-ring.js';
 import { FixtureRingSignaling } from './services/fixtures/fixture-ring-signaling.js';
 import { FixtureTranscribe } from './services/fixtures/fixture-transcribe.js';
 import { FixtureBedrock } from './services/fixtures/fixture-bedrock.js';
+import { RealBedrock } from './services/real-bedrock.js';
 import { FixturePush } from './services/fixtures/fixture-push.js';
 import {
   MemoryConversationStore,
@@ -137,7 +138,9 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const ring = overrides.ring ?? new FixtureRing();
   const ringSignaling = overrides.ringSignaling ?? new FixtureRingSignaling();
   const transcribe = overrides.transcribe ?? new FixtureTranscribe();
-  const bedrock = overrides.bedrock ?? new FixtureBedrock();
+  // Use RealBedrock in local/demo (real AWS Nova Micro), FixtureBedrock in test
+  // (no network calls during vitest runs — test harness always overrides anyway).
+  const bedrock = overrides.bedrock ?? (config.env === 'test' ? new FixtureBedrock() : new RealBedrock());
   const push = overrides.push ?? new FixturePush();
   const tokenStore = overrides.tokenStore ?? new MemoryTokenStore();
   const eventStore = overrides.eventStore ?? new MemoryEventStore();
