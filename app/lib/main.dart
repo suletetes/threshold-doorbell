@@ -19,12 +19,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'app/home_screen.dart';
+import 'app/mock_adapters.dart';
 import 'app/production_adapters.dart';
 import 'app/providers.dart';
 import 'app/splash_screen.dart';
+import 'captions/asr_client.dart';
 import 'consent/recording_notice.dart';
 import 'design/theme.dart';
+import 'reply/reply_port.dart';
+import 'reply/suggestion_provider.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_store.dart';
 
@@ -51,6 +54,25 @@ Future<List<Override>> bootstrapOverrides() async {
     consentStoreProvider.overrideWith((ref) => consentStore as ConsentStore),
     settingsStoreProvider.overrideWith((ref) => settingsStore as SettingsStore),
     settingsControllerProvider.overrideWith((ref) => settingsController),
+    // DEMO=true (two-phone WiFi doorbell demo): swap the device/Ring/cloud-bound
+    // production stubs for the real backend-talking mock adapters. The app then
+    // connects to BACKEND_URL for signaling, captions, and replies, and speaks
+    // the chosen reply aloud on the resident phone. See lib/app/mock_adapters.dart.
+    if (DemoConfig.enabled) ...<Override>[
+      sessionPortProvider.overrideWith((ref) {
+        final port = MockSessionPort();
+        ref.onDispose(port.dispose);
+        return port;
+      }),
+      captionSourceProvider.overrideWith((ref) {
+        final client = MockAsrStreamClient();
+        ref.onDispose(client.dispose);
+        return client as CaptionSource;
+      }),
+      bedrockSuggestionPortProvider
+          .overrideWith((ref) => BackendBedrockSuggestionPort() as BedrockSuggestionPort),
+      replyPortProvider.overrideWith((ref) => MockReplyPort() as ReplyPort),
+    ],
   ];
 }
 

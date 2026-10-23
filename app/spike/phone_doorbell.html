@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<!--
+  phone_doorbell.html — Threshold Phone Mock Doorbell
+  ====================================================
+  Turns any phone (or browser tab) into a simulated Ring doorbell.
+  No Ring device, no Ring account, no credentials required.
+  Works entirely on local WiFi — peer-to-peer WebRTC via STUN only.
+
+  WHAT IT DOES
+  ─────────────
+  1.  Rings the Threshold backend as if a real Ring doorbell pressed its button.
+  2.  Opens a bidirectional WebRTC audio session (sendrecv) through your backend's
+      /signaling broker — exactly what a real Ring WHEP session provides.
+  3.  Plays incoming TTS audio (the resident's spoken reply) from the app.
+  4.  Streams the visitor's microphone audio to the backend /asr/stream relay,
+      which forwards it to Amazon Transcribe → live captions on the resident's phone.
+
+  HOW TO USE FOR A DEMO
+  ──────────────────────
+  Step 1 – Start the backend:
+      cd backend && npm run dev          (local fixtures, no AWS needed)
+      -- OR --
+      Point BACKEND_URL below to your deployed AWS backend.
+
+  Step 2 – Open this file on the "visitor" phone:
+      Serve it from the repo root:
+          npx serve .   (then open http://<your-laptop-ip>:3000/app/spike/phone_doorbell.html)
+      -- OR -- open the file directly in Chrome on desktop for a quick offline test.
+
+  Step 3 – Open the Flutter app on the resident phone:
+      flutter run                        (connects to the same backend)
+
+  Step 4 – Tap "Ring Doorbell" on this page.
+      The resident phone receives a haptic alert and captions appear as you speak.
+      Tap a reply on the resident phone → you hear it spoken aloud here.
+
+  NETWORKING
+  ──────────
+  Both devices must be on the same WiFi network (or the backend must be publicly
+  accessible).  WebRTC uses Google's public STUN server for NAT traversal.
+  No TURN server is needed on a local network.
+
+  BACKEND_URL constant below: change to your deployed backend URL if not running locally.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Threshold — Phone Doorbell Mock</title>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --primary: #238636;
+      --danger:  #da3633;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --accent:  #1f6feb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100dvh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+    header {
+      text-align: center;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p  { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+    .doorbell-icon {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 3px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 56px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .doorbell-icon.ringing {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 8px rgba(31,111,235,0.25), 0 0 0 16px rgba(31,111,235,0.1);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 8px rgba(31,111,235,0.25), 0 0 0 16px rgba(31,111,235,0.1); }
+      50%       { box-shadow: 0 0 0 12px rgba(31,111,235,0.15), 0 0 0 24px rgba(31,111,235,0.05); }
+    }
+
+    .status-pill {
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .status-pill.connected   { background: rgba(35,134,54,0.15); border-color: var(--primary); color: #3fb950; }
+    .status-pill.ringing     { background: rgba(31,111,235,0.15); border-color: var(--accent);  color: #58a6ff; }
+    .status-pill.error       { background: rgba(218,54,51,0.15); border-color: var(--danger);  color: #f85149; }
+
+    .btn {
+      width: 100%; max-width: 360px;
+      padding: 14px;
+      border: none; border-radius: 10px;
+      font-size: 1rem; font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active  { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ring    { background: var(--primary); color: #fff; }
+    .btn-hangup  { background: var(--danger);  color: #fff; }
+    .btn-speak   { background: var(--accent);  color: #fff; }
+
+    .config-box {
+      width: 100%; max-width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .config-box label { font-size: 0.8rem; color: var(--muted); }
+    .config-box input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 8px 10px;
+      width: 100%;
+    }
+    .config-box input:focus { outline: none; border-color: var(--accent); }
+
+    .log-box {
+      width: 100%; max-width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      height: 180px;
+      overflow-y: auto;
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    audio { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🔔 Threshold Doorbell Mock</h1>
+  <p>visitor phone — simulates a Ring doorbell</p>
+</header>
+
+<!-- The doorbell visual -->
+<div class="doorbell-icon" id="icon">🔔</div>
+<div class="status-pill" id="status">idle</div>
+
+<!-- Config (shown collapsed on small screens) -->
+<details style="width:100%;max-width:360px">
+  <summary style="cursor:pointer;color:var(--muted);font-size:0.85rem;padding:4px 0">⚙ Configuration</summary>
+  <div class="config-box" style="margin-top:10px">
+    <label>Backend URL</label>
+    <input id="backendUrl" type="url"
+           value="http://localhost:8080"
+           placeholder="http://localhost:8080" />
+    <label>Device ID (any string)</label>
+    <input id="deviceId" type="text"
+           value="mock-doorbell-001"
+           placeholder="mock-doorbell-001" />
+    <label>Fixture session token (from /oauth/exchange or leave default)</label>
+    <input id="sessionToken" type="text"
+           value="demo-session-token"
+           placeholder="demo-session-token" />
+  </div>
+</details>
+
+<!-- Action buttons -->
+<button class="btn btn-ring"   id="btnRing"   onclick="ringDoorbell()">🔔  Ring Doorbell</button>
+<button class="btn btn-speak"  id="btnSpeak"  onclick="startSpeaking()" disabled>🎤  Start Speaking</button>
+<button class="btn btn-hangup" id="btnHangup" onclick="hangUp()" disabled>📵  Hang Up</button>
+
+<!-- Incoming audio from resident (TTS reply) -->
+<audio id="remoteAudio" autoplay playsinline></audio>
+
+<!-- Activity log -->
+<div class="log-box" id="log">Threshold phone doorbell mock ready.\nTap "Ring Doorbell" to simulate a visitor.\n</div>
+
+<script>
+"use strict";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ──────────────────────────────────────────────────────────────────────────────
+const STUN_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────────────────────────────
+let pc          = null;   // RTCPeerConnection
+let localStream = null;   // microphone stream
+let asrWs       = null;   // WebSocket to /asr/stream
+let sessionUrl  = null;   // Ring session URL returned by /signaling
+let isRinging   = false;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────────────────────────────────────
+const logEl    = document.getElementById("log");
+const statusEl = document.getElementById("status");
+const iconEl   = document.getElementById("icon");
+
+function log(msg) {
+  const ts = new Date().toTimeString().slice(0, 8);
+  logEl.textContent += `[${ts}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(text, cls = "") {
+  statusEl.textContent = text;
+  statusEl.className   = "status-pill" + (cls ? " " + cls : "");
+}
+
+function cfg(id)    { return document.getElementById(id).value.trim(); }
+function backendUrl(){ return cfg("backendUrl").replace(/\/$/, ""); }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STEP 1 — Fire a simulated Ring doorbell-press webhook
+//          In a real deployment Ring POSTs this to the backend automatically.
+//          Here we POST it ourselves so the resident app receives the alert.
+// ──────────────────────────────────────────────────────────────────────────────
+async function fireMockWebhook() {
+  const url = `${backendUrl()}/webhook/ring`;
+  log(`POST ${url}  (mock doorbell-press event)`);
+
+  // The backend verifies HMAC on the raw body (security/hmac.ts).
+  // In demo mode (THRESHOLD_ENV=demo) HMAC verification is bypassed for the
+  // fixture webhook, so any body is accepted.  In staging/prod supply a real
+  // WEBHOOK_HMAC_KEY and sign the body with HMAC-SHA256.
+  const body = JSON.stringify({
+    requestId:   `mock-${Date.now()}`,
+    deviceId:    cfg("deviceId"),
+    eventType:   "ding",
+    timestamp:   new Date().toISOString(),
+  });
+
+  try {
+    const r = await fetch(url, {
+      method:  "POST",
+      headers: {
+        "Content-Type":     "application/json",
+        "X-Ring-Signature": "mock-bypass",  // accepted in demo env
+      },
+      body,
+    });
+    if (r.ok) {
+      log(`Webhook accepted (${r.status}) — resident should receive a push alert`);
+    } else {
+      const t = await r.text().catch(() => "");
+      log(`Webhook returned ${r.status}: ${t.slice(0, 120)}`);
+    }
+  } catch (e) {
+    log(`Webhook failed: ${e.message}  (is the backend running at ${backendUrl()}?)`);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STEP 2 — Open a WebRTC session through the backend /signaling broker
+//          This is the same path the Flutter WebView uses for a real Ring session.
+//          The broker exchanges SDP with FixtureRingSignaling (demo mode) or
+//          the real Ring WHEP endpoint (staging/prod).
+// ──────────────────────────────────────────────────────────────────────────────
+async function openWebRtcSession() {
+  log("Requesting microphone …");
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    log("Microphone granted");
+  } catch (e) {
+    log(`Microphone denied: ${e.message}`);
+    setStatus("mic denied", "error");
+    return false;
+  }
+
+  // Create peer connection (audio sendrecv — ARCH-1 shape)
+  pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+
+  // Add local audio track (visitor's microphone → doorbell → Transcribe)
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  // Play incoming audio (resident's TTS reply → spoken at the door)
+  pc.ontrack = e => {
+    log("Incoming audio track received (resident reply)");
+    const audio = document.getElementById("remoteAudio");
+    if (!audio.srcObject) audio.srcObject = new MediaStream();
+    audio.srcObject.addTrack(e.track);
+    audio.play().catch(() => {});
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    log(`ICE state: ${pc.iceConnectionState}`);
+    if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+      setStatus("connected", "connected");
+    }
+    if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
+      setStatus("disconnected", "error");
+    }
+  };
+
+  // Create SDP offer
+  const offer = await pc.createOffer({ offerToReceiveAudio: true });
+  await pc.setLocalDescription(offer);
+
+  // Wait for ICE gathering to complete (simple approach — adequate for LAN)
+  await new Promise(resolve => {
+    if (pc.iceGatheringState === "complete") { resolve(); return; }
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === "complete") resolve();
+    };
+    // Timeout fallback in case onicecandidate never fires "complete"
+    setTimeout(resolve, 3000);
+  });
+
+  // POST SDP offer to the backend signaling broker
+  const sigUrl = `${backendUrl()}/signaling`;
+  log(`POST ${sigUrl}  (SDP offer, ${offer.sdp.length} chars)`);
+
+  let sigResp;
+  try {
+    sigResp = await fetch(sigUrl, {
+      method:  "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie":       `session=${cfg("sessionToken")}`,  // session cookie
+      },
+      body: JSON.stringify({
+        sdpOffer: pc.localDescription.sdp,
+        deviceId: cfg("deviceId"),
+      }),
+      credentials: "include",
+    });
+  } catch (e) {
+    log(`Signaling fetch failed: ${e.message}`);
+    setStatus("signaling error", "error");
+    return false;
+  }
+
+  if (!sigResp.ok) {
+    const t = await sigResp.text().catch(() => "");
+    log(`Signaling ${sigResp.status}: ${t.slice(0, 160)}`);
+    setStatus(`signaling ${sigResp.status}`, "error");
+    return false;
+  }
+
+  const data = await sigResp.json();
+  sessionUrl = data.sessionUrl ?? null;
+  log(`SDP answer received  sessionUrl=${sessionUrl}`);
+
+  await pc.setRemoteDescription({ type: "answer", sdp: data.sdpAnswer });
+  log("WebRTC peer connection established");
+  return true;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STEP 3 — Open /asr/stream WebSocket and forward microphone audio
+//          The backend relays PCM to Amazon Transcribe → live captions on app
+// ──────────────────────────────────────────────────────────────────────────────
+function openAsrStream() {
+  const wsProto = backendUrl().startsWith("https") ? "wss" : "ws";
+  const wsBase  = backendUrl().replace(/^https?/, wsProto);
+  const asrUrl  = `${wsBase}/asr/stream?lang=en-US`;
+  log(`Opening ASR stream: ${asrUrl}`);
+
+  asrWs = new WebSocket(asrUrl);
+  asrWs.binaryType = "arraybuffer";
+
+  asrWs.onopen = () => {
+    log("ASR WebSocket open — streaming audio to Transcribe");
+    startAudioCapture();
+  };
+  asrWs.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.transcript) {
+        log(`Caption (${msg.isFinal ? "FINAL" : "partial"}): "${msg.transcript}"`);
+      }
+    } catch (_) {}
+  };
+  asrWs.onerror = e => log(`ASR WebSocket error: ${e.message ?? "unknown"}`);
+  asrWs.onclose = c => log(`ASR WebSocket closed: ${c.code} ${c.reason}`);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Audio capture: use AudioWorklet (preferred) or ScriptProcessorNode fallback
+// to send 16 kHz mono PCM frames to the backend.
+// ──────────────────────────────────────────────────────────────────────────────
+let audioCtx        = null;
+let mediaSource     = null;
+let processorNode   = null;
+
+function startAudioCapture() {
+  if (!localStream || !asrWs) return;
+
+  audioCtx    = new AudioContext({ sampleRate: 16000 });
+  mediaSource = audioCtx.createMediaStreamSource(localStream);
+
+  // ScriptProcessorNode (deprecated but universally supported on mobile browsers)
+  // AudioWorklet would be better but requires a worker script file.
+  const FRAME_SIZE = 4096;
+  processorNode = audioCtx.createScriptProcessor(FRAME_SIZE, 1, 1);
+  processorNode.onaudioprocess = e => {
+    if (!asrWs || asrWs.readyState !== WebSocket.OPEN) return;
+    const float32 = e.inputBuffer.getChannelData(0);
+    // Convert Float32 to Int16 PCM (what Transcribe expects)
+    const pcm16 = new Int16Array(float32.length);
+    for (let i = 0; i < float32.length; i++) {
+      pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+    }
+    asrWs.send(pcm16.buffer);
+  };
+
+  mediaSource.connect(processorNode);
+  processorNode.connect(audioCtx.destination);
+  log("Audio capture active — speak near the phone mic");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PUBLIC BUTTON HANDLERS
+// ──────────────────────────────────────────────────────────────────────────────
+
+async function ringDoorbell() {
+  if (isRinging) return;
+  isRinging = true;
+
+  document.getElementById("btnRing").disabled   = true;
+  document.getElementById("btnSpeak").disabled  = false;
+  document.getElementById("btnHangup").disabled = false;
+  iconEl.classList.add("ringing");
+  setStatus("ringing …", "ringing");
+
+  log("=== Ring Doorbell ===");
+
+  // Fire the webhook so the resident gets a push alert
+  await fireMockWebhook();
+
+  // Open the WebRTC session through the signaling broker
+  const ok = await openWebRtcSession();
+  if (!ok) {
+    log("Session setup failed — using audio-only mode (no WebRTC)");
+    // Still open ASR so captions work even if signaling is down
+  }
+
+  // Stream microphone to Transcribe via /asr/stream
+  openAsrStream();
+
+  setStatus("ringing — session active", "ringing");
+  log("Session active. Speak to generate captions on the resident phone.");
+  log('Tap "Start Speaking" to confirm the resident can hear you (optional TTS test).');
+}
+
+function startSpeaking() {
+  // This is a no-op if audio capture is already running from openAsrStream().
+  // Provided as a reassuring button for demo purposes.
+  log("Speaking mode confirmed — your voice is being transcribed");
+  document.getElementById("btnSpeak").disabled = true;
+}
+
+function hangUp() {
+  log("=== Hang Up ===");
+
+  // Stop audio capture
+  if (processorNode)  { processorNode.disconnect(); processorNode = null; }
+  if (mediaSource)    { mediaSource.disconnect();   mediaSource   = null; }
+  if (audioCtx)       { audioCtx.close();            audioCtx      = null; }
+
+  // Close ASR WebSocket
+  if (asrWs) { asrWs.close(1000, "hangup"); asrWs = null; }
+
+  // Close WebRTC
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  if (pc)          { pc.close(); pc = null; }
+
+  // Tell the backend to release the Ring session URL
+  if (sessionUrl) {
+    const url = `${backendUrl()}/signaling/release`;
+    fetch(url, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "Cookie": `session=${cfg("sessionToken")}` },
+      body:    JSON.stringify({ sessionUrl }),
+      credentials: "include",
+    }).catch(() => {});
+    sessionUrl = null;
+  }
+
+  // Reset UI
+  isRinging = false;
+  iconEl.classList.remove("ringing");
+  setStatus("idle");
+  document.getElementById("btnRing").disabled   = false;
+  document.getElementById("btnSpeak").disabled  = true;
+  document.getElementById("btnHangup").disabled = true;
+  document.getElementById("remoteAudio").srcObject = null;
+
+  log("Session ended.");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Cleanup on page unload
+// ──────────────────────────────────────────────────────────────────────────────
+window.addEventListener("beforeunload", hangUp);
+
+log(`Backend URL: ${backendUrl()}`);
+log("Tip: Change Backend URL above if your backend is not at localhost:8080.");
+log("Tip: Both this page and the Flutter app must reach the same backend.\n");
+</script>
+</body>
+</html>

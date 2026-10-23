@@ -18,6 +18,16 @@ dependencies:
   # --- Value-type equality helpers (immutable settings, LOW-06) ---
   collection: ^1.18.0
 
+  # --- Demo mock adapters (audio-only doorbell mock, DEMO=true) ---
+  # These power the two-phone WiFi demo: the resident app talks to the backend
+  # over WebSocket (signaling + ASR) and HTTP (replies), and speaks the chosen
+  # reply aloud. They are real runtime plugins, used only when the app is built
+  # with --dart-define=DEMO=true (see lib/app/mock_adapters.dart and main.dart).
+  web_socket_channel: ^3.0.0   # /signaling + /asr/stream WebSockets
+  http: ^1.2.0                 # POST /replies (Nova Micro suggestions)
+  flutter_tts: ^4.2.0          # speak the chosen reply aloud on the resident phone
+  vibration: ^2.0.0            # haptic doorbell alert vocabulary
+
   # NOTE: runtime plugins for the deferred device/cloud adapters are NOT declared
   # here yet, because nothing imports them and each ships tens of MB of native
   # code that bloats the APK (HIGH-01) and pulls in silent Firebase IID/telemetry
