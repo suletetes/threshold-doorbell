@@ -1,535 +1,1152 @@
 <!DOCTYPE html>
-<!--
-  phone_doorbell.html — Threshold Phone Mock Doorbell
-  ====================================================
-  Turns any phone (or browser tab) into a simulated Ring doorbell.
-  No Ring device, no Ring account, no credentials required.
-  Works entirely on local WiFi — peer-to-peer WebRTC via STUN only.
-
-  WHAT IT DOES
-  ─────────────
-  1.  Rings the Threshold backend as if a real Ring doorbell pressed its button.
-  2.  Opens a bidirectional WebRTC audio session (sendrecv) through your backend's
-      /signaling broker — exactly what a real Ring WHEP session provides.
-  3.  Plays incoming TTS audio (the resident's spoken reply) from the app.
-  4.  Streams the visitor's microphone audio to the backend /asr/stream relay,
-      which forwards it to Amazon Transcribe → live captions on the resident's phone.
-
-  HOW TO USE FOR A DEMO
-  ──────────────────────
-  Step 1 – Start the backend:
-      cd backend && npm run dev          (local fixtures, no AWS needed)
-      -- OR --
-      Point BACKEND_URL below to your deployed AWS backend.
-
-  Step 2 – Open this file on the "visitor" phone:
-      Serve it from the repo root:
-          npx serve .   (then open http://<your-laptop-ip>:3000/app/spike/phone_doorbell.html)
-      -- OR -- open the file directly in Chrome on desktop for a quick offline test.
-
-  Step 3 – Open the Flutter app on the resident phone:
-      flutter run                        (connects to the same backend)
-
-  Step 4 – Tap "Ring Doorbell" on this page.
-      The resident phone receives a haptic alert and captions appear as you speak.
-      Tap a reply on the resident phone → you hear it spoken aloud here.
-
-  NETWORKING
-  ──────────
-  Both devices must be on the same WiFi network (or the backend must be publicly
-  accessible).  WebRTC uses Google's public STUN server for NAT traversal.
-  No TURN server is needed on a local network.
-
-  BACKEND_URL constant below: change to your deployed backend URL if not running locally.
--->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Threshold — Phone Doorbell Mock</title>
+  <meta name="theme-color" content="#0f172a" />
+  <title>Threshold Doorbell</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E" />
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310b981'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E" />
   <style>
     :root {
-      --bg:      #0d1117;
-      --surface: #161b22;
-      --border:  #30363d;
-      --primary: #238636;
-      --danger:  #da3633;
-      --text:    #e6edf3;
-      --muted:   #8b949e;
-      --accent:  #1f6feb;
+      --bg: #020617;
+      --surface: #0f172a;
+      --surface-elevated: #1e293b;
+      --border: #334155;
+      --border-light: #475569;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --primary-soft: rgba(16, 185, 129, 0.12);
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-soft: rgba(239, 68, 68, 0.12);
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-soft: rgba(59, 130, 246, 0.12);
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.4);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       min-height: 100dvh;
-      display: flex; flex-direction: column; align-items: center;
-      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top, 24px) env(safe-area-inset-right, 16px) env(safe-area-inset-bottom, 24px) env(safe-area-inset-left, 16px);
+      gap: 16px;
+      line-height: 1.5;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
       gap: 20px;
     }
+
+    /* Header */
     header {
       text-align: center;
-    }
-    header h1 { font-size: 1.4rem; font-weight: 700; }
-    header p  { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
-
-    .doorbell-icon {
-      width: 120px; height: 120px;
-      border-radius: 50%;
-      background: var(--surface);
-      border: 3px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 56px;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .doorbell-icon.ringing {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 8px rgba(31,111,235,0.25), 0 0 0 16px rgba(31,111,235,0.1);
-      animation: pulse 1s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 8px rgba(31,111,235,0.25), 0 0 0 16px rgba(31,111,235,0.1); }
-      50%       { box-shadow: 0 0 0 12px rgba(31,111,235,0.15), 0 0 0 24px rgba(31,111,235,0.05); }
+      padding-top: 8px;
     }
 
-    .status-pill {
-      padding: 6px 16px;
-      border-radius: 999px;
-      font-size: 0.8rem;
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+      stroke: white;
+    }
+
+    h1 {
+      font-size: clamp(1.25rem, 4vw, 1.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    /* Status */
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
       font-weight: 600;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       background: var(--surface);
       border: 1px solid var(--border);
-      color: var(--muted);
-      transition: all 0.2s;
+      color: var(--text-secondary);
+      transition: all var(--transition);
     }
-    .status-pill.connected   { background: rgba(35,134,54,0.15); border-color: var(--primary); color: #3fb950; }
-    .status-pill.ringing     { background: rgba(31,111,235,0.15); border-color: var(--accent);  color: #58a6ff; }
-    .status-pill.error       { background: rgba(218,54,51,0.15); border-color: var(--danger);  color: #f85149; }
 
-    .btn {
-      width: 100%; max-width: 360px;
-      padding: 14px;
-      border: none; border-radius: 10px;
-      font-size: 1rem; font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all var(--transition);
     }
-    .btn:active  { transform: scale(0.97); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-ring    { background: var(--primary); color: #fff; }
-    .btn-hangup  { background: var(--danger);  color: #fff; }
-    .btn-speak   { background: var(--accent);  color: #fff; }
 
-    .config-box {
-      width: 100%; max-width: 360px;
+    .status.connected {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .status.connected::before {
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status.ringing {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .status.ringing::before {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .status.error {
+      background: var(--danger-soft);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .status.error::before {
+      background: var(--danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    /* Doorbell Button */
+    .doorbell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 24px 16px;
+    }
+
+    .doorbell-button {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      border: none;
+      border-radius: 50%;
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      display: flex; flex-direction: column; gap: 10px;
+      cursor: pointer;
+      transition: all var(--transition);
+      box-shadow:
+        0 0 0 1px var(--border),
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
-    .config-box label { font-size: 0.8rem; color: var(--muted); }
-    .config-box input {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 0.9rem;
-      padding: 8px 10px;
+
+    .doorbell-button:active {
+      transform: scale(0.96);
+    }
+
+    .doorbell-button:focus-visible {
+      outline: none;
+      box-shadow:
+        0 0 0 1px var(--border),
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        var(--focus-ring);
+    }
+
+    .doorbell-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .doorbell-button.ringing {
+      box-shadow:
+        0 0 0 1px var(--accent),
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 0 40px rgba(59, 130, 246, 0.3),
+        0 0 80px rgba(59, 130, 246, 0.15);
+      animation: ringPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes ringPulse {
+      0%, 100% { box-shadow: 0 0 0 1px var(--accent), var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 40px rgba(59, 130, 246, 0.3), 0 0 80px rgba(59, 130, 246, 0.15); }
+      50% { box-shadow: 0 0 0 1px var(--accent), var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 60px rgba(59, 130, 246, 0.4), 0 0 120px rgba(59, 130, 246, 0.2); }
+    }
+
+    .doorbell-icon {
+      width: 64px;
+      height: 64px;
+      stroke: var(--text-secondary);
+      transition: stroke var(--transition);
+    }
+
+    .doorbell-button:not(:disabled):hover .doorbell-icon {
+      stroke: var(--text);
+    }
+
+    .doorbell-button.ringing .doorbell-icon {
+      stroke: var(--accent);
+    }
+
+    .doorbell-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    /* Action Buttons */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       width: 100%;
     }
-    .config-box input:focus { outline: none; border-color: var(--accent); }
 
-    .log-box {
-      width: 100%; max-width: 360px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px;
-      height: 180px;
-      overflow-y: auto;
-      font-family: ui-monospace, "Cascadia Code", monospace;
-      font-size: 0.75rem;
-      color: var(--muted);
-      white-space: pre-wrap;
-      word-break: break-all;
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 20px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: all var(--transition);
+      text-decoration: none;
     }
 
-    audio { display: none; }
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #052e1b;
+    }
+
+    .btn-primary:not(:disabled):hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: var(--surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:not(:disabled):hover {
+      background: var(--surface);
+      border-color: var(--border-light);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-danger:not(:disabled):hover {
+      background: var(--danger-hover);
+    }
+
+    .btn-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    /* Config Panel */
+    .config-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .config-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .config-summary:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+
+    .config-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .config-icon {
+      width: 20px;
+      height: 20px;
+      stroke: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .config-chevron {
+      width: 20px;
+      height: 20px;
+      stroke: var(--text-muted);
+      transition: transform var(--transition);
+      flex-shrink: 0;
+    }
+
+    .config-panel[open] .config-chevron {
+      transform: rotate(180deg);
+    }
+
+    .config-content {
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .field-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: inherit;
+      transition: all var(--transition);
+    }
+
+    .field-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .field-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+    }
+
+    .field-input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .field-hint {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Log Panel */
+    .log-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      flex: 1;
+      min-height: 200px;
+      max-height: 280px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .log-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .log-clear {
+      padding: 6px 10px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .log-clear:hover {
+      background: var(--surface-elevated);
+      color: var(--text);
+    }
+
+    .log-clear:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    .log-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      padding: 4px 0;
+      border-bottom: 1px solid transparent;
+      transition: border-color var(--transition);
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-entry:hover {
+      border-bottom-color: var(--border);
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .log-message {
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .log-message.success { color: var(--primary); }
+    .log-message.error { color: var(--danger); }
+    .log-message.warning { color: #f59e0b; }
+    .log-message.info { color: var(--accent); }
+
+    /* Audio Element */
+    audio {
+      display: none;
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: 160px;
+      text-align: center;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 0.8rem;
+      font-weight: 400;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: auto;
+      padding-top: 8px;
+      text-align: center;
+    }
+
+    .version {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    /* Responsive */
+    @media (max-width: 360px) {
+      .doorbell-button {
+        width: 140px;
+        height: 140px;
+      }
+      .doorbell-icon {
+        width: 56px;
+        height: 56px;
+      }
+      .btn {
+        padding: 12px 16px;
+        font-size: 0.875rem;
+      }
+    }
+
+    @media (min-width: 600px) {
+      body {
+        padding: 32px 24px;
+        gap: 24px;
+      }
+      .app-container {
+        max-width: 480px;
+      }
+      .doorbell-button {
+        width: 180px;
+        height: 180px;
+      }
+      .doorbell-icon {
+        width: 72px;
+        height: 72px;
+      }
+    }
   </style>
 </head>
 <body>
+  <div class="app-container">
+    <header>
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </div>
+      <h1>Threshold</h1>
+      <p class="subtitle">Doorbell Simulator</p>
+    </header>
 
-<header>
-  <h1>🔔 Threshold Doorbell Mock</h1>
-  <p>visitor phone — simulates a Ring doorbell</p>
-</header>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span id="statusText">Idle</span>
+    </div>
 
-<!-- The doorbell visual -->
-<div class="doorbell-icon" id="icon">🔔</div>
-<div class="status-pill" id="status">idle</div>
+    <section class="doorbell" aria-label="Doorbell controls">
+      <button
+        class="doorbell-button"
+        id="btnRing"
+        onclick="ringDoorbell()"
+        aria-label="Ring doorbell"
+        aria-pressed="false"
+      >
+        <svg class="doorbell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </button>
+      <p class="doorbell-label" id="doorbellLabel">Press to ring</p>
+    </section>
 
-<!-- Config (shown collapsed on small screens) -->
-<details style="width:100%;max-width:360px">
-  <summary style="cursor:pointer;color:var(--muted);font-size:0.85rem;padding:4px 0">⚙ Configuration</summary>
-  <div class="config-box" style="margin-top:10px">
-    <label>Backend URL</label>
-    <input id="backendUrl" type="url"
-           value="http://localhost:8080"
-           placeholder="http://localhost:8080" />
-    <label>Device ID (any string)</label>
-    <input id="deviceId" type="text"
-           value="mock-doorbell-001"
-           placeholder="mock-doorbell-001" />
-    <label>Fixture session token (from /oauth/exchange or leave default)</label>
-    <input id="sessionToken" type="text"
-           value="demo-session-token"
-           placeholder="demo-session-token" />
+    <div class="actions" role="group" aria-label="Session actions">
+      <button class="btn btn-primary" id="btnSpeak" onclick="startSpeaking()" disabled aria-label="Start speaking">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+        </svg>
+        Start Speaking
+      </button>
+      <button class="btn btn-danger" id="btnHangup" onclick="hangUp()" disabled aria-label="Hang up">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21.8 13.8a10.5 10.5 0 0 0-3.7-3.7L21 3 18 6l3.7 3.7a10.5 10.5 0 0 0-3.7 3.7L3 21 6 24l15-15Z"/>
+          <line x1="6" y1="6" x2="18" y2="18" stroke-width="2.5"/>
+        </svg>
+        Hang Up
+      </button>
+    </div>
+
+    <details class="config-panel" id="configPanel">
+      <summary class="config-summary" aria-expanded="false" aria-controls="configContent">
+        <span class="config-title">
+          <svg class="config-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Configuration
+        </span>
+        <svg class="config-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </summary>
+      <div class="config-content" id="configContent">
+        <div class="field">
+          <label class="field-label" for="backendUrl">Backend URL</label>
+          <input
+            class="field-input"
+            id="backendUrl"
+            type="url"
+            value="https://Thresh-Thres-QXRy57cU4C8m-1653027497.us-east-1.elb.amazonaws.com"
+            placeholder="https://your-backend.example.com"
+            autocomplete="url"
+          />
+          <p class="field-hint">Your deployed Threshold backend</p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="deviceId">Device ID</label>
+          <input
+            class="field-input"
+            id="deviceId"
+            type="text"
+            value="mock-doorbell-001"
+            placeholder="mock-doorbell-001"
+            autocomplete="off"
+          />
+          <p class="field-hint">Must match the resident app</p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="sessionToken">Session Token</label>
+          <input
+            class="field-input"
+            id="sessionToken"
+            type="text"
+            value="demo-session-token"
+            placeholder="demo-session-token"
+            autocomplete="off"
+          />
+          <p class="field-hint">Demo token for fixture auth</p>
+        </div>
+      </div>
+    </details>
+
+    <section class="log-panel" aria-label="Activity log">
+      <div class="log-header">
+        <span class="log-title">Activity</span>
+        <button class="log-clear" id="btnClearLog" onclick="clearLog()" aria-label="Clear log">Clear</button>
+      </div>
+      <div class="log-content" id="log" role="log" aria-live="polite" aria-atomic="false">
+        <div class="empty-state" id="emptyLog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+          <p>Ready. Press the button to simulate a doorbell press.</p>
+        </div>
+      </div>
+    </section>
   </div>
-</details>
 
-<!-- Action buttons -->
-<button class="btn btn-ring"   id="btnRing"   onclick="ringDoorbell()">🔔  Ring Doorbell</button>
-<button class="btn btn-speak"  id="btnSpeak"  onclick="startSpeaking()" disabled>🎤  Start Speaking</button>
-<button class="btn btn-hangup" id="btnHangup" onclick="hangUp()" disabled>📵  Hang Up</button>
+  <footer>
+    <p class="version">Threshold Doorbell Simulator v1.0</p>
+  </footer>
 
-<!-- Incoming audio from resident (TTS reply) -->
-<audio id="remoteAudio" autoplay playsinline></audio>
+  <!-- Incoming audio from resident (TTS reply) -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
 
-<!-- Activity log -->
-<div class="log-box" id="log">Threshold phone doorbell mock ready.\nTap "Ring Doorbell" to simulate a visitor.\n</div>
+  <script>
+  "use strict";
 
-<script>
-"use strict";
+  // ──────────────────────────────────────────────────────────────────────────────
+  // CONSTANTS
+  // ──────────────────────────────────────────────────────────────────────────────
+  const STUN_SERVERS = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ];
 
-// ──────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ──────────────────────────────────────────────────────────────────────────────
-const STUN_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STATE
+  // ──────────────────────────────────────────────────────────────────────────────
+  let pc = null;
+  let localStream = null;
+  let asrWs = null;
+  let sessionUrl = null;
+  let isRinging = false;
 
-// ──────────────────────────────────────────────────────────────────────────────
-// STATE
-// ──────────────────────────────────────────────────────────────────────────────
-let pc          = null;   // RTCPeerConnection
-let localStream = null;   // microphone stream
-let asrWs       = null;   // WebSocket to /asr/stream
-let sessionUrl  = null;   // Ring session URL returned by /signaling
-let isRinging   = false;
+  // ──────────────────────────────────────────────────────────────────────────────
+  // DOM ELEMENTS
+  // ──────────────────────────────────────────────────────────────────────────────
+  const statusEl = document.getElementById("status");
+  const statusTextEl = document.getElementById("statusText");
+  const doorbellBtn = document.getElementById("btnRing");
+  const doorbellLabelEl = document.getElementById("doorbellLabel");
+  const btnSpeak = document.getElementById("btnSpeak");
+  const btnHangup = document.getElementById("btnHangup");
+  const logEl = document.getElementById("log");
+  const emptyLogEl = document.getElementById("emptyLog");
 
-// ──────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ──────────────────────────────────────────────────────────────────────────────
-const logEl    = document.getElementById("log");
-const statusEl = document.getElementById("status");
-const iconEl   = document.getElementById("icon");
+  // ──────────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ──────────────────────────────────────────────────────────────────────────────
+  function cfg(id) {
+    return document.getElementById(id).value.trim();
+  }
 
-function log(msg) {
-  const ts = new Date().toTimeString().slice(0, 8);
-  logEl.textContent += `[${ts}] ${msg}\n`;
-  logEl.scrollTop = logEl.scrollHeight;
-}
+  function backendUrl() {
+    return cfg("backendUrl").replace(/\/+$/, "");
+  }
 
-function setStatus(text, cls = "") {
-  statusEl.textContent = text;
-  statusEl.className   = "status-pill" + (cls ? " " + cls : "");
-}
+  function setStatus(text, cls = "") {
+    statusTextEl.textContent = text;
+    statusEl.className = "status" + (cls ? " " + cls : "");
+  }
 
-function cfg(id)    { return document.getElementById(id).value.trim(); }
-function backendUrl(){ return cfg("backendUrl").replace(/\/$/, ""); }
+  function log(msg, type = "") {
+    if (emptyLogEl) {
+      emptyLogEl.remove();
+      emptyLogEl = null;
+    }
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    const time = new Date().toTimeString().slice(0, 8);
+    entry.innerHTML = '<span class="log-time">[' + time + ']</span><span class="log-message' + (type ? " " + type : "") + '">' + msg + "</span>";
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// STEP 1 — Fire a simulated Ring doorbell-press webhook
-//          In a real deployment Ring POSTs this to the backend automatically.
-//          Here we POST it ourselves so the resident app receives the alert.
-// ──────────────────────────────────────────────────────────────────────────────
-async function fireMockWebhook() {
-  const url = `${backendUrl()}/webhook/ring`;
-  log(`POST ${url}  (mock doorbell-press event)`);
+  function clearLog() {
+    logEl.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.id = "emptyLog";
+    empty.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><p>Log cleared.</p>';
+    logEl.appendChild(empty);
+    emptyLogEl = empty;
+  }
 
-  // The backend verifies HMAC on the raw body (security/hmac.ts).
-  // In demo mode (THRESHOLD_ENV=demo) HMAC verification is bypassed for the
-  // fixture webhook, so any body is accepted.  In staging/prod supply a real
-  // WEBHOOK_HMAC_KEY and sign the body with HMAC-SHA256.
-  const body = JSON.stringify({
-    requestId:   `mock-${Date.now()}`,
-    deviceId:    cfg("deviceId"),
-    eventType:   "ding",
-    timestamp:   new Date().toISOString(),
-  });
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 1 — Fire a simulated Ring doorbell-press webhook
+  // ──────────────────────────────────────────────────────────────────────────────
+  async function fireMockWebhook() {
+    const url = backendUrl() + "/webhook";
+    log("POST " + url + "  (mock doorbell-press event)");
 
-  try {
-    const r = await fetch(url, {
-      method:  "POST",
-      headers: {
-        "Content-Type":     "application/json",
-        "X-Ring-Signature": "mock-bypass",  // accepted in demo env
-      },
-      body,
+    const body = JSON.stringify({
+      request_id: "mock-" + Date.now(),
+      device_id: cfg("deviceId"),
+      event_type: "motion_detected",
+      timestamp: new Date().toISOString(),
     });
-    if (r.ok) {
-      log(`Webhook accepted (${r.status}) — resident should receive a push alert`);
-    } else {
-      const t = await r.text().catch(() => "");
-      log(`Webhook returned ${r.status}: ${t.slice(0, 120)}`);
-    }
-  } catch (e) {
-    log(`Webhook failed: ${e.message}  (is the backend running at ${backendUrl()}?)`);
-  }
-}
 
-// ──────────────────────────────────────────────────────────────────────────────
-// STEP 2 — Open a WebRTC session through the backend /signaling broker
-//          This is the same path the Flutter WebView uses for a real Ring session.
-//          The broker exchanges SDP with FixtureRingSignaling (demo mode) or
-//          the real Ring WHEP endpoint (staging/prod).
-// ──────────────────────────────────────────────────────────────────────────────
-async function openWebRtcSession() {
-  log("Requesting microphone …");
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    log("Microphone granted");
-  } catch (e) {
-    log(`Microphone denied: ${e.message}`);
-    setStatus("mic denied", "error");
-    return false;
-  }
-
-  // Create peer connection (audio sendrecv — ARCH-1 shape)
-  pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-
-  // Add local audio track (visitor's microphone → doorbell → Transcribe)
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-
-  // Play incoming audio (resident's TTS reply → spoken at the door)
-  pc.ontrack = e => {
-    log("Incoming audio track received (resident reply)");
-    const audio = document.getElementById("remoteAudio");
-    if (!audio.srcObject) audio.srcObject = new MediaStream();
-    audio.srcObject.addTrack(e.track);
-    audio.play().catch(() => {});
-  };
-
-  pc.oniceconnectionstatechange = () => {
-    log(`ICE state: ${pc.iceConnectionState}`);
-    if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-      setStatus("connected", "connected");
-    }
-    if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
-      setStatus("disconnected", "error");
-    }
-  };
-
-  // Create SDP offer
-  const offer = await pc.createOffer({ offerToReceiveAudio: true });
-  await pc.setLocalDescription(offer);
-
-  // Wait for ICE gathering to complete (simple approach — adequate for LAN)
-  await new Promise(resolve => {
-    if (pc.iceGatheringState === "complete") { resolve(); return; }
-    pc.onicegatheringstatechange = () => {
-      if (pc.iceGatheringState === "complete") resolve();
-    };
-    // Timeout fallback in case onicecandidate never fires "complete"
-    setTimeout(resolve, 3000);
-  });
-
-  // POST SDP offer to the backend signaling broker
-  const sigUrl = `${backendUrl()}/signaling`;
-  log(`POST ${sigUrl}  (SDP offer, ${offer.sdp.length} chars)`);
-
-  let sigResp;
-  try {
-    sigResp = await fetch(sigUrl, {
-      method:  "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cookie":       `session=${cfg("sessionToken")}`,  // session cookie
-      },
-      body: JSON.stringify({
-        sdpOffer: pc.localDescription.sdp,
-        deviceId: cfg("deviceId"),
-      }),
-      credentials: "include",
-    });
-  } catch (e) {
-    log(`Signaling fetch failed: ${e.message}`);
-    setStatus("signaling error", "error");
-    return false;
-  }
-
-  if (!sigResp.ok) {
-    const t = await sigResp.text().catch(() => "");
-    log(`Signaling ${sigResp.status}: ${t.slice(0, 160)}`);
-    setStatus(`signaling ${sigResp.status}`, "error");
-    return false;
-  }
-
-  const data = await sigResp.json();
-  sessionUrl = data.sessionUrl ?? null;
-  log(`SDP answer received  sessionUrl=${sessionUrl}`);
-
-  await pc.setRemoteDescription({ type: "answer", sdp: data.sdpAnswer });
-  log("WebRTC peer connection established");
-  return true;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// STEP 3 — Open /asr/stream WebSocket and forward microphone audio
-//          The backend relays PCM to Amazon Transcribe → live captions on app
-// ──────────────────────────────────────────────────────────────────────────────
-function openAsrStream() {
-  const wsProto = backendUrl().startsWith("https") ? "wss" : "ws";
-  const wsBase  = backendUrl().replace(/^https?/, wsProto);
-  const asrUrl  = `${wsBase}/asr/stream?lang=en-US`;
-  log(`Opening ASR stream: ${asrUrl}`);
-
-  asrWs = new WebSocket(asrUrl);
-  asrWs.binaryType = "arraybuffer";
-
-  asrWs.onopen = () => {
-    log("ASR WebSocket open — streaming audio to Transcribe");
-    startAudioCapture();
-  };
-  asrWs.onmessage = e => {
     try {
-      const msg = JSON.parse(e.data);
-      if (msg.transcript) {
-        log(`Caption (${msg.isFinal ? "FINAL" : "partial"}): "${msg.transcript}"`);
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Ring-Signature": "mock-bypass",
+        },
+        body: body,
+      });
+      if (r.ok) {
+        log("Webhook accepted (" + r.status + ") — resident should receive a push alert", "success");
+      } else {
+        const t = await r.text().catch(function () { return ""; });
+        log("Webhook returned " + r.status + ": " + t.slice(0, 120), "warning");
       }
-    } catch (_) {}
-  };
-  asrWs.onerror = e => log(`ASR WebSocket error: ${e.message ?? "unknown"}`);
-  asrWs.onclose = c => log(`ASR WebSocket closed: ${c.code} ${c.reason}`);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Audio capture: use AudioWorklet (preferred) or ScriptProcessorNode fallback
-// to send 16 kHz mono PCM frames to the backend.
-// ──────────────────────────────────────────────────────────────────────────────
-let audioCtx        = null;
-let mediaSource     = null;
-let processorNode   = null;
-
-function startAudioCapture() {
-  if (!localStream || !asrWs) return;
-
-  audioCtx    = new AudioContext({ sampleRate: 16000 });
-  mediaSource = audioCtx.createMediaStreamSource(localStream);
-
-  // ScriptProcessorNode (deprecated but universally supported on mobile browsers)
-  // AudioWorklet would be better but requires a worker script file.
-  const FRAME_SIZE = 4096;
-  processorNode = audioCtx.createScriptProcessor(FRAME_SIZE, 1, 1);
-  processorNode.onaudioprocess = e => {
-    if (!asrWs || asrWs.readyState !== WebSocket.OPEN) return;
-    const float32 = e.inputBuffer.getChannelData(0);
-    // Convert Float32 to Int16 PCM (what Transcribe expects)
-    const pcm16 = new Int16Array(float32.length);
-    for (let i = 0; i < float32.length; i++) {
-      pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+    } catch (e) {
+      log("Webhook failed: " + e.message + "  (is the backend running at " + backendUrl() + "?)", "error");
     }
-    asrWs.send(pcm16.buffer);
-  };
-
-  mediaSource.connect(processorNode);
-  processorNode.connect(audioCtx.destination);
-  log("Audio capture active — speak near the phone mic");
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// PUBLIC BUTTON HANDLERS
-// ──────────────────────────────────────────────────────────────────────────────
-
-async function ringDoorbell() {
-  if (isRinging) return;
-  isRinging = true;
-
-  document.getElementById("btnRing").disabled   = true;
-  document.getElementById("btnSpeak").disabled  = false;
-  document.getElementById("btnHangup").disabled = false;
-  iconEl.classList.add("ringing");
-  setStatus("ringing …", "ringing");
-
-  log("=== Ring Doorbell ===");
-
-  // Fire the webhook so the resident gets a push alert
-  await fireMockWebhook();
-
-  // Open the WebRTC session through the signaling broker
-  const ok = await openWebRtcSession();
-  if (!ok) {
-    log("Session setup failed — using audio-only mode (no WebRTC)");
-    // Still open ASR so captions work even if signaling is down
   }
 
-  // Stream microphone to Transcribe via /asr/stream
-  openAsrStream();
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 2 — Open a WebRTC session through the backend /signaling broker
+  // ──────────────────────────────────────────────────────────────────────────────
+  async function openWebRtcSession() {
+    log("Requesting microphone access…");
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      log("Microphone granted", "success");
+    } catch (e) {
+      log("Microphone denied: " + e.message, "error");
+      setStatus("Mic denied", "error");
+      return false;
+    }
 
-  setStatus("ringing — session active", "ringing");
-  log("Session active. Speak to generate captions on the resident phone.");
-  log('Tap "Start Speaking" to confirm the resident can hear you (optional TTS test).');
-}
+    pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
 
-function startSpeaking() {
-  // This is a no-op if audio capture is already running from openAsrStream().
-  // Provided as a reassuring button for demo purposes.
-  log("Speaking mode confirmed — your voice is being transcribed");
-  document.getElementById("btnSpeak").disabled = true;
-}
+    localStream.getTracks().forEach(function (t) {
+      pc.addTrack(t, localStream);
+    });
 
-function hangUp() {
-  log("=== Hang Up ===");
+    pc.ontrack = function (e) {
+      log("Incoming audio track received (resident reply)", "info");
+      var audio = document.getElementById("remoteAudio");
+      if (!audio.srcObject) {
+        audio.srcObject = new MediaStream();
+      }
+      audio.srcObject.addTrack(e.track);
+      audio.play().catch(function () {});
+    };
 
-  // Stop audio capture
-  if (processorNode)  { processorNode.disconnect(); processorNode = null; }
-  if (mediaSource)    { mediaSource.disconnect();   mediaSource   = null; }
-  if (audioCtx)       { audioCtx.close();            audioCtx      = null; }
+    pc.oniceconnectionstatechange = function () {
+      log("ICE state: " + pc.iceConnectionState);
+      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        setStatus("Connected", "connected");
+      }
+      if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
+        setStatus("Disconnected", "error");
+      }
+    };
 
-  // Close ASR WebSocket
-  if (asrWs) { asrWs.close(1000, "hangup"); asrWs = null; }
+    var offer = await pc.createOffer({ offerToReceiveAudio: true });
+    await pc.setLocalDescription(offer);
 
-  // Close WebRTC
-  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  if (pc)          { pc.close(); pc = null; }
+    await new Promise(function (resolve) {
+      if (pc.iceGatheringState === "complete") {
+        resolve();
+        return;
+      }
+      pc.onicegatheringstatechange = function () {
+        if (pc.iceGatheringState === "complete") {
+          resolve();
+        }
+      };
+      setTimeout(resolve, 3000);
+    });
 
-  // Tell the backend to release the Ring session URL
-  if (sessionUrl) {
-    const url = `${backendUrl()}/signaling/release`;
-    fetch(url, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json", "Cookie": `session=${cfg("sessionToken")}` },
-      body:    JSON.stringify({ sessionUrl }),
-      credentials: "include",
-    }).catch(() => {});
-    sessionUrl = null;
+    var sigWsProto = backendUrl().startsWith("https") ? "wss" : "ws";
+    var sigWsBase = backendUrl().replace(/^https?/, sigWsProto);
+    var sigUrl = sigWsBase + "/signaling";
+    var sessionToken = cfg("sessionToken");
+    log("WS " + sigUrl + "  (SDP offer/answer)");
+
+    var sigResult = await new Promise(function (resolve) {
+      var sigWs = new WebSocket(sigUrl, ["threshold.session." + sessionToken]);
+      var settled = false;
+
+      sigWs.onopen = function () {
+        var offerMsg = JSON.stringify({
+          type: "offer",
+          deviceId: cfg("deviceId"),
+          sdp: pc.localDescription.sdp,
+        });
+        sigWs.send(offerMsg);
+        log("Offer sent via signaling WebSocket");
+      };
+
+      sigWs.onmessage = function (e) {
+        if (settled) return;
+        try {
+          var msg = JSON.parse(e.data);
+          if (msg.type === "answer") {
+            settled = true;
+            sessionUrl = msg.sessionUrl ?? null;
+            log("SDP answer received  sessionUrl=" + sessionUrl, "success");
+            sigWs.close(1000, "done");
+            resolve({ ok: true, sdpAnswer: msg.sdpAnswer });
+          } else if (msg.type === "error") {
+            settled = true;
+            log("Signaling error: " + msg.code + " " + (msg.message || ""), "error");
+            sigWs.close(1000, "error");
+            resolve({ ok: false });
+          }
+        } catch (err) {
+          log("Signaling parse error: " + err.message, "error");
+        }
+      };
+
+      sigWs.onerror = function (err) {
+        if (!settled) {
+          settled = true;
+          log("Signaling WebSocket error", "error");
+          resolve({ ok: false });
+        }
+      };
+
+      sigWs.onclose = function (ev) {
+        if (!settled) {
+          settled = true;
+          log("Signaling closed early: " + ev.code + " " + ev.reason, "error");
+          resolve({ ok: false });
+        }
+      };
+
+      // 10 s timeout
+      setTimeout(function () {
+        if (!settled) {
+          settled = true;
+          log("Signaling timeout", "error");
+          sigWs.close();
+          resolve({ ok: false });
+        }
+      }, 10000);
+    });
+
+    if (!sigResult.ok) {
+      setStatus("Signaling failed", "error");
+      return false;
+    }
+
+    await pc.setRemoteDescription({ type: "answer", sdp: sigResult.sdpAnswer });
+    log("WebRTC peer connection established", "success");
+    return true;
   }
 
-  // Reset UI
-  isRinging = false;
-  iconEl.classList.remove("ringing");
-  setStatus("idle");
-  document.getElementById("btnRing").disabled   = false;
-  document.getElementById("btnSpeak").disabled  = true;
-  document.getElementById("btnHangup").disabled = true;
-  document.getElementById("remoteAudio").srcObject = null;
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 3 — Open /asr/stream WebSocket and forward microphone audio
+  // ──────────────────────────────────────────────────────────────────────────────
+  function openAsrStream() {
+    var wsProto = backendUrl().startsWith("https") ? "wss" : "ws";
+    var wsBase = backendUrl().replace(/^https?/, wsProto);
+    var asrUrl = wsBase + "/asr/stream?lang=en-US";
+    log("Opening ASR stream: " + asrUrl);
 
-  log("Session ended.");
-}
+    asrWs = new WebSocket(asrUrl, ["threshold.session." + cfg("sessionToken")]);
+    asrWs.binaryType = "arraybuffer";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Cleanup on page unload
-// ──────────────────────────────────────────────────────────────────────────────
-window.addEventListener("beforeunload", hangUp);
+    asrWs.onopen = function () {
+      log("ASR WebSocket open — streaming audio to Transcribe", "success");
+      startAudioCapture();
+    };
 
-log(`Backend URL: ${backendUrl()}`);
-log("Tip: Change Backend URL above if your backend is not at localhost:8080.");
-log("Tip: Both this page and the Flutter app must reach the same backend.\n");
-</script>
+    asrWs.onmessage = function (e) {
+      try {
+        var msg = JSON.parse(e.data);
+        if (msg.transcript) {
+          log('Caption (' + (msg.isFinal ? "FINAL" : "partial") + '): "' + msg.transcript + '"', "info");
+        }
+      } catch (_) {}
+    };
+
+    asrWs.onerror = function (e) {
+      log("ASR WebSocket error: " + (e.message ?? "unknown"), "error");
+    };
+
+    asrWs.onclose = function (c) {
+      log("ASR WebSocket closed: " + c.code + " " + c.reason, "warning");
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Audio capture: ScriptProcessorNode fallback
+  // ──────────────────────────────────────────────────────────────────────────────
+  var audioCtx = null;
+  var mediaSource = null;
+  var processorNode = null;
+
+  function startAudioCapture() {
+    if (!localStream || !asrWs) {
+      return;
+    }
+
+    audioCtx = new AudioContext({ sampleRate: 16000 });
+    mediaSource = audioCtx.createMediaStreamSource(localStream);
+
+    var FRAME_SIZE = 4096;
+    processorNode = audioCtx.createScriptProcessor(FRAME_SIZE, 1, 1);
+    processorNode.onaudioprocess = function (e) {
+      if (!asrWs || asrWs.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      var float32 = e.inputBuffer.getChannelData(0);
+      var pcm16 = new Int16Array(float32.length);
+      for (var i = 0; i < float32.length; i++) {
+        pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+      }
+      asrWs.send(pcm16.buffer);
+    };
+
+    mediaSource.connect(processorNode);
+    processorNode.connect(audioCtx.destination);
+    log("Audio capture active — speak near the phone mic", "info");
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // PUBLIC BUTTON HANDLERS
+  // ──────────────────────────────────────────────────────────────────────────────
+  async function ringDoorbell() {
+    if (isRinging) {
+      return;
+    }
+    isRinging = true;
+
+    doorbellBtn.disabled = true;
+    btnSpeak.disabled = false;
+    btnHangup.disabled = false;
+    doorbellBtn.classList.add("ringing");
+    doorbellBtn.setAttribute("aria-pressed", "true");
+    setStatus("Ringing…", "ringing");
+    doorbellLabelEl.textContent = "Ringing…";
+
+    log("=== Ring Doorbell ===");
+
+    await fireMockWebhook();
+
+    var ok = await openWebRtcSession();
+    if (!ok) {
+      log("Session setup failed — using audio-only mode (no WebRTC)", "warning");
+    }
+
+    openAsrStream();
+
+    setStatus("Session active", "ringing");
+    doorbellLabelEl.textContent = "Session active — speak to generate captions";
+    log("Session active. Speak to generate captions on the resident phone.", "info");
+    log('Tap "Start Speaking" to confirm the resident can hear you (optional TTS test).');
+  }
+
+  function startSpeaking() {
+    log("Speaking mode confirmed — your voice is being transcribed", "info");
+    btnSpeak.disabled = true;
+  }
+
+  function hangUp() {
+    log("=== Hang Up ===");
+
+    if (processorNode) {
+      processorNode.disconnect();
+      processorNode = null;
+    }
+    if (mediaSource) {
+      mediaSource.disconnect();
+      mediaSource = null;
+    }
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+
+    if (asrWs) {
+      asrWs.close(1000, "hangup");
+      asrWs = null;
+    }
+
+    if (localStream) {
+      localStream.getTracks().forEach(function (t) { t.stop(); });
+      localStream = null;
+    }
+    if (pc) {
+      pc.close();
+      pc = null;
+    }
+
+    if (sessionUrl) {
+      var url = backendUrl() + "/signaling/release";
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Cookie": "session=" + cfg("sessionToken") },
+        body: JSON.stringify({ sessionUrl: sessionUrl }),
+        credentials: "include",
+      }).catch(function () {});
+      sessionUrl = null;
+    }
+
+    isRinging = false;
+    doorbellBtn.disabled = false;
+    btnSpeak.disabled = true;
+    btnHangup.disabled = true;
+    doorbellBtn.classList.remove("ringing");
+    doorbellBtn.setAttribute("aria-pressed", "false");
+    doorbellLabelEl.textContent = "Press to ring";
+    setStatus("Idle");
+    document.getElementById("remoteAudio").srcObject = null;
+
+    log("Session ended.", "info");
+  }
+
+  window.addEventListener("beforeunload", hangUp);
+
+  log("Backend URL: " + backendUrl());
+  log("Tip: Both this page and the Flutter app must reach the same backend.");
+  </script>
 </body>
 </html>

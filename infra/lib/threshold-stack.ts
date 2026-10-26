@@ -17,6 +17,7 @@ import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -116,6 +117,10 @@ export class ThresholdStack extends cdk.Stack {
             BEDROCK_REGION: region,
             HOST: '0.0.0.0',
             PORT: '8080',
+            // Allow browser WebSocket connections from the Vercel visitor page.
+            // Without this, any request with an Origin header is rejected by
+            // isOriginAllowed() in ws-auth.ts (MED-34).
+            WS_ALLOWED_ORIGINS: 'https://spike-rho-sepia.vercel.app',
           },
           secrets: {
             SESSION_SECRET: ecs.Secret.fromSecretsManager(sessionSecret),
@@ -163,20 +168,54 @@ export class ThresholdStack extends cdk.Stack {
       }),
     );
 
+    // --- HTTPS listener (port 443) using an imported self-signed cert.
+    // This fixes the mixed-content block that prevents the HTTPS Vercel visitor
+    // page from opening WebSocket connections to the HTTP-only ALB.
+    //
+    // The cert covers the ELB DNS name and was imported to ACM with:
+    //   aws acm import-certificate --certificate fileb://cert.pem --private-key fileb://key.pem
+    //
+    // Browsers will show a certificate warning for the self-signed cert, which
+    // is acceptable for a hackathon demo. Replace with a proper ACM-managed cert
+    // (via a custom domain + DNS validation) before any public launch.
+    const cert = elbv2.ListenerCertificate.fromArn(
+      'arn:aws:acm:us-east-1:356650046555:certificate/46651a29-3336-42b3-ac7c-aaba0f1a9c93',
+    );
+
+    service.loadBalancer.addListener('HTTPS', {
+      port: 443,
+      open: true,
+      certificates: [cert],
+      defaultAction: elbv2.ListenerAction.forward([service.targetGroup]),
+    });
+
+    // Redirect HTTP → HTTPS so any http:// link auto-upgrades.
+    // The L3 pattern already created the HTTP:80 listener as
+    // `service.listener`; replace its default action with a redirect.
+    service.listener.addAction('RedirectToHTTPS', {
+      priority: 1,
+      conditions: [elbv2.ListenerCondition.pathPatterns(['/*'])],
+      action: elbv2.ListenerAction.redirect({
+        port: '443',
+        protocol: 'HTTPS',
+        permanent: true,
+      }),
+    });
+
     // --- Outputs ---
     new cdk.CfnOutput(this, 'AlbDnsName', {
       value: service.loadBalancer.loadBalancerDnsName,
-      description: 'Public ALB DNS. Probe http://<dns>/ready and point the app BACKEND_URL here.',
+      description: 'Public ALB DNS. Backend is now reachable over HTTPS.',
     });
 
     new cdk.CfnOutput(this, 'ReadyUrl', {
-      value: `http://${service.loadBalancer.loadBalancerDnsName}/ready`,
-      description: 'Health check URL. Should return {"ready":true}.',
+      value: `https://${service.loadBalancer.loadBalancerDnsName}/ready`,
+      description: 'Health check URL (HTTPS). Should return {"ready":true}.',
     });
 
     new cdk.CfnOutput(this, 'SignalingWsUrl', {
-      value: `ws://${service.loadBalancer.loadBalancerDnsName}/signaling`,
-      description: 'WebSocket signaling endpoint for the live session.',
+      value: `wss://${service.loadBalancer.loadBalancerDnsName}/signaling`,
+      description: 'Secure WebSocket signaling endpoint for the live session.',
     });
   }
 }

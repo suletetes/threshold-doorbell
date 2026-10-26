@@ -81,7 +81,14 @@ class MockSessionPort implements SessionPort {
   @override
   Future<NegotiatedMedia> connect(String deviceId) async {
     final uri = Uri.parse('$_wsBase/signaling');
-    final channel = WebSocketChannel.connect(uri);
+    // Pass the session token via the Sec-WebSocket-Protocol subprotocol (the
+    // browser-safe way to pass a credential on a WS that the backend accepts;
+    // see ws-auth.ts). This avoids putting the token in the URL query string
+    // (which ends up in ALB access logs).
+    final protocols = <String>[
+      'threshold.session.${DemoConfig.sessionToken}',
+    ];
+    final channel = WebSocketChannel.connect(uri, protocols: protocols);
     _channel = channel;
 
     final answer = Completer<NegotiatedMedia>();
@@ -174,6 +181,10 @@ class MockSessionPort implements SessionPort {
 /// a [CaptionResult] on the [captions] stream that the CaptionPump consumes.
 /// The visitor's speech (captured by phone_doorbell.html and relayed to Amazon
 /// Transcribe by the backend) arrives here as partial and final results.
+///
+/// The WebSocket is opened lazily on the first [captions] subscription so the
+/// CaptionPump can subscribe first (in initState) and the connection happens
+/// automatically — no external start() call needed from the session host.
 class MockAsrStreamClient implements AsrStreamClient {
   MockAsrStreamClient({String? backendWsBase, NowMs? nowMs})
       : _wsBase = backendWsBase ?? DemoConfig.wsBase,
@@ -183,15 +194,49 @@ class MockAsrStreamClient implements AsrStreamClient {
   final NowMs _nowMs;
 
   WebSocketChannel? _channel;
-  final _out = StreamController<CaptionResult>.broadcast();
+  StreamController<CaptionResult>? _controller;
+  bool _started = false;
 
   @override
-  Stream<CaptionResult> get captions => _out.stream;
+  Stream<CaptionResult> get captions {
+    // Create the broadcast controller once.
+    _controller ??= StreamController<CaptionResult>.broadcast(
+      // Auto-start the WebSocket as soon as the first listener subscribes
+      // (the CaptionPump subscribes in initState before the session opens).
+      onListen: () {
+        if (!_started) {
+          _started = true;
+          // Default device ID and language — overridden via start() if called.
+          _openSocket(deviceId: DemoConfig.deviceId, language: 'en-US');
+        }
+      },
+    );
+    return _controller!.stream;
+  }
 
   @override
   Future<void> start({required String deviceId, required String language}) async {
-    final uri = Uri.parse('$_wsBase/asr/stream?lang=$language');
-    final channel = WebSocketChannel.connect(uri);
+    // Called by the session once the real device ID and language are known.
+    // Re-open the socket with the correct parameters (close the auto-started
+    // one first if it is already running).
+    if (_channel != null) {
+      try { await _channel!.sink.close(); } catch (_) {}
+      _channel = null;
+    }
+    _controller ??= StreamController<CaptionResult>.broadcast();
+    _started = true;
+    _openSocket(deviceId: deviceId, language: language);
+  }
+
+  void _openSocket({required String deviceId, required String language}) {
+    final uri = Uri.parse('$_wsBase/asr/stream?deviceId=$deviceId&lang=$language');
+    // Pass the session token via the Sec-WebSocket-Protocol subprotocol (the
+    // browser-safe way to pass a credential on a WS that the backend accepts;
+    // see ws-auth.ts).
+    final protocols = <String>[
+      'threshold.session.${DemoConfig.sessionToken}',
+    ];
+    final channel = WebSocketChannel.connect(uri, protocols: protocols);
     _channel = channel;
 
     channel.stream.listen(
@@ -203,7 +248,7 @@ class MockAsrStreamClient implements AsrStreamClient {
         final isFinal = msg['isFinal'] == true;
         final confRaw = msg['confidence'];
         final confidence = confRaw is num ? confRaw.toDouble() : null;
-        _out.add(
+        _controller?.add(
           CaptionResult(
             speaker: CaptionSpeaker.visitor,
             text: transcript,
@@ -225,7 +270,8 @@ class MockAsrStreamClient implements AsrStreamClient {
     try {
       await _channel?.sink.close();
     } catch (_) {}
-    await _out.close();
+    await _controller?.close();
+    _controller = null;
   }
 }
 
