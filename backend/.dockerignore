@@ -7,7 +7,5 @@ test/
 .env.*
 .env.demo
 .eslintrc.cjs
-tsconfig.json
-tsconfig.build.json
 README.md
 docs/

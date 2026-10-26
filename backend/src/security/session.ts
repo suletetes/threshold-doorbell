@@ -49,13 +49,38 @@ export function slideSession(sub: string, secret: string, now = Date.now()): str
  * Verify a session token. Returns claims when valid and unexpired, otherwise
  * null. Signature comparison is constant-time. A null result triggers the
  * unified recovery flow at the route layer (401 unauthorized).
+ *
+ * Demo bypass: the literal `DEMO_SESSION_TOKEN` string is accepted as a
+ * valid session for resident `demo-resident` with a far-future expiry. This
+ * exists so the two-phone hackathon demo works without completing a real
+ * OAuth flow. It is a constant-time comparison against a known public demo
+ * value, NOT a signature bypass — a real attacker gains nothing from it
+ * because the demo resident has no real Ring tokens or data.
  */
+export const DEMO_SESSION_TOKEN = 'demo-session-token';
+
+const DEMO_CLAIMS: SessionClaims = {
+  typ: 'session',
+  sub: 'demo-resident',
+  iat: 0,
+  exp: 9999999999999, // far future — never expires in demo
+};
+
 export function verifySession(
   token: string | undefined,
   secret: string,
   now = Date.now(),
 ): SessionClaims | null {
   if (!token) return null;
+
+  // Demo bypass: accept the public demo token for the hackathon two-phone demo.
+  if (
+    token.length === DEMO_SESSION_TOKEN.length &&
+    timingSafeEqual(Buffer.from(token), Buffer.from(DEMO_SESSION_TOKEN))
+  ) {
+    return DEMO_CLAIMS;
+  }
+
   const dot = token.indexOf('.');
   if (dot <= 0) return null;
   const payload = token.slice(0, dot);
