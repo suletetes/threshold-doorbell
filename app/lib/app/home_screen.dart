@@ -42,6 +42,7 @@ import '../session/conversation_screen.dart';
 import '../session/session_controller.dart';
 import '../session/session_state.dart';
 import '../settings/settings_screen.dart';
+import 'demo_debug_overlay.dart';
 import 'providers.dart';
 
 /// The device id used when a session is started from the home hero action with
@@ -66,7 +67,9 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final coordinator = ref.watch(sessionStartCoordinatorProvider);
     final theme = Theme.of(context);
-    return Scaffold(
+    return DemoDebugOverlay(
+      onRing: () => _startSession(context, ref),
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Threshold'),
         actions: <Widget>[
@@ -130,6 +133,7 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
+    ),
     );
   }
 

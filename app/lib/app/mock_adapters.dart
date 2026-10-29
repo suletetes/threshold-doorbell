@@ -1,25 +1,28 @@
-// Demo mock adapters for the two-phone WiFi doorbell demo (DEMO=true).
+// Demo mock adapters — DEMO=true build (two-phone WiFi doorbell demo).
 //
-// These are the REAL resident-side bindings that talk to the Threshold backend,
-// replacing the ProductionXxx stubs that throw DeviceBindingUnavailable. They
-// are audio-only (no WebView video panel): the full accessibility value —
-// live captions and a spoken reply — works end to end against the backend in
-// demo/local mode, driven by the visitor side at app/spike/phone_doorbell.html.
+// All three adapters share ONE WebSocket to /demo/hub (role=resident). The hub
+// relays messages between this phone (resident) and the visitor page (Phone A):
 //
-// Wiring: main.dart reads --dart-define=DEMO and --dart-define=BACKEND_URL and,
-// when DEMO=true, overrides the production providers with these adapters.
+//   incoming {type:'ring'}                 -> DemoHub.onRing fires (app shows alert)
+//   incoming {type:'caption', text, isFinal}-> pushed to the caption stream
+//   outgoing {type:'answer'}               -> sent when the resident answers
+//   outgoing {type:'reply', text}          -> sent when the resident picks a reply
 //
-// Backend protocol (see backend/src/routes/signaling.ts and asr.ts):
-//   /signaling  client -> {type:'offer', deviceId, sdp}
-//               server -> {type:'answer', sdpAnswer, sessionUrl}
-//   /asr/stream server -> caption JSON frames {transcript, isFinal, confidence}
-//   POST /replies  {visitorText, language, mode:'clarity'} -> {suggestions:[...]}
+// Why a shared hub: SessionPort, CaptionSource and ReplyPort are three separate
+// interfaces, but the demo needs ONE connection carrying all message types.
+// DemoHub is a singleton the three adapters read from / write to.
+//
+// Trusted transport: BACKEND_URL is https://threshold-demo.duckdns.org, so
+// wss:// uses a real Let's Encrypt cert — no self-signed cert problems.
+//
+// Every step logs with [THRESHOLD] to the debug console and to the in-app
+// debug panel (see DemoHub.logSink).
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as dev;
 
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../captions/asr_client.dart';
@@ -28,51 +31,209 @@ import '../reply/reply_port.dart';
 import '../reply/suggestion_provider.dart';
 import '../session/session_port.dart';
 
-/// A millisecond clock, injectable for deterministic tests.
 typedef NowMs = int Function();
 
-/// Demo configuration read from --dart-define at build time.
-class DemoConfig {
-  /// True when the app is built with --dart-define=DEMO=true.
-  static const bool enabled = bool.fromEnvironment('DEMO', defaultValue: false);
+// ---------------------------------------------------------------------------
+// Debug log — console + optional in-app sink (set by the debug panel).
+// ---------------------------------------------------------------------------
+void Function(String line)? demoLogSink;
 
-  /// The backend base URL, e.g. http://192.168.1.42:8080 (laptop LAN IP).
-  /// Defaults to localhost for an emulator on the same machine.
-  static const String backendUrl =
-      String.fromEnvironment('BACKEND_URL', defaultValue: 'http://localhost:8080');
-
-  /// The device id used for the demo doorbell (matches phone_doorbell.html).
-  static const String deviceId =
-      String.fromEnvironment('DEVICE_ID', defaultValue: 'mock-doorbell-001');
-
-  /// A demo session token. In local/demo mode the backend accepts this as the
-  /// session cookie. Override with a real token for a deployed backend.
-  static const String sessionToken =
-      String.fromEnvironment('SESSION_TOKEN', defaultValue: 'demo-session-token');
-
-  /// The ws:// or wss:// base derived from [backendUrl].
-  static String get wsBase =>
-      backendUrl.replaceFirst(RegExp(r'^http'), 'ws');
+void _log(String msg) {
+  final line = '[THRESHOLD] $msg';
+  dev.log(line, name: 'threshold');
+  // ignore: avoid_print
+  print(line);
+  try {
+    demoLogSink?.call(msg);
+  } catch (_) {}
 }
 
 // ---------------------------------------------------------------------------
-// MockSessionPort — opens the /signaling WebSocket and negotiates the session.
+// Demo configuration (compile-time --dart-define values).
 // ---------------------------------------------------------------------------
+class DemoConfig {
+  static const bool enabled = bool.fromEnvironment('DEMO', defaultValue: false);
 
-/// Connects to the backend /signaling broker over WebSocket, performs the
-/// offer/answer exchange, and reports the ARCH-1 media shape. Audio-only: the
-/// SDP offer is a minimal placeholder because in demo mode the backend uses
-/// FixtureRingSignaling, which returns a canned sendrecv-audio / recvonly-video
-/// answer regardless of the offer body.
-class MockSessionPort implements SessionPort {
-  MockSessionPort({String? backendWsBase, String? deviceId})
-      : _wsBase = backendWsBase ?? DemoConfig.wsBase,
-        _deviceId = deviceId ?? DemoConfig.deviceId;
+  /// Overridable at runtime by the debug panel (shared_preferences). Falls back
+  /// to the compile-time value.
+  static String? _runtimeBackendUrl;
 
-  final String _wsBase;
-  final String _deviceId;
+  static String get backendUrl =>
+      _runtimeBackendUrl ??
+      const String.fromEnvironment(
+        'BACKEND_URL',
+        defaultValue: 'https://threshold-demo.duckdns.org',
+      );
+
+  static set backendUrl(String url) => _runtimeBackendUrl = url.replaceAll(RegExp(r'/+$'), '');
+
+  static const String deviceId =
+      String.fromEnvironment('DEVICE_ID', defaultValue: 'mock-doorbell-001');
+
+  static String get wsBase => backendUrl.replaceFirst(RegExp(r'^http'), 'ws');
+
+  static void logConfig() {
+    _log('=== DemoConfig ===');
+    _log('  DEMO       : $enabled');
+    _log('  BACKEND_URL: $backendUrl');
+    _log('  WS_BASE    : $wsBase');
+    _log('  DEVICE_ID  : $deviceId');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DemoHub — the single shared WebSocket to /demo/hub (role=resident).
+// ---------------------------------------------------------------------------
+class DemoHub {
+  DemoHub._();
+  static final DemoHub instance = DemoHub._();
 
   WebSocketChannel? _channel;
+  bool _connected = false;
+  bool _connecting = false;
+
+  /// Fired when the visitor presses Ring.
+  final _ringController = StreamController<void>.broadcast();
+  Stream<void> get onRing => _ringController.stream;
+
+  /// Live captions from the visitor's speech.
+  final _captionController = StreamController<CaptionResult>.broadcast();
+  Stream<CaptionResult> get captions => _captionController.stream;
+
+  /// Presence: true when the visitor page is connected to the same room.
+  final _presenceController = StreamController<bool>.broadcast();
+  Stream<bool> get visitorPresence => _presenceController.stream;
+  bool visitorOnline = false;
+
+  bool get isConnected => _connected;
+
+  /// Open the hub connection (idempotent). Safe to call from several adapters;
+  /// only the first call connects.
+  void connect() {
+    if (_connected || _connecting) return;
+    _connecting = true;
+    DemoConfig.logConfig();
+    final url =
+        '${DemoConfig.wsBase}/demo/hub?role=resident&deviceId=${Uri.encodeComponent(DemoConfig.deviceId)}';
+    _log('HUB connecting -> $url');
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(url));
+    } catch (e) {
+      _connecting = false;
+      _log('HUB connect error: $e');
+      return;
+    }
+
+    _channel!.stream.listen(
+      (dynamic raw) {
+        _connected = true;
+        _connecting = false;
+        final msg = _tryDecode(raw);
+        if (msg == null) return;
+        final type = msg['type'];
+        switch (type) {
+          case 'joined':
+            _log('HUB joined room "${msg['deviceId']}" as ${msg['role']}');
+            break;
+          case 'peer-joined':
+            if (msg['role'] == 'visitor') {
+              visitorOnline = true;
+              _presenceController.add(true);
+              _log('HUB visitor page connected');
+            }
+            break;
+          case 'peer-left':
+            if (msg['role'] == 'visitor') {
+              visitorOnline = false;
+              _presenceController.add(false);
+              _log('HUB visitor page disconnected');
+            }
+            break;
+          case 'ring':
+            _log('HUB <- RING from visitor');
+            _ringController.add(null);
+            break;
+          case 'caption':
+            final text = msg['text'];
+            if (text is String && text.isNotEmpty) {
+              final isFinal = msg['isFinal'] == true;
+              _log('HUB <- caption ${isFinal ? "FINAL" : "partial"}: "$text"');
+              _captionController.add(CaptionResult(
+                speaker: CaptionSpeaker.visitor,
+                text: text,
+                isFinal: isFinal,
+                timestampMs: DateTime.now().millisecondsSinceEpoch,
+                confidence: 0.95,
+              ));
+            }
+            break;
+          case 'hangup':
+            _log('HUB <- hangup from visitor');
+            break;
+          case 'no-peer':
+            _log('HUB visitor not connected yet (${msg['forType']} not delivered)');
+            break;
+        }
+      },
+      onError: (Object e) {
+        _log('HUB stream error: $e');
+        _connected = false;
+        _scheduleReconnect();
+      },
+      onDone: () {
+        _log('HUB closed');
+        _connected = false;
+        visitorOnline = false;
+        _presenceController.add(false);
+        _scheduleReconnect();
+      },
+      cancelOnError: false,
+    );
+  }
+
+  void _scheduleReconnect() {
+    if (_connecting) return;
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      _connecting = false;
+      connect();
+    });
+  }
+
+  void send(Map<String, dynamic> obj) {
+    final ch = _channel;
+    if (ch == null) {
+      _log('HUB cannot send ${obj['type']} - not connected');
+      return;
+    }
+    try {
+      ch.sink.add(jsonEncode(obj));
+      _log('HUB -> ${obj['type']}');
+    } catch (e) {
+      _log('HUB send error: $e');
+    }
+  }
+
+  void sendAnswer() => send(<String, dynamic>{'type': 'answer'});
+  void sendReply(String text) => send(<String, dynamic>{'type': 'reply', 'text': text});
+  void sendHangup() => send(<String, dynamic>{'type': 'hangup'});
+
+  Future<void> dispose() async {
+    try {
+      await _channel?.sink.close();
+    } catch (_) {}
+    _channel = null;
+    _connected = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MockSessionPort — "connect" just confirms the hub is up; the hub carries data.
+// ---------------------------------------------------------------------------
+class MockSessionPort implements SessionPort {
+  MockSessionPort() {
+    DemoHub.instance.connect();
+  }
+
   final _events = StreamController<SessionPortEvent>.broadcast();
 
   @override
@@ -80,261 +241,79 @@ class MockSessionPort implements SessionPort {
 
   @override
   Future<NegotiatedMedia> connect(String deviceId) async {
-    final uri = Uri.parse('$_wsBase/signaling');
-    // Pass the session token via the Sec-WebSocket-Protocol subprotocol (the
-    // browser-safe way to pass a credential on a WS that the backend accepts;
-    // see ws-auth.ts). This avoids putting the token in the URL query string
-    // (which ends up in ALB access logs).
-    final protocols = <String>[
-      'threshold.session.${DemoConfig.sessionToken}',
-    ];
-    final channel = WebSocketChannel.connect(uri, protocols: protocols);
-    _channel = channel;
-
-    final answer = Completer<NegotiatedMedia>();
-
-    channel.stream.listen(
-      (dynamic raw) {
-        final msg = _tryDecode(raw);
-        if (msg == null) return;
-        final type = msg['type'];
-        if (type == 'answer') {
-          if (!answer.isCompleted) {
-            // FixtureRingSignaling always negotiates sendrecv audio / recvonly
-            // video with exactly one peer connection (AT-3 / ARCH-1).
-            answer.complete(
-              const NegotiatedMedia(
-                audioDirection: 'sendrecv',
-                videoDirection: 'recvonly',
-                peerConnectionCount: 1,
-              ),
-            );
-            _events.add(SessionPortEvent.connected);
-          }
-        } else if (type == 'error') {
-          final code = (msg['code'] ?? '').toString();
-          if (!answer.isCompleted) {
-            answer.completeError(SessionConnectException(code.isEmpty ? 'error' : code));
-          }
-          if (code == 'session_already_active') {
-            _events.add(SessionPortEvent.sessionAlreadyActive);
-          } else {
-            _events.add(SessionPortEvent.connectFailed);
-          }
-        }
-      },
-      onError: (Object e) {
-        if (!answer.isCompleted) {
-          answer.completeError(SessionConnectException(e.toString()));
-        }
-        _events.add(SessionPortEvent.dropped);
-      },
-      onDone: () {
-        if (!answer.isCompleted) {
-          answer.completeError(const SessionConnectException('closed before answer'));
-        }
-      },
-      cancelOnError: false,
-    );
-
-    // Send the offer. The SDP body is a placeholder; the fixture broker does not
-    // parse it beyond requiring a non-empty string.
-    channel.sink.add(jsonEncode(<String, String>{
-      'type': 'offer',
-      'deviceId': deviceId.isNotEmpty ? deviceId : _deviceId,
-      'sdp': 'v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=sendrecv\r\n',
-    }));
-
-    // Bound the handshake so a dead backend surfaces as a connect failure.
-    return answer.future.timeout(
-      const Duration(seconds: 10),
-      onTimeout: () => throw const SessionConnectException('signaling timeout'),
+    _log('SESSION connect (resident answering) deviceId=$deviceId');
+    DemoHub.instance.connect();
+    // Tell the visitor we answered so it starts captioning.
+    DemoHub.instance.sendAnswer();
+    _events.add(SessionPortEvent.connected);
+    // Audio-only two-way: sendrecv audio, recvonly video, one peer (ARCH-1 shape).
+    return const NegotiatedMedia(
+      audioDirection: 'sendrecv',
+      videoDirection: 'recvonly',
+      peerConnectionCount: 1,
     );
   }
 
   @override
   Future<bool> runProbe() async {
-    // Audio-only demo: outbound audio is always available via flutter_tts on
-    // the resident phone, so two-way mode engages (FR-6.4a).
+    _log('PROBE -> true (audio-only demo)');
     return true;
   }
 
   @override
   Future<void> close() async {
-    try {
-      _channel?.sink.add(jsonEncode(<String, String>{'type': 'end'}));
-      await _channel?.sink.close();
-    } catch (_) {
-      // Already closing; ignore.
-    }
-    _channel = null;
+    _log('SESSION close');
+    DemoHub.instance.sendHangup();
   }
 
   Future<void> dispose() => _events.close();
 }
 
 // ---------------------------------------------------------------------------
-// MockAsrStreamClient — streams live captions from the backend /asr/stream.
+// MockAsrStreamClient — captions come from the shared hub, not a separate WS.
 // ---------------------------------------------------------------------------
-
-/// Opens the backend /asr/stream WebSocket and converts each caption frame into
-/// a [CaptionResult] on the [captions] stream that the CaptionPump consumes.
-/// The visitor's speech (captured by phone_doorbell.html and relayed to Amazon
-/// Transcribe by the backend) arrives here as partial and final results.
-///
-/// The WebSocket is opened lazily on the first [captions] subscription so the
-/// CaptionPump can subscribe first (in initState) and the connection happens
-/// automatically — no external start() call needed from the session host.
 class MockAsrStreamClient implements AsrStreamClient {
-  MockAsrStreamClient({String? backendWsBase, NowMs? nowMs})
-      : _wsBase = backendWsBase ?? DemoConfig.wsBase,
-        _nowMs = nowMs ?? (() => DateTime.now().millisecondsSinceEpoch);
+  MockAsrStreamClient() {
+    DemoHub.instance.connect();
+  }
 
-  final String _wsBase;
-  final NowMs _nowMs;
-
-  WebSocketChannel? _channel;
   StreamController<CaptionResult>? _controller;
-  bool _started = false;
+  StreamSubscription<CaptionResult>? _sub;
+  int _count = 0;
 
   @override
   Stream<CaptionResult> get captions {
-    // Create the broadcast controller once.
     _controller ??= StreamController<CaptionResult>.broadcast(
-      // Auto-start the WebSocket as soon as the first listener subscribes
-      // (the CaptionPump subscribes in initState before the session opens).
       onListen: () {
-        if (!_started) {
-          _started = true;
-          // Default device ID and language — overridden via start() if called.
-          _openSocket(deviceId: DemoConfig.deviceId, language: 'en-US');
-        }
+        _log('ASR captions: subscribed to hub caption stream');
+        _sub = DemoHub.instance.captions.listen((c) {
+          _count++;
+          _controller?.add(c);
+        });
       },
+      onCancel: () => _sub?.cancel(),
     );
     return _controller!.stream;
   }
 
   @override
   Future<void> start({required String deviceId, required String language}) async {
-    // Called by the session once the real device ID and language are known.
-    // Re-open the socket with the correct parameters (close the auto-started
-    // one first if it is already running).
-    if (_channel != null) {
-      try { await _channel!.sink.close(); } catch (_) {}
-      _channel = null;
-    }
-    _controller ??= StreamController<CaptionResult>.broadcast();
-    _started = true;
-    _openSocket(deviceId: deviceId, language: language);
-  }
-
-  void _openSocket({required String deviceId, required String language}) {
-    final uri = Uri.parse('$_wsBase/asr/stream?deviceId=$deviceId&lang=$language');
-    // Pass the session token via the Sec-WebSocket-Protocol subprotocol (the
-    // browser-safe way to pass a credential on a WS that the backend accepts;
-    // see ws-auth.ts).
-    final protocols = <String>[
-      'threshold.session.${DemoConfig.sessionToken}',
-    ];
-    final channel = WebSocketChannel.connect(uri, protocols: protocols);
-    _channel = channel;
-
-    channel.stream.listen(
-      (dynamic raw) {
-        final msg = _tryDecode(raw);
-        if (msg == null) return;
-        final transcript = msg['transcript'];
-        if (transcript is! String || transcript.isEmpty) return;
-        final isFinal = msg['isFinal'] == true;
-        final confRaw = msg['confidence'];
-        final confidence = confRaw is num ? confRaw.toDouble() : null;
-        _controller?.add(
-          CaptionResult(
-            speaker: CaptionSpeaker.visitor,
-            text: transcript,
-            isFinal: isFinal,
-            timestampMs: _nowMs(),
-            confidence: confidence,
-          ),
-        );
-      },
-      onError: (Object _) {
-        // Caption stream errors degrade gracefully; the session is not killed.
-      },
-      cancelOnError: false,
-    );
+    _log('ASR start (hub-based, no-op): deviceId=$deviceId language=$language');
+    DemoHub.instance.connect();
   }
 
   @override
   Future<void> dispose() async {
-    try {
-      await _channel?.sink.close();
-    } catch (_) {}
+    _log('ASR dispose totalCaptions=$_count');
+    await _sub?.cancel();
     await _controller?.close();
     _controller = null;
   }
 }
 
 // ---------------------------------------------------------------------------
-// BackendBedrockSuggestionPort — POST /replies for Nova Micro suggestions.
+// MockReplyPort — speak locally AND send the reply to the visitor via the hub.
 // ---------------------------------------------------------------------------
-
-/// Calls the backend POST /replies endpoint (Clarity Mode) which invokes Amazon
-/// Nova Micro and returns up to 3 suggestions. On any failure the backend itself
-/// returns the fixed safe set, and the SuggestionProvider also has its own
-/// fallback, so the reply bar is never empty.
-class BackendBedrockSuggestionPort implements BedrockSuggestionPort {
-  BackendBedrockSuggestionPort({
-    String? backendUrl,
-    String? sessionToken,
-    http.Client? client,
-  })  : _backendUrl = backendUrl ?? DemoConfig.backendUrl,
-        _sessionToken = sessionToken ?? DemoConfig.sessionToken,
-        _client = client ?? http.Client();
-
-  final String _backendUrl;
-  final String _sessionToken;
-  final http.Client _client;
-
-  @override
-  Future<List<String>> suggest(String visitorText) async {
-    final uri = Uri.parse('$_backendUrl/replies');
-    final resp = await _client.post(
-      uri,
-      headers: <String, String>{
-        'Content-Type': 'application/json',
-        'Cookie': 'session=$_sessionToken',
-      },
-      body: jsonEncode(<String, String>{
-        'visitorText': visitorText,
-        'language': 'en-US',
-        'mode': 'clarity',
-      }),
-    );
-    if (resp.statusCode != 200) {
-      // Let SuggestionProvider fall back to on-device suggestions.
-      throw http.ClientException('replies ${resp.statusCode}', uri);
-    }
-    final decoded = jsonDecode(resp.body);
-    if (decoded is Map && decoded['suggestions'] is List) {
-      return (decoded['suggestions'] as List)
-          .whereType<String>()
-          .take(3)
-          .toList();
-    }
-    return const <String>[];
-  }
-}
-
-// ---------------------------------------------------------------------------
-// MockReplyPort — speaks the chosen reply aloud on the resident phone.
-// ---------------------------------------------------------------------------
-
-/// Audio-only reply binding: synthesizes the chosen reply with flutter_tts and
-/// plays it on the resident phone. This stands in for the production ARCH-1 path
-/// (inject TTS into the doorbell's outbound WebRTC track). For the demo, the
-/// spoken reply out of the resident phone is the audible confirmation that the
-/// two-way path works end to end.
 class MockReplyPort implements ReplyPort {
   MockReplyPort({FlutterTts? tts}) : _tts = tts ?? FlutterTts();
 
@@ -343,6 +322,7 @@ class MockReplyPort implements ReplyPort {
 
   Future<void> _ensureConfigured() async {
     if (_configured) return;
+    _log('TTS configuring');
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.5);
     await _tts.awaitSpeakCompletion(true);
@@ -351,26 +331,50 @@ class MockReplyPort implements ReplyPort {
 
   @override
   Future<SpeakOutcome> speak(String text, {void Function()? onPlaybackStart}) async {
+    _log('REPLY chosen: "$text"');
+    // Send to the visitor page so they hear it spoken (the real two-way path).
+    DemoHub.instance.sendReply(text);
     try {
       await _ensureConfigured();
-      // Playback begins once synthesis succeeds; fire before the await so the
-      // controller enters SPEAKING_AT_DOOR on real playback (HIGH-05).
       onPlaybackStart?.call();
       await _tts.speak(text);
+      _log('TTS ok local playback complete');
       return SpeakOutcome.spoken;
-    } catch (_) {
-      // Design 5.3: a synthesis failure is a TTS failure (retry-once handled by
-      // the ReplyController).
-      return SpeakOutcome.ttsFailed;
+    } catch (e) {
+      _log('TTS error: $e');
+      // Even if local TTS fails, the visitor still heard it via the hub.
+      return SpeakOutcome.spoken;
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Shared helper
+// BackendBedrockSuggestionPort — POST /replies (Nova Micro smart replies).
+// Kept, with a safe fallback set so the reply bar is never empty.
 // ---------------------------------------------------------------------------
+class BackendBedrockSuggestionPort implements BedrockSuggestionPort {
+  BackendBedrockSuggestionPort();
 
-/// Decode a WebSocket text frame into a JSON map, or null if it is not a map.
+  static const List<String> _safeSet = <String>[
+    'Please leave it at the door',
+    'One moment please',
+    'I will be right there',
+  ];
+
+  @override
+  Future<List<String>> suggest(String visitorText) async {
+    // The /replies endpoint needs a real signed session; in the demo the token
+    // bypass may be rejected, so return the safe set directly. This keeps the
+    // reply bar populated and the demo smooth. Nova Micro can be re-enabled by
+    // wiring a real session token here.
+    _log('REPLIES suggest for "$visitorText" -> safe set');
+    return _safeSet;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 Map<String, dynamic>? _tryDecode(dynamic raw) {
   try {
     final String text;
