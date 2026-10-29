@@ -49,6 +49,31 @@ every conversation and revokes the Ring tokens in one transaction.
 
 ![Data and privacy model](05-data-privacy-model.svg)
 
+## AWS deployment diagrams (rendered, AWS icons)
+
+Generated from code with the `diagrams` library (official AWS icons), split into
+focused views so each stays readable. Regenerate with:
+
+```bash
+python docs/hackathon/diagrams/generate_architecture.py
+```
+
+| View | File | Shows |
+|---|---|---|
+| Overview | `threshold-arch-overview.svg` | Users → ALB → Fargate at a glance |
+| Edge and compute | `threshold-arch-edge.svg` | ALB (HTTPS/WSS, Let's Encrypt) → ECS Fargate |
+| Data and security | `threshold-arch-data.svg` | Fargate → DynamoDB / KMS / Secrets Manager |
+| AI services | `threshold-arch-ai.svg` | Fargate → Transcribe / Bedrock Nova Micro |
+| Operations | `threshold-arch-ops.svg` | ECR / CloudWatch / SNS+FCM |
+| Demo hub | `threshold-arch-demo.svg` | Two-phone relay: ring / caption / reply |
+
+![AWS overview](threshold-arch-overview.svg)
+![Edge and compute](threshold-arch-edge.svg)
+![Data and security](threshold-arch-data.svg)
+![AI services](threshold-arch-ai.svg)
+![Operations](threshold-arch-ops.svg)
+![Demo hub](threshold-arch-demo.svg)
+
 ## Notes
 
 - These diagrams model the intended design (the ARCH-1 WebView approach and the
