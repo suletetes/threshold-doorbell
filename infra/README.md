@@ -35,7 +35,7 @@ npx cdk bootstrap
 npx cdk synth
 npx cdk diff
 
-# Deploy — builds the ARM Docker image, pushes to ECR, stands up the stack
+# Deploy - builds the ARM Docker image, pushes to ECR, stands up the stack
 npx cdk deploy
 ```
 
@@ -89,18 +89,18 @@ npx cdk destroy
 > The NAT gateway + ALB are the bulk of the cost and both bill hourly while the
 > stack exists. `cdk destroy` between demos drops the cost to zero. For a purely
 > local demo (no AWS), run the backend with `npm run dev` and use
-> `docs/hackathon/DEMO_RUNBOOK.md` — no stack needed.
+> `docs/hackathon/DEMO_RUNBOOK.md` - no stack needed.
 
 ## Troubleshooting
 
-- **`docker` errors during deploy** — Docker Desktop must be running; CDK builds
+- **`docker` errors during deploy** - Docker Desktop must be running; CDK builds
   the image locally before pushing to ECR.
-- **Task fails to start, logs show `assertStrongSecret`** — the generated
+- **Task fails to start, logs show `assertStrongSecret`** - the generated
   secrets satisfy this; if you overrode a secret with a short value, replace it
   with 32+ characters.
-- **`/ready` returns 503** — the task is still starting or a dependency probe
+- **`/ready` returns 503** - the task is still starting or a dependency probe
   failed; check the `/ecs/threshold-backend` log group.
-- **WebSocket drops after ~60s** — confirm the ALB `idle_timeout.timeout_seconds`
+- **WebSocket drops after ~60s** - confirm the ALB `idle_timeout.timeout_seconds`
   attribute is 605 (set in the stack); the default 60s would cut live sessions.
-- **`cdk bootstrap` assume-role warning on synth** — harmless for `synth`; real
+- **`cdk bootstrap` assume-role warning on synth** - harmless for `synth`; real
   credentials are only needed for `deploy`.

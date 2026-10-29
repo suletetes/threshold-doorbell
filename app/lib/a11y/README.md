@@ -1,6 +1,6 @@
 # a11y/
 
-Accessibility is the product, not a feature. Target **WCAG 2.2 AA** — which Ring's own partner UX guide
+Accessibility is the product, not a feature. Target **WCAG 2.2 AA** - which Ring's own partner UX guide
 mandates.
 
 - Large, adjustable, high-contrast caption typography.
