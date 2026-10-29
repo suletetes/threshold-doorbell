@@ -5,7 +5,9 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import staticFiles from '@fastify/static';
 import websocket from '@fastify/websocket';
 import type { Container } from './container.js';
 import { AppError, errors } from './domain/errors.js';
@@ -19,6 +21,7 @@ import { registerTranscriptRoutes } from './routes/transcripts.js';
 import { registerReplyRoutes } from './routes/replies.js';
 import { registerSignalingRoutes } from './routes/signaling.js';
 import { registerAsrRoutes } from './routes/asr.js';
+import { registerDemoHubRoutes, demoRooms } from './routes/demo-hub.js';
 import type { SignalingService } from './services/signaling-service.js';
 
 declare module 'fastify' {
@@ -49,6 +52,28 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
 
   app.decorate('container', container);
   await app.register(cookie);
+  // CORS: allow the Vercel visitor page to call the backend from a browser.
+  // wsAllowedOrigins already holds the Vercel URL; reuse it here so there is
+  // one place to configure allowed origins. Credentials must be true so the
+  // session cookie reaches /replies.
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      const allowed: readonly string[] = app.container?.config?.wsAllowedOrigins ?? [];
+      // No Origin header = native app (Flutter/curl) = always allowed.
+      // Known Vercel origin = allowed. Everything else = rejected.
+      cb(null, !origin || allowed.includes(origin));
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Ring-Signature',
+      'X-Ring-Timestamp',
+      'Cookie',
+    ],
+    credentials: true,
+    maxAge: 86400,
+  });
   // MED-29: app-level HTTP rate limiting. A per-IP window caps request volume so
   // the OAuth, webhook and REST paths cannot be hammered to drive Bedrock and
   // Transcribe cost or CPU/memory exhaustion. The limiter is skipped for the
@@ -178,6 +203,20 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
 
   // Liveness: the process is up and serving. Always 200 while the event loop
   // runs; used by the load balancer target-group health check.
+  // Serve the visitor page (phone_doorbell.html) at GET / so the demo works
+  // without needing a separate Vercel deployment or Cloudflare tunnel.
+  // Same origin as the API → no CORS, no mixed-content, no cert warning.
+  // The file is baked into the Docker image at build time from src/public/.
+  // In the compiled dist/ tree it lives at dist/public/ (Dockerfile copies it).
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, join } = await import('node:path');
+  const publicDir = join(dirname(fileURLToPath(import.meta.url)), 'public');
+  await app.register(staticFiles, {
+    root: publicDir,
+    prefix: '/',
+    index: 'index.html',
+  });
+
   app.get('/health', async () => ({ ok: true }));
 
   // MED-36: readiness probe. Reports whether the dependencies the service needs
@@ -204,6 +243,35 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
   await registerReplyRoutes(app);
   await registerSignalingRoutes(app);
   await registerAsrRoutes(app);
+
+  // Two-phone demo relay (demo/local only). Connects the visitor page and the
+  // resident app so ring/caption/reply actually travel between the phones.
+  if (container.config.env === 'demo' || container.config.env === 'local') {
+    await registerDemoHubRoutes(app);
+    // Live status page: which rooms exist and who is connected. Plain HTML so
+    // you can open it in a browser during the demo for zero-adb debugging.
+    app.get('/demo/status', async (_request, reply) => {
+      const rows: string[] = [];
+      for (const [deviceId, room] of demoRooms.entries()) {
+        rows.push(
+          `<tr><td>${deviceId}</td>` +
+            `<td>${room.visitor ? 'connected' : '-'}</td>` +
+            `<td>${room.resident ? 'connected' : '-'}</td></tr>`,
+        );
+      }
+      const body = rows.length > 0 ? rows.join('') : '<tr><td colspan="3">No active rooms</td></tr>';
+      reply.type('text/html').send(
+        `<!doctype html><html><head><meta charset="utf-8"><title>Demo hub status</title>` +
+          `<meta http-equiv="refresh" content="2">` +
+          `<style>body{font-family:system-ui;background:#0f172a;color:#f1f5f9;padding:24px}` +
+          `table{border-collapse:collapse;width:100%}th,td{border:1px solid #334155;padding:8px 12px;text-align:left}` +
+          `th{background:#1e293b}</style></head><body>` +
+          `<h1>Demo hub rooms</h1><p>Auto-refreshes every 2 s.</p>` +
+          `<table><tr><th>Device ID (room)</th><th>Visitor (Phone A)</th><th>Resident (Phone B)</th></tr>` +
+          `${body}</table></body></html>`,
+      );
+    });
+  }
 
   return app;
 }

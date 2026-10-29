@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Threshold Doorbell</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E" />
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310b981'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #020617;
+      --surface: #0f172a;
+      --surface-elevated: #1e293b;
+      --border: #334155;
+      --border-light: #475569;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --primary-soft: rgba(16, 185, 129, 0.12);
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-soft: rgba(239, 68, 68, 0.12);
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-soft: rgba(59, 130, 246, 0.12);
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.4);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top, 24px) env(safe-area-inset-right, 16px) env(safe-area-inset-bottom, 24px) env(safe-area-inset-left, 16px);
+      gap: 16px;
+      line-height: 1.5;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding-top: 8px;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+      stroke: white;
+    }
+
+    h1 {
+      font-size: clamp(1.25rem, 4vw, 1.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    /* Status */
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all var(--transition);
+    }
+
+    .status.connected {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .status.connected::before {
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status.ringing {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .status.ringing::before {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .status.error {
+      background: var(--danger-soft);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .status.error::before {
+      background: var(--danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    /* Doorbell Button */
+    .doorbell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 24px 16px;
+    }
+
+    .doorbell-button {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      border: none;
+      border-radius: 50%;
+      background: var(--surface);
+      cursor: pointer;
+      transition: all var(--transition);
+      box-shadow:
+        0 0 0 1px var(--border),
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .doorbell-button:active {
+      transform: scale(0.96);
+    }
+
+    .doorbell-button:focus-visible {
+      outline: none;
+      box-shadow:
+        0 0 0 1px var(--border),
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        var(--focus-ring);
+    }
+
+    .doorbell-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .doorbell-button.ringing {
+      box-shadow:
+        0 0 0 1px var(--accent),
+        var(--shadow-lg),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 0 40px rgba(59, 130, 246, 0.3),
+        0 0 80px rgba(59, 130, 246, 0.15);
+      animation: ringPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes ringPulse {
+      0%, 100% { box-shadow: 0 0 0 1px var(--accent), var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 40px rgba(59, 130, 246, 0.3), 0 0 80px rgba(59, 130, 246, 0.15); }
+      50% { box-shadow: 0 0 0 1px var(--accent), var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 60px rgba(59, 130, 246, 0.4), 0 0 120px rgba(59, 130, 246, 0.2); }
+    }
+
+    .doorbell-icon {
+      width: 64px;
+      height: 64px;
+      stroke: var(--text-secondary);
+      transition: stroke var(--transition);
+    }
+
+    .doorbell-button:not(:disabled):hover .doorbell-icon {
+      stroke: var(--text);
+    }
+
+    .doorbell-button.ringing .doorbell-icon {
+      stroke: var(--accent);
+    }
+
+    .doorbell-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    /* Action Buttons */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 20px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: all var(--transition);
+      text-decoration: none;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #052e1b;
+    }
+
+    .btn-primary:not(:disabled):hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: var(--surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:not(:disabled):hover {
+      background: var(--surface);
+      border-color: var(--border-light);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-danger:not(:disabled) {
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-danger:not(:disabled):hover {
+      background: var(--danger-hover);
+      box-shadow: 0 6px 18px rgba(239, 68, 68, 0.45);
+    }
+
+    .btn-danger:not(:disabled) .btn-icon {
+      transform: rotate(135deg);
+    }
+
+    .btn-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    /* Config Panel */
+    .config-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .config-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .config-summary:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+
+    .config-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .config-icon {
+      width: 20px;
+      height: 20px;
+      stroke: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .config-chevron {
+      width: 20px;
+      height: 20px;
+      stroke: var(--text-muted);
+      transition: transform var(--transition);
+      flex-shrink: 0;
+    }
+
+    .config-panel[open] .config-chevron {
+      transform: rotate(180deg);
+    }
+
+    .config-content {
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .field-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: inherit;
+      transition: all var(--transition);
+    }
+
+    .field-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .field-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+    }
+
+    .field-input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .field-hint {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Log Panel */
+    .log-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      flex: 1;
+      min-height: 200px;
+      max-height: 280px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .log-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .log-clear {
+      padding: 6px 10px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .log-clear:hover {
+      background: var(--surface-elevated);
+      color: var(--text);
+    }
+
+    .log-clear:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    .log-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      padding: 4px 0;
+      border-bottom: 1px solid transparent;
+      transition: border-color var(--transition);
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-entry:hover {
+      border-bottom-color: var(--border);
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .log-message {
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .log-message.success { color: var(--primary); }
+    .log-message.error { color: var(--danger); }
+    .log-message.warning { color: #f59e0b; }
+    .log-message.info { color: var(--accent); }
+
+    /* Audio Element */
+    audio {
+      display: none;
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: 160px;
+      text-align: center;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 0.8rem;
+      font-weight: 400;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: auto;
+      padding-top: 8px;
+      text-align: center;
+    }
+
+    .version {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    /* Responsive */
+    @media (max-width: 360px) {
+      .doorbell-button {
+        width: 140px;
+        height: 140px;
+      }
+      .doorbell-icon {
+        width: 56px;
+        height: 56px;
+      }
+      .btn {
+        padding: 12px 16px;
+        font-size: 0.875rem;
+      }
+    }
+
+    @media (min-width: 600px) {
+      body {
+        padding: 32px 24px;
+        gap: 24px;
+      }
+      .app-container {
+        max-width: 480px;
+      }
+      .doorbell-button {
+        width: 180px;
+        height: 180px;
+      }
+      .doorbell-icon {
+        width: 72px;
+        height: 72px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </div>
+      <h1>Threshold</h1>
+      <p class="subtitle">Doorbell Simulator</p>
+    </header>
+
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span id="statusText">Idle</span>
+    </div>
+
+    <section class="doorbell" aria-label="Doorbell controls">
+      <button
+        class="doorbell-button"
+        id="btnRing"
+        onclick="ringDoorbell()"
+        aria-label="Ring doorbell"
+        aria-pressed="false"
+      >
+        <svg class="doorbell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </button>
+      <p class="doorbell-label" id="doorbellLabel">Press to ring</p>
+    </section>
+
+    <div class="actions" role="group" aria-label="Session actions">
+      <button class="btn btn-primary" id="btnSpeak" onclick="startSpeaking()" disabled aria-label="Start speaking">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+        </svg>
+        Start Speaking
+      </button>
+      <button class="btn btn-danger" id="btnHangup" onclick="hangUp()" disabled aria-label="End call">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-1.82 1.47a.973.973 0 0 1-.71.29c-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.66-1.85.998.998 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+        </svg>
+        End Call
+      </button>
+    </div>
+
+    <details class="config-panel" id="configPanel">
+      <summary class="config-summary" aria-expanded="false" aria-controls="configContent">
+        <span class="config-title">
+          <svg class="config-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Configuration
+        </span>
+        <svg class="config-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </summary>
+      <div class="config-content" id="configContent">
+        <div class="field">
+          <label class="field-label" for="backendUrl">Backend URL</label>
+          <input
+            class="field-input"
+            id="backendUrl"
+            type="url"
+            value=""
+            placeholder="Leave empty to use same-origin backend (default)"
+            autocomplete="url"
+          />
+          <p class="field-hint">
+            Leave empty when opening this page directly from the backend
+            (https://&lt;ALB&gt;/). Fill in only when running from a separate host.
+          </p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="deviceId">Device ID</label>
+          <input
+            class="field-input"
+            id="deviceId"
+            type="text"
+            value="mock-doorbell-001"
+            placeholder="mock-doorbell-001"
+            autocomplete="off"
+          />
+          <p class="field-hint">Must match the resident app</p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="sessionToken">Session Token</label>
+          <input
+            class="field-input"
+            id="sessionToken"
+            type="text"
+            value="demo-session-token"
+            placeholder="demo-session-token"
+            autocomplete="off"
+          />
+          <p class="field-hint">Demo token for fixture auth</p>
+        </div>
+      </div>
+    </details>
+
+    <section class="log-panel" aria-label="Activity log">
+      <div class="log-header">
+        <span class="log-title">Activity</span>
+        <button class="log-clear" id="btnClearLog" onclick="clearLog()" aria-label="Clear log">Clear</button>
+      </div>
+      <div class="log-content" id="log" role="log" aria-live="polite" aria-atomic="false">
+        <div class="empty-state" id="emptyLog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+          <p>Ready. Press the button to simulate a doorbell press.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <p class="version">Threshold Doorbell Simulator v1.0</p>
+  </footer>
+
+  <!-- Incoming audio from resident (TTS reply) -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <script>
+  "use strict";
+
+  // ============================================================================
+  // Threshold visitor page — demo hub client (Phone A)
+  //
+  // Connects to wss://<backend>/demo/hub?role=visitor&deviceId=<id>.
+  // Flow:
+  //   1. On load, join the hub as "visitor". Wait for the resident app to join.
+  //   2. Ring Doorbell  -> send {type:'ring'} to the resident.
+  //   3. Start Speaking -> Web Speech API recognizes speech -> send
+  //      {type:'caption', text, isFinal} for each result. Captions appear on
+  //      the resident phone live.
+  //   4. Resident taps a reply -> {type:'reply', text} arrives here -> spoken
+  //      aloud with speechSynthesis so the visitor hears the resident.
+  // No WebRTC, no self-signed cert issues — the trusted DuckDNS domain carries
+  // a real Let's Encrypt cert so wss:// connects cleanly in every browser.
+  // ============================================================================
+
+  // --- STATE ---
+  let hubWs = null;
+  let isRinging = false;
+  let residentOnline = false;
+  let recognition = null;
+  let recognizing = false;
+
+  // --- DOM ---
+  const statusEl = document.getElementById("status");
+  const statusTextEl = document.getElementById("statusText");
+  const doorbellBtn = document.getElementById("btnRing");
+  const doorbellLabelEl = document.getElementById("doorbellLabel");
+  const btnSpeak = document.getElementById("btnSpeak");
+  const btnHangup = document.getElementById("btnHangup");
+  const logEl = document.getElementById("log");
+  let emptyLogEl = document.getElementById("emptyLog");
+
+  // --- HELPERS ---
+  function cfg(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : "";
+  }
+
+  function backendUrl() {
+    const v = cfg("backendUrl").replace(/\/+$/, "");
+    return v || window.location.origin;
+  }
+
+  function wsBase() {
+    return backendUrl().replace(/^http/, "ws");
+  }
+
+  function deviceId() {
+    return cfg("deviceId") || "mock-doorbell-001";
+  }
+
+  function setStatus(text, cls) {
+    statusTextEl.textContent = text;
+    statusEl.className = "status" + (cls ? " " + cls : "");
+  }
+
+  function log(msg, type) {
+    if (emptyLogEl) { emptyLogEl.remove(); emptyLogEl = null; }
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    const time = new Date().toTimeString().slice(0, 8);
+    entry.innerHTML =
+      '<span class="log-time">[' + time + ']</span>' +
+      '<span class="log-message' + (type ? " " + type : "") + '">' + msg + "</span>";
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function clearLog() {
+    logEl.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.id = "emptyLog";
+    empty.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><p>Log cleared.</p>';
+    logEl.appendChild(empty);
+    emptyLogEl = empty;
+  }
+
+  // --- HUB CONNECTION ---
+  function connectHub() {
+    const url = wsBase() + "/demo/hub?role=visitor&deviceId=" + encodeURIComponent(deviceId());
+    log("Connecting to hub: " + url);
+    try {
+      hubWs = new WebSocket(url);
+    } catch (e) {
+      log("Hub connect error: " + e.message, "error");
+      setStatus("Hub error", "error");
+      return;
+    }
+
+    hubWs.onopen = function () {
+      log("Hub connected as visitor", "success");
+      setStatus("Waiting for resident app", "ringing");
+    };
+
+    hubWs.onmessage = function (ev) {
+      let msg = null;
+      try { msg = JSON.parse(ev.data); } catch (_) { return; }
+      if (!msg || typeof msg.type !== "string") return;
+
+      switch (msg.type) {
+        case "joined":
+          log("Joined room '" + msg.deviceId + "' as " + msg.role, "info");
+          break;
+        case "peer-joined":
+          if (msg.role === "resident") {
+            residentOnline = true;
+            log("Resident app connected — ready to ring", "success");
+            setStatus("Resident online — ready", "connected");
+            doorbellBtn.disabled = false;
+          }
+          break;
+        case "peer-left":
+          if (msg.role === "resident") {
+            residentOnline = false;
+            log("Resident app disconnected", "warning");
+            setStatus("Resident offline", "warning");
+          }
+          break;
+        case "answer":
+          log("Resident answered the door", "success");
+          setStatus("Resident answered — speak now", "connected");
+          startSpeaking();
+          break;
+        case "reply":
+          log('Resident reply: "' + msg.text + '"', "success");
+          speakAloud(msg.text);
+          break;
+        case "hangup":
+          log("Resident ended the session", "warning");
+          endSession();
+          break;
+        case "no-peer":
+          log("Resident app is not connected yet (" + msg.forType + " not delivered)", "warning");
+          break;
+      }
+    };
+
+    hubWs.onerror = function () {
+      log("Hub WebSocket error", "error");
+      setStatus("Hub error", "error");
+    };
+
+    hubWs.onclose = function (c) {
+      log("Hub closed: " + c.code + " " + (c.reason || ""), "warning");
+      residentOnline = false;
+      // Auto-reconnect after a short delay unless we closed intentionally.
+      if (!c.wasClean) {
+        setTimeout(connectHub, 3000);
+      }
+    };
+  }
+
+  function hubSend(obj) {
+    if (hubWs && hubWs.readyState === WebSocket.OPEN) {
+      hubWs.send(JSON.stringify(obj));
+      return true;
+    }
+    log("Cannot send " + obj.type + " — hub not connected", "error");
+    return false;
+  }
+
+  // --- SPEECH RECOGNITION (captions) ---
+  function startSpeaking() {
+    if (recognizing) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      log("Speech recognition not supported in this browser. Use Chrome on Android.", "error");
+      return;
+    }
+    recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = function () {
+      recognizing = true;
+      log("Microphone active — speak now, captions go to the resident", "success");
+      btnSpeak.disabled = true;
+    };
+
+    recognition.onresult = function (e) {
+      let interim = "";
+      let finalText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      if (interim) {
+        hubSend({ type: "caption", text: interim, isFinal: false });
+        log('Caption (partial): "' + interim + '"');
+      }
+      if (finalText) {
+        hubSend({ type: "caption", text: finalText, isFinal: true });
+        log('Caption (final): "' + finalText + '"', "info");
+      }
+    };
+
+    recognition.onerror = function (e) {
+      log("Speech recognition error: " + e.error, "error");
+    };
+
+    recognition.onend = function () {
+      recognizing = false;
+      // Restart if the session is still active (Chrome stops after silence).
+      if (isRinging) {
+        try { recognition.start(); } catch (_) {}
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      log("Could not start recognition: " + e.message, "error");
+    }
+  }
+
+  // --- SPEECH SYNTHESIS (hear the resident's reply) ---
+  function speakAloud(text) {
+    if (!("speechSynthesis" in window)) {
+      log("Speech synthesis not supported", "warning");
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+    log("Speaking the resident's reply aloud", "info");
+  }
+
+  // --- BUTTON HANDLERS (global, called from onclick) ---
+  function ringDoorbell() {
+    if (isRinging) return;
+    if (!residentOnline) {
+      log("Resident app is not connected yet. Open the Threshold app on Phone B first.", "warning");
+    }
+    isRinging = true;
+    doorbellBtn.disabled = true;
+    btnSpeak.disabled = false;
+    btnHangup.disabled = false;
+    doorbellBtn.classList.add("ringing");
+    doorbellBtn.setAttribute("aria-pressed", "true");
+    setStatus("Ringing…", "ringing");
+    doorbellLabelEl.textContent = "Ringing…";
+    log("=== Ring Doorbell ===");
+    hubSend({ type: "ring" });
+    log("Ring sent to resident. Waiting for them to answer…", "info");
+  }
+
+  function hangUp() {
+    log("=== End Call ===");
+    hubSend({ type: "hangup" });
+    endSession();
+  }
+
+  function endSession() {
+    if (recognition) {
+      try { recognition.stop(); } catch (_) {}
+      recognition = null;
+    }
+    recognizing = false;
+    isRinging = false;
+    doorbellBtn.disabled = !residentOnline;
+    btnSpeak.disabled = true;
+    btnHangup.disabled = true;
+    doorbellBtn.classList.remove("ringing");
+    doorbellBtn.setAttribute("aria-pressed", "false");
+    doorbellLabelEl.textContent = "Press to ring";
+    setStatus(residentOnline ? "Resident online — ready" : "Idle",
+      residentOnline ? "connected" : "");
+    log("Session ended.", "info");
+  }
+
+  // expose for inline onclick
+  window.ringDoorbell = ringDoorbell;
+  window.startSpeaking = startSpeaking;
+  window.hangUp = hangUp;
+  window.clearLog = clearLog;
+
+  window.addEventListener("beforeunload", function () {
+    try { if (hubWs) hubWs.close(1000, "page unload"); } catch (_) {}
+  });
+
+  // reconnect to the hub if the backend URL field changes
+  const backendField = document.getElementById("backendUrl");
+  if (backendField) {
+    backendField.addEventListener("change", function () {
+      log("Backend URL changed — reconnecting hub", "info");
+      try { if (hubWs) hubWs.close(1000, "url change"); } catch (_) {}
+      connectHub();
+    });
+  }
+
+  // --- BOOT ---
+  doorbellBtn.disabled = true; // enabled once the resident app joins
+  log("Backend: " + backendUrl());
+  log("Open the Threshold app on Phone B (same device ID), then ring.");
+  connectHub();
+
+  </script>
+</body>
+</html>
