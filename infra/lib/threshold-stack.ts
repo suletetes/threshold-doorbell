@@ -120,7 +120,8 @@ export class ThresholdStack extends cdk.Stack {
             // Allow browser WebSocket connections from the Vercel visitor page.
             // Without this, any request with an Origin header is rejected by
             // isOriginAllowed() in ws-auth.ts (MED-34).
-            WS_ALLOWED_ORIGINS: 'https://spike-rho-sepia.vercel.app',
+            WS_ALLOWED_ORIGINS:
+              'https://threshold-demo.duckdns.org,https://spike-rho-sepia.vercel.app',
           },
           secrets: {
             SESSION_SECRET: ecs.Secret.fromSecretsManager(sessionSecret),
@@ -176,10 +177,12 @@ export class ThresholdStack extends cdk.Stack {
     //   aws acm import-certificate --certificate fileb://cert.pem --private-key fileb://key.pem
     //
     // Browsers will show a certificate warning for the self-signed cert, which
-    // is acceptable for a hackathon demo. Replace with a proper ACM-managed cert
-    // (via a custom domain + DNS validation) before any public launch.
+    // Trusted Let's Encrypt cert for threshold-demo.duckdns.org (issued via
+    // acme.sh DNS-01 DuckDNS challenge, imported to ACM). Browser-trusted — no
+    // warnings, WebSockets work. DuckDNS A record points the domain at the ALB.
+    // Renew before 2026-12-27 (90-day Let's Encrypt validity).
     const cert = elbv2.ListenerCertificate.fromArn(
-      'arn:aws:acm:us-east-1:356650046555:certificate/46651a29-3336-42b3-ac7c-aaba0f1a9c93',
+      'arn:aws:acm:us-east-1:356650046555:certificate/fb0b8701-6cb0-472d-9f5a-9205b8b2d81d',
     );
 
     service.loadBalancer.addListener('HTTPS', {
@@ -189,33 +192,26 @@ export class ThresholdStack extends cdk.Stack {
       defaultAction: elbv2.ListenerAction.forward([service.targetGroup]),
     });
 
-    // Redirect HTTP → HTTPS so any http:// link auto-upgrades.
-    // The L3 pattern already created the HTTP:80 listener as
-    // `service.listener`; replace its default action with a redirect.
-    service.listener.addAction('RedirectToHTTPS', {
-      priority: 1,
-      conditions: [elbv2.ListenerCondition.pathPatterns(['/*'])],
-      action: elbv2.ListenerAction.redirect({
-        port: '443',
-        protocol: 'HTTPS',
-        permanent: true,
-      }),
-    });
+    // Redirect HTTP → HTTPS removed: keep HTTP:80 forwarding directly so the
+    // Flutter web app (Chrome) can connect via ws:// without cert issues.
+    // HTTPS:443 stays for the Vercel visitor page (needs wss://).
+    // The L3 pattern already created the HTTP:80 listener forwarding to the
+    // target group — no change needed there.
 
     // --- Outputs ---
     new cdk.CfnOutput(this, 'AlbDnsName', {
       value: service.loadBalancer.loadBalancerDnsName,
-      description: 'Public ALB DNS. Backend is now reachable over HTTPS.',
+      description: 'Public ALB DNS.',
     });
 
     new cdk.CfnOutput(this, 'ReadyUrl', {
-      value: `https://${service.loadBalancer.loadBalancerDnsName}/ready`,
-      description: 'Health check URL (HTTPS). Should return {"ready":true}.',
+      value: `http://${service.loadBalancer.loadBalancerDnsName}/ready`,
+      description: 'Health check URL (HTTP). Should return {"ready":true}.',
     });
 
     new cdk.CfnOutput(this, 'SignalingWsUrl', {
-      value: `wss://${service.loadBalancer.loadBalancerDnsName}/signaling`,
-      description: 'Secure WebSocket signaling endpoint for the live session.',
+      value: `ws://${service.loadBalancer.loadBalancerDnsName}/signaling`,
+      description: 'WebSocket signaling endpoint (HTTP, no cert issues).',
     });
   }
 }

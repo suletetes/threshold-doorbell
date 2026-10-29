@@ -55,6 +55,19 @@ only the inbound half. Threshold is built on the channel everyone else leaves id
 
 *Data and privacy: what leaves the device in Clarity Mode versus what stays on it in Privacy Mode.*
 
+### AWS deployment
+
+![AWS system overview](docs/hackathon/diagrams/threshold-arch-overview.svg)
+
+*The live AWS stack: ALB (HTTPS/WSS, trusted cert) in front of an ECS Fargate backend.*
+
+![Two-phone demo hub](docs/hackathon/diagrams/threshold-arch-demo.svg)
+
+*Two-phone demo: ring, captions, and replies relay between the visitor page and the resident app through the backend hub.*
+
+Full set of rendered AWS diagrams (edge, data, AI, operations) is in
+[`docs/hackathon/AWS_ARCHITECTURE.md`](docs/hackathon/AWS_ARCHITECTURE.md#20-deployment-diagrams-rendered-aws-icons).
+
 Diagram sources and an index are in
 [`docs/hackathon/diagrams/`](docs/hackathon/diagrams/README.md).
 
