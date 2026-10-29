@@ -142,7 +142,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
           ),
         ),
         // NO reply bar in Captions-Only Mode (FR-12.1).
-        _endControl(),
+        _endControl(context),
       ],
     );
   }
@@ -161,7 +161,7 @@ class CaptionsOnlyScreen extends StatelessWidget {
             children: <Widget>[
               _banner(context),
               const Spacer(),
-              _endControl(),
+              _endControl(context),
             ],
           ),
         ),
@@ -235,21 +235,34 @@ class CaptionsOnlyScreen extends StatelessWidget {
     );
   }
 
-  Widget _endControl() {
+  Widget _endControl(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Align(
       alignment: Alignment.centerRight,
       child: Padding(
         padding: const EdgeInsets.all(Spacing.space3),
         child: Semantics(
           button: true,
-          label: 'End session',
+          label: 'End call',
           onTap: () => controller.end(),
           excludeSemantics: true,
-          child: FilledButton.tonalIcon(
+          child: FilledButton.icon(
             key: const ValueKey('captions-only-end'),
             onPressed: () => controller.end(),
+            style: FilledButton.styleFrom(
+              backgroundColor: scheme.error,
+              foregroundColor: scheme.onError,
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.space5,
+                vertical: Spacing.space3,
+              ),
+              elevation: Elevations.level2,
+              shape: const RoundedRectangleBorder(
+                borderRadius: Radii.roundedFull,
+              ),
+            ),
             icon: const Icon(Icons.call_end_rounded, size: Spacing.space5),
-            label: const Text('End'),
+            label: const Text('End call'),
           ),
         ),
       ),
