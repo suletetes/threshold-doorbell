@@ -592,7 +592,7 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('end-session')), findsOneWidget);
       expect(find.byIcon(Icons.call_end_rounded), findsOneWidget);
-      expect(find.text('End'), findsOneWidget);
+      expect(find.text('End call'), findsOneWidget);
       c.dispose();
       await port.dispose();
     });

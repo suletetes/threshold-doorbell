@@ -184,7 +184,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsLabel(RegExp('Visitor captions')), findsOneWidget);
-      expect(find.bySemanticsLabel('End session'), findsOneWidget);
+      expect(find.bySemanticsLabel('End call'), findsOneWidget);
       handle.dispose();
       c.dispose();
       await port.dispose();

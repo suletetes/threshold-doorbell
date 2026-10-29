@@ -95,7 +95,7 @@ void main() {
       await tester.pumpWidget(_wrap(c, FakeRingAppLauncher()));
       await tester.pump();
       expect(find.bySemanticsLabel('Open Ring app'), findsOneWidget);
-      expect(find.bySemanticsLabel('End session'), findsOneWidget);
+      expect(find.bySemanticsLabel('End call'), findsOneWidget);
       expect(
           find.bySemanticsLabel(RegExp('Replies unavailable')), findsOneWidget);
       handle.dispose();
