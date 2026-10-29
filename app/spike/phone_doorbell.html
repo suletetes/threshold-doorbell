@@ -326,8 +326,17 @@
       color: white;
     }
 
+    .btn-danger:not(:disabled) {
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    }
+
     .btn-danger:not(:disabled):hover {
       background: var(--danger-hover);
+      box-shadow: 0 6px 18px rgba(239, 68, 68, 0.45);
+    }
+
+    .btn-danger:not(:disabled) .btn-icon {
+      transform: rotate(135deg);
     }
 
     .btn-icon {
@@ -655,12 +664,11 @@
         </svg>
         Start Speaking
       </button>
-      <button class="btn btn-danger" id="btnHangup" onclick="hangUp()" disabled aria-label="Hang up">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21.8 13.8a10.5 10.5 0 0 0-3.7-3.7L21 3 18 6l3.7 3.7a10.5 10.5 0 0 0-3.7 3.7L3 21 6 24l15-15Z"/>
-          <line x1="6" y1="6" x2="18" y2="18" stroke-width="2.5"/>
+      <button class="btn btn-danger" id="btnHangup" onclick="hangUp()" disabled aria-label="End call">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-1.82 1.47a.973.973 0 0 1-.71.29c-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.66-1.85.998.998 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
         </svg>
-        Hang Up
+        End Call
       </button>
     </div>
 
@@ -684,11 +692,14 @@
             class="field-input"
             id="backendUrl"
             type="url"
-            value="https://Thresh-Thres-QXRy57cU4C8m-1653027497.us-east-1.elb.amazonaws.com"
-            placeholder="https://your-backend.example.com"
+            value=""
+            placeholder="Leave empty to use same-origin backend (default)"
             autocomplete="url"
           />
-          <p class="field-hint">Your deployed Threshold backend</p>
+          <p class="field-hint">
+            Leave empty when opening this page directly from the backend
+            (https://&lt;ALB&gt;/). Fill in only when running from a separate host.
+          </p>
         </div>
         <div class="field">
           <label class="field-label" for="deviceId">Device ID</label>
@@ -745,26 +756,30 @@
   <script>
   "use strict";
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // CONSTANTS
-  // ──────────────────────────────────────────────────────────────────────────────
-  const STUN_SERVERS = [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ];
+  // ============================================================================
+  // Threshold visitor page — demo hub client (Phone A)
+  //
+  // Connects to wss://<backend>/demo/hub?role=visitor&deviceId=<id>.
+  // Flow:
+  //   1. On load, join the hub as "visitor". Wait for the resident app to join.
+  //   2. Ring Doorbell  -> send {type:'ring'} to the resident.
+  //   3. Start Speaking -> Web Speech API recognizes speech -> send
+  //      {type:'caption', text, isFinal} for each result. Captions appear on
+  //      the resident phone live.
+  //   4. Resident taps a reply -> {type:'reply', text} arrives here -> spoken
+  //      aloud with speechSynthesis so the visitor hears the resident.
+  // No WebRTC, no self-signed cert issues — the trusted DuckDNS domain carries
+  // a real Let's Encrypt cert so wss:// connects cleanly in every browser.
+  // ============================================================================
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // STATE
-  // ──────────────────────────────────────────────────────────────────────────────
-  let pc = null;
-  let localStream = null;
-  let asrWs = null;
-  let sessionUrl = null;
+  // --- STATE ---
+  let hubWs = null;
   let isRinging = false;
+  let residentOnline = false;
+  let recognition = null;
+  let recognizing = false;
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // DOM ELEMENTS
-  // ──────────────────────────────────────────────────────────────────────────────
+  // --- DOM ---
   const statusEl = document.getElementById("status");
   const statusTextEl = document.getElementById("statusText");
   const doorbellBtn = document.getElementById("btnRing");
@@ -772,33 +787,40 @@
   const btnSpeak = document.getElementById("btnSpeak");
   const btnHangup = document.getElementById("btnHangup");
   const logEl = document.getElementById("log");
-  const emptyLogEl = document.getElementById("emptyLog");
+  let emptyLogEl = document.getElementById("emptyLog");
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // HELPERS
-  // ──────────────────────────────────────────────────────────────────────────────
+  // --- HELPERS ---
   function cfg(id) {
-    return document.getElementById(id).value.trim();
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : "";
   }
 
   function backendUrl() {
-    return cfg("backendUrl").replace(/\/+$/, "");
+    const v = cfg("backendUrl").replace(/\/+$/, "");
+    return v || window.location.origin;
   }
 
-  function setStatus(text, cls = "") {
+  function wsBase() {
+    return backendUrl().replace(/^http/, "ws");
+  }
+
+  function deviceId() {
+    return cfg("deviceId") || "mock-doorbell-001";
+  }
+
+  function setStatus(text, cls) {
     statusTextEl.textContent = text;
     statusEl.className = "status" + (cls ? " " + cls : "");
   }
 
-  function log(msg, type = "") {
-    if (emptyLogEl) {
-      emptyLogEl.remove();
-      emptyLogEl = null;
-    }
+  function log(msg, type) {
+    if (emptyLogEl) { emptyLogEl.remove(); emptyLogEl = null; }
     const entry = document.createElement("div");
     entry.className = "log-entry";
     const time = new Date().toTimeString().slice(0, 8);
-    entry.innerHTML = '<span class="log-time">[' + time + ']</span><span class="log-message' + (type ? " " + type : "") + '">' + msg + "</span>";
+    entry.innerHTML =
+      '<span class="log-time">[' + time + ']</span>' +
+      '<span class="log-message' + (type ? " " + type : "") + '">' + msg + "</span>";
     logEl.appendChild(entry);
     logEl.scrollTop = logEl.scrollHeight;
   }
@@ -808,257 +830,172 @@
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.id = "emptyLog";
-    empty.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><p>Log cleared.</p>';
+    empty.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><p>Log cleared.</p>';
     logEl.appendChild(empty);
     emptyLogEl = empty;
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 1 — Fire a simulated Ring doorbell-press webhook
-  // ──────────────────────────────────────────────────────────────────────────────
-  async function fireMockWebhook() {
-    const url = backendUrl() + "/webhook";
-    log("POST " + url + "  (mock doorbell-press event)");
-
-    const body = JSON.stringify({
-      request_id: "mock-" + Date.now(),
-      device_id: cfg("deviceId"),
-      event_type: "motion_detected",
-      timestamp: new Date().toISOString(),
-    });
-
+  // --- HUB CONNECTION ---
+  function connectHub() {
+    const url = wsBase() + "/demo/hub?role=visitor&deviceId=" + encodeURIComponent(deviceId());
+    log("Connecting to hub: " + url);
     try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Ring-Signature": "mock-bypass",
-        },
-        body: body,
-      });
-      if (r.ok) {
-        log("Webhook accepted (" + r.status + ") — resident should receive a push alert", "success");
-      } else {
-        const t = await r.text().catch(function () { return ""; });
-        log("Webhook returned " + r.status + ": " + t.slice(0, 120), "warning");
-      }
+      hubWs = new WebSocket(url);
     } catch (e) {
-      log("Webhook failed: " + e.message + "  (is the backend running at " + backendUrl() + "?)", "error");
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 2 — Open a WebRTC session through the backend /signaling broker
-  // ──────────────────────────────────────────────────────────────────────────────
-  async function openWebRtcSession() {
-    log("Requesting microphone access…");
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      log("Microphone granted", "success");
-    } catch (e) {
-      log("Microphone denied: " + e.message, "error");
-      setStatus("Mic denied", "error");
-      return false;
+      log("Hub connect error: " + e.message, "error");
+      setStatus("Hub error", "error");
+      return;
     }
 
-    pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-
-    localStream.getTracks().forEach(function (t) {
-      pc.addTrack(t, localStream);
-    });
-
-    pc.ontrack = function (e) {
-      log("Incoming audio track received (resident reply)", "info");
-      var audio = document.getElementById("remoteAudio");
-      if (!audio.srcObject) {
-        audio.srcObject = new MediaStream();
-      }
-      audio.srcObject.addTrack(e.track);
-      audio.play().catch(function () {});
+    hubWs.onopen = function () {
+      log("Hub connected as visitor", "success");
+      setStatus("Waiting for resident app", "ringing");
     };
 
-    pc.oniceconnectionstatechange = function () {
-      log("ICE state: " + pc.iceConnectionState);
-      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-        setStatus("Connected", "connected");
-      }
-      if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
-        setStatus("Disconnected", "error");
-      }
-    };
+    hubWs.onmessage = function (ev) {
+      let msg = null;
+      try { msg = JSON.parse(ev.data); } catch (_) { return; }
+      if (!msg || typeof msg.type !== "string") return;
 
-    var offer = await pc.createOffer({ offerToReceiveAudio: true });
-    await pc.setLocalDescription(offer);
-
-    await new Promise(function (resolve) {
-      if (pc.iceGatheringState === "complete") {
-        resolve();
-        return;
-      }
-      pc.onicegatheringstatechange = function () {
-        if (pc.iceGatheringState === "complete") {
-          resolve();
-        }
-      };
-      setTimeout(resolve, 3000);
-    });
-
-    var sigWsProto = backendUrl().startsWith("https") ? "wss" : "ws";
-    var sigWsBase = backendUrl().replace(/^https?/, sigWsProto);
-    var sigUrl = sigWsBase + "/signaling";
-    var sessionToken = cfg("sessionToken");
-    log("WS " + sigUrl + "  (SDP offer/answer)");
-
-    var sigResult = await new Promise(function (resolve) {
-      var sigWs = new WebSocket(sigUrl, ["threshold.session." + sessionToken]);
-      var settled = false;
-
-      sigWs.onopen = function () {
-        var offerMsg = JSON.stringify({
-          type: "offer",
-          deviceId: cfg("deviceId"),
-          sdp: pc.localDescription.sdp,
-        });
-        sigWs.send(offerMsg);
-        log("Offer sent via signaling WebSocket");
-      };
-
-      sigWs.onmessage = function (e) {
-        if (settled) return;
-        try {
-          var msg = JSON.parse(e.data);
-          if (msg.type === "answer") {
-            settled = true;
-            sessionUrl = msg.sessionUrl ?? null;
-            log("SDP answer received  sessionUrl=" + sessionUrl, "success");
-            sigWs.close(1000, "done");
-            resolve({ ok: true, sdpAnswer: msg.sdpAnswer });
-          } else if (msg.type === "error") {
-            settled = true;
-            log("Signaling error: " + msg.code + " " + (msg.message || ""), "error");
-            sigWs.close(1000, "error");
-            resolve({ ok: false });
+      switch (msg.type) {
+        case "joined":
+          log("Joined room '" + msg.deviceId + "' as " + msg.role, "info");
+          break;
+        case "peer-joined":
+          if (msg.role === "resident") {
+            residentOnline = true;
+            log("Resident app connected — ready to ring", "success");
+            setStatus("Resident online — ready", "connected");
+            doorbellBtn.disabled = false;
           }
-        } catch (err) {
-          log("Signaling parse error: " + err.message, "error");
-        }
-      };
+          break;
+        case "peer-left":
+          if (msg.role === "resident") {
+            residentOnline = false;
+            log("Resident app disconnected", "warning");
+            setStatus("Resident offline", "warning");
+          }
+          break;
+        case "answer":
+          log("Resident answered the door", "success");
+          setStatus("Resident answered — speak now", "connected");
+          startSpeaking();
+          break;
+        case "reply":
+          log('Resident reply: "' + msg.text + '"', "success");
+          speakAloud(msg.text);
+          break;
+        case "hangup":
+          log("Resident ended the session", "warning");
+          endSession();
+          break;
+        case "no-peer":
+          log("Resident app is not connected yet (" + msg.forType + " not delivered)", "warning");
+          break;
+      }
+    };
 
-      sigWs.onerror = function (err) {
-        if (!settled) {
-          settled = true;
-          log("Signaling WebSocket error", "error");
-          resolve({ ok: false });
-        }
-      };
+    hubWs.onerror = function () {
+      log("Hub WebSocket error", "error");
+      setStatus("Hub error", "error");
+    };
 
-      sigWs.onclose = function (ev) {
-        if (!settled) {
-          settled = true;
-          log("Signaling closed early: " + ev.code + " " + ev.reason, "error");
-          resolve({ ok: false });
-        }
-      };
+    hubWs.onclose = function (c) {
+      log("Hub closed: " + c.code + " " + (c.reason || ""), "warning");
+      residentOnline = false;
+      // Auto-reconnect after a short delay unless we closed intentionally.
+      if (!c.wasClean) {
+        setTimeout(connectHub, 3000);
+      }
+    };
+  }
 
-      // 10 s timeout
-      setTimeout(function () {
-        if (!settled) {
-          settled = true;
-          log("Signaling timeout", "error");
-          sigWs.close();
-          resolve({ ok: false });
-        }
-      }, 10000);
-    });
-
-    if (!sigResult.ok) {
-      setStatus("Signaling failed", "error");
-      return false;
+  function hubSend(obj) {
+    if (hubWs && hubWs.readyState === WebSocket.OPEN) {
+      hubWs.send(JSON.stringify(obj));
+      return true;
     }
-
-    await pc.setRemoteDescription({ type: "answer", sdp: sigResult.sdpAnswer });
-    log("WebRTC peer connection established", "success");
-    return true;
+    log("Cannot send " + obj.type + " — hub not connected", "error");
+    return false;
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 3 — Open /asr/stream WebSocket and forward microphone audio
-  // ──────────────────────────────────────────────────────────────────────────────
-  function openAsrStream() {
-    var wsProto = backendUrl().startsWith("https") ? "wss" : "ws";
-    var wsBase = backendUrl().replace(/^https?/, wsProto);
-    var asrUrl = wsBase + "/asr/stream?lang=en-US";
-    log("Opening ASR stream: " + asrUrl);
-
-    asrWs = new WebSocket(asrUrl, ["threshold.session." + cfg("sessionToken")]);
-    asrWs.binaryType = "arraybuffer";
-
-    asrWs.onopen = function () {
-      log("ASR WebSocket open — streaming audio to Transcribe", "success");
-      startAudioCapture();
-    };
-
-    asrWs.onmessage = function (e) {
-      try {
-        var msg = JSON.parse(e.data);
-        if (msg.transcript) {
-          log('Caption (' + (msg.isFinal ? "FINAL" : "partial") + '): "' + msg.transcript + '"', "info");
-        }
-      } catch (_) {}
-    };
-
-    asrWs.onerror = function (e) {
-      log("ASR WebSocket error: " + (e.message ?? "unknown"), "error");
-    };
-
-    asrWs.onclose = function (c) {
-      log("ASR WebSocket closed: " + c.code + " " + c.reason, "warning");
-    };
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────────
-  // Audio capture: ScriptProcessorNode fallback
-  // ──────────────────────────────────────────────────────────────────────────────
-  var audioCtx = null;
-  var mediaSource = null;
-  var processorNode = null;
-
-  function startAudioCapture() {
-    if (!localStream || !asrWs) {
+  // --- SPEECH RECOGNITION (captions) ---
+  function startSpeaking() {
+    if (recognizing) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      log("Speech recognition not supported in this browser. Use Chrome on Android.", "error");
       return;
     }
+    recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
-    audioCtx = new AudioContext({ sampleRate: 16000 });
-    mediaSource = audioCtx.createMediaStreamSource(localStream);
-
-    var FRAME_SIZE = 4096;
-    processorNode = audioCtx.createScriptProcessor(FRAME_SIZE, 1, 1);
-    processorNode.onaudioprocess = function (e) {
-      if (!asrWs || asrWs.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      var float32 = e.inputBuffer.getChannelData(0);
-      var pcm16 = new Int16Array(float32.length);
-      for (var i = 0; i < float32.length; i++) {
-        pcm16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
-      }
-      asrWs.send(pcm16.buffer);
+    recognition.onstart = function () {
+      recognizing = true;
+      log("Microphone active — speak now, captions go to the resident", "success");
+      btnSpeak.disabled = true;
     };
 
-    mediaSource.connect(processorNode);
-    processorNode.connect(audioCtx.destination);
-    log("Audio capture active — speak near the phone mic", "info");
+    recognition.onresult = function (e) {
+      let interim = "";
+      let finalText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      if (interim) {
+        hubSend({ type: "caption", text: interim, isFinal: false });
+        log('Caption (partial): "' + interim + '"');
+      }
+      if (finalText) {
+        hubSend({ type: "caption", text: finalText, isFinal: true });
+        log('Caption (final): "' + finalText + '"', "info");
+      }
+    };
+
+    recognition.onerror = function (e) {
+      log("Speech recognition error: " + e.error, "error");
+    };
+
+    recognition.onend = function () {
+      recognizing = false;
+      // Restart if the session is still active (Chrome stops after silence).
+      if (isRinging) {
+        try { recognition.start(); } catch (_) {}
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      log("Could not start recognition: " + e.message, "error");
+    }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
-  // PUBLIC BUTTON HANDLERS
-  // ──────────────────────────────────────────────────────────────────────────────
-  async function ringDoorbell() {
-    if (isRinging) {
+  // --- SPEECH SYNTHESIS (hear the resident's reply) ---
+  function speakAloud(text) {
+    if (!("speechSynthesis" in window)) {
+      log("Speech synthesis not supported", "warning");
       return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+    log("Speaking the resident's reply aloud", "info");
+  }
+
+  // --- BUTTON HANDLERS (global, called from onclick) ---
+  function ringDoorbell() {
+    if (isRinging) return;
+    if (!residentOnline) {
+      log("Resident app is not connected yet. Open the Threshold app on Phone B first.", "warning");
     }
     isRinging = true;
-
     doorbellBtn.disabled = true;
     btnSpeak.disabled = false;
     btnHangup.disabled = false;
@@ -1066,87 +1003,61 @@
     doorbellBtn.setAttribute("aria-pressed", "true");
     setStatus("Ringing…", "ringing");
     doorbellLabelEl.textContent = "Ringing…";
-
     log("=== Ring Doorbell ===");
-
-    await fireMockWebhook();
-
-    var ok = await openWebRtcSession();
-    if (!ok) {
-      log("Session setup failed — using audio-only mode (no WebRTC)", "warning");
-    }
-
-    openAsrStream();
-
-    setStatus("Session active", "ringing");
-    doorbellLabelEl.textContent = "Session active — speak to generate captions";
-    log("Session active. Speak to generate captions on the resident phone.", "info");
-    log('Tap "Start Speaking" to confirm the resident can hear you (optional TTS test).');
-  }
-
-  function startSpeaking() {
-    log("Speaking mode confirmed — your voice is being transcribed", "info");
-    btnSpeak.disabled = true;
+    hubSend({ type: "ring" });
+    log("Ring sent to resident. Waiting for them to answer…", "info");
   }
 
   function hangUp() {
-    log("=== Hang Up ===");
+    log("=== End Call ===");
+    hubSend({ type: "hangup" });
+    endSession();
+  }
 
-    if (processorNode) {
-      processorNode.disconnect();
-      processorNode = null;
+  function endSession() {
+    if (recognition) {
+      try { recognition.stop(); } catch (_) {}
+      recognition = null;
     }
-    if (mediaSource) {
-      mediaSource.disconnect();
-      mediaSource = null;
-    }
-    if (audioCtx) {
-      audioCtx.close();
-      audioCtx = null;
-    }
-
-    if (asrWs) {
-      asrWs.close(1000, "hangup");
-      asrWs = null;
-    }
-
-    if (localStream) {
-      localStream.getTracks().forEach(function (t) { t.stop(); });
-      localStream = null;
-    }
-    if (pc) {
-      pc.close();
-      pc = null;
-    }
-
-    if (sessionUrl) {
-      var url = backendUrl() + "/signaling/release";
-      fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Cookie": "session=" + cfg("sessionToken") },
-        body: JSON.stringify({ sessionUrl: sessionUrl }),
-        credentials: "include",
-      }).catch(function () {});
-      sessionUrl = null;
-    }
-
+    recognizing = false;
     isRinging = false;
-    doorbellBtn.disabled = false;
+    doorbellBtn.disabled = !residentOnline;
     btnSpeak.disabled = true;
     btnHangup.disabled = true;
     doorbellBtn.classList.remove("ringing");
     doorbellBtn.setAttribute("aria-pressed", "false");
     doorbellLabelEl.textContent = "Press to ring";
-    setStatus("Idle");
-    document.getElementById("remoteAudio").srcObject = null;
-
+    setStatus(residentOnline ? "Resident online — ready" : "Idle",
+      residentOnline ? "connected" : "");
     log("Session ended.", "info");
   }
 
-  window.addEventListener("beforeunload", hangUp);
+  // expose for inline onclick
+  window.ringDoorbell = ringDoorbell;
+  window.startSpeaking = startSpeaking;
+  window.hangUp = hangUp;
+  window.clearLog = clearLog;
 
-  log("Backend URL: " + backendUrl());
-  log("Tip: Both this page and the Flutter app must reach the same backend.");
+  window.addEventListener("beforeunload", function () {
+    try { if (hubWs) hubWs.close(1000, "page unload"); } catch (_) {}
+  });
+
+  // reconnect to the hub if the backend URL field changes
+  const backendField = document.getElementById("backendUrl");
+  if (backendField) {
+    backendField.addEventListener("change", function () {
+      log("Backend URL changed — reconnecting hub", "info");
+      try { if (hubWs) hubWs.close(1000, "url change"); } catch (_) {}
+      connectHub();
+    });
+  }
+
+  // --- BOOT ---
+  doorbellBtn.disabled = true; // enabled once the resident app joins
+  log("Backend: " + backendUrl());
+  log("Open the Threshold app on Phone B (same device ID), then ring.");
+  connectHub();
+
   </script>
 </body>
 </html>

@@ -1,28 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Network security config (LOW-14).
+  Network security config.
 
-  Production traffic is cleartext-forbidden by the base config: all backend calls
-  must use HTTPS. Cleartext is permitted only in debug builds, and only for:
-    - local dev hosts (emulator loopback, localhost)
-    - the live AWS ALB endpoint (*.elb.amazonaws.com) — HTTP only, no HTTPS cert
-      on the bare ELB hostname. For production, attach an ACM cert via a custom
-      domain and remove this entry.
+  The production/demo backend is now reached over a TRUSTED Let's Encrypt cert
+  at https://threshold-demo.duckdns.org, so no special trust anchors are needed
+  for it — the system CA store validates it. HTTPS is required (base config
+  forbids cleartext).
+
+  Debug builds still permit cleartext to local dev hosts for laptop testing.
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 
     <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
         <domain-config cleartextTrafficPermitted="true">
-            <!-- Local development -->
             <domain includeSubdomains="true">10.0.2.2</domain>
             <domain includeSubdomains="true">localhost</domain>
             <domain includeSubdomains="true">127.0.0.1</domain>
-            <!-- LAN backend (two-phone WiFi demo) -->
             <domain includeSubdomains="true">192.168.0.0</domain>
             <domain includeSubdomains="true">192.168.1.0</domain>
             <domain includeSubdomains="true">192.168.2.0</domain>
-            <!-- Live AWS ALB (HTTP — no HTTPS cert on bare ELB hostname) -->
             <domain includeSubdomains="true">elb.amazonaws.com</domain>
         </domain-config>
     </debug-overrides>
