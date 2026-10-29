@@ -52,6 +52,9 @@ RUN npm ci --omit=dev --ignore-scripts
 # Copy compiled output from the build stage
 COPY --chown=node:node --from=builder /build/dist ./dist
 
+# Copy static assets (visitor page served at GET /)
+COPY --chown=node:node src/public ./dist/public
+
 # ── Environment & runtime config ─────────────────────────────────────────────
 ENV NODE_ENV=production
 
