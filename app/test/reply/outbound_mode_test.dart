@@ -2,6 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:threshold/reply/outbound_mode.dart';
 
 void main() {
+  group('OutboundModeMachine reset (same instance re-probes, FR-6.4b)', () {
+    test('reset returns to unprobed so a new session re-probes in place', () {
+      final m = OutboundModeMachine();
+      m.applyProbe(ProbeResult.failure); // session 1: captions-only
+      expect(m.outboundAvailable, isFalse);
+      expect(m.isCaptionsOnly, isTrue);
+
+      // A new session resets the SAME instance (the reply controller holds this
+      // reference), then re-probes. It must now reflect the new probe, not the
+      // stale captions-only result.
+      m.reset();
+      expect(m.hasProbed, isFalse);
+      expect(m.outboundAvailable, isFalse);
+      m.applyProbe(ProbeResult.success);
+      expect(m.outboundAvailable, isTrue, reason: 'reset instance re-probes');
+      expect(m.isCaptionsOnly, isFalse);
+    });
+  });
+
   group('OutboundModeMachine (Task 16, FR-6.4, 6.4a, 6.4b; AT-6)', () {
     test('starts unprobed with no outbound and not captions-only', () {
       final m = OutboundModeMachine();

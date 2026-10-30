@@ -26,6 +26,33 @@ void main() {
     });
 
     test(
+        'the SAME outbound instance persists across sessions and re-probes '
+        '(reply bar reference stays live, regression)', () async {
+      final port = FakeSessionPort(probeSucceeds: true);
+      final c = SessionController(port: port);
+
+      // The reply controller captures this reference once, at build time.
+      final capturedOutbound = c.outbound;
+
+      await c.open(deviceId: 'dev-1');
+      expect(capturedOutbound.outboundAvailable, isTrue,
+          reason: 'session 1 probe makes the captured machine two-way');
+
+      await c.end();
+      // A second session must re-probe the SAME instance in place, so the
+      // captured reference (held by the reply controller) goes live again
+      // instead of pointing at a discarded machine that never re-probes.
+      await c.open(deviceId: 'dev-1');
+      expect(identical(c.outbound, capturedOutbound), isTrue,
+          reason: 'open() must not replace the machine instance');
+      expect(capturedOutbound.outboundAvailable, isTrue,
+          reason: 'session 2 re-probe makes the captured machine two-way again');
+
+      c.dispose();
+      await port.dispose();
+    });
+
+    test(
         'probe success enables two-way; probe failure yields Captions-Only (AT-6 wiring)',
         () async {
       final okPort = FakeSessionPort(probeSucceeds: true);
