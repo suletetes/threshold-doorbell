@@ -82,8 +82,7 @@ Diagram sources and an index are in
 | Smart replies | Amazon Bedrock (Clarity Mode only; on-device suggestions in Privacy Mode) |
 | Reply spoken at the door | `flutter_tts` injected via the WebView AudioContext pipeline |
 | Distinct alert patterns | `vibration` (haptic vocabulary) |
-| Visual context | `google_mlkit_object_detection`, privacy-zone aware, on-device only |
-| Backend | Node 20 + Fastify (stateless): OAuth, webhooks, signaling broker, ASR relay, replies, transcripts |
+| Backend | Node 22 + Fastify (stateless): OAuth, webhooks, signaling broker, ASR relay, replies, transcripts |
 | Ring integration | Ring Partner API (OAuth 2.0 + webhooks) |
 
 ### Architecture decision ARCH-1: one WebRTC stack, owned by the WebView
@@ -123,7 +122,7 @@ one doorbell. So there is exactly one peer connection, audio `sendrecv`, video
 │       ├── design/                 # design tokens and themed components
 │       ├── ui/                     # shared UI widgets
 │       └── a11y/                   # UI-copy dash lint engine
-├── backend/                        # Node 20 + Fastify (stateless)
+├── backend/                        # Node 22 + Fastify (stateless)
 │   ├── src/routes/                 # oauth, webhook, devices, events, signaling,
 │   │                               #   asr, replies, transcripts
 │   ├── src/services/               # ring, transcribe, bedrock, store (+ fixtures)
@@ -219,7 +218,7 @@ The backend listens on port 8080 by default (override with the `PORT` environmen
 variable; see `backend/src/config.ts`).
 
 Full device testing needs a Ring developer account, an OAuth app, and a Ring
-Protection plan. See `docs/hackathon/threshold-spec.md` for the plan and
+Protection plan. See `.kiro/specs/threshold-doorbell/` for the full spec and
 `.kiro/ENVIRONMENT.md` for the verified toolchain.
 
 To build and install the Android APK for the two phone demo, follow the

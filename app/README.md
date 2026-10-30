@@ -1,7 +1,7 @@
 # Threshold - Flutter app
 
 The mobile client (iOS + Android). See the repo root `README.md` for the product overview and
-`../docs/hackathon/threshold-spec.md` for the full engineering spec.
+`../.kiro/specs/threshold-doorbell/` for the full engineering spec.
 
 ## Structure
 

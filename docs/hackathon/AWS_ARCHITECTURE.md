@@ -95,34 +95,42 @@ phrase, and Hang up - a complete demo harness in one self-contained file.
 
 ### 2.0 Deployment Diagrams (rendered, AWS icons)
 
-Focused views of the live AWS deployment. Each diagram is deliberately scoped to
-one concern so it stays readable; together they describe the whole stack.
+Focused views of the architecture, each scoped to one concern so it stays
+readable. Not every service shown is deployed yet. What is actually running on
+AWS today is the overview, edge, operations, and the Bedrock half of the AI
+diagram plus the demo hub. The data diagram (DynamoDB, KMS) and the Transcribe
+half of the AI diagram are the designed target, wired next. Each diagram below
+is labelled DEPLOYED or DESIGNED.
 
-**System overview**
+**System overview (DEPLOYED)**
 
 ![System overview](diagrams/threshold-arch-overview.svg)
 
-**Edge and compute** - Users reach the ALB over HTTPS/WSS (trusted Let's Encrypt
-cert); the ALB forwards to the ECS Fargate backend.
+**Edge and compute (DEPLOYED)** - Users reach the ALB over HTTPS/WSS (trusted
+Let's Encrypt cert); the ALB forwards to the ECS Fargate backend.
 
 ![Edge and compute](diagrams/threshold-arch-edge.svg)
 
-**Data and security** - the backend's IAM-scoped access to DynamoDB, KMS, and
-Secrets Manager.
+**Data and security (DESIGNED)** - the backend's IAM-scoped access to DynamoDB,
+KMS, and Secrets Manager. Secrets Manager is deployed today; DynamoDB and KMS
+are the designed persistence layer, not yet provisioned.
 
 ![Data and security](diagrams/threshold-arch-data.svg)
 
-**AI services** - Amazon Transcribe (streaming ASR) and Amazon Bedrock Nova Micro
-(smart replies).
+**AI services (MIXED)** - Amazon Bedrock Nova Micro (smart replies) is deployed
+and the task role is scoped to it today. Amazon Transcribe (streaming ASR) is
+the designed cloud caption path; captions in the demo run on the device.
 
 ![AI services](diagrams/threshold-arch-ai.svg)
 
-**Operations** - ECR image pull, CloudWatch logs and alarms, SNS/FCM push.
+**Operations (DEPLOYED, except push)** - ECR image pull and CloudWatch logs are
+live. SNS/FCM push is the designed alert delivery path for a real doorbell press.
 
 ![Operations](diagrams/threshold-arch-ops.svg)
 
-**Two-phone demo hub** - how the visitor page (Phone A) and the Threshold app
-(Phone B) exchange ring, captions, and replies through the backend relay.
+**Two-phone demo hub (DEPLOYED)** - how the visitor page (Phone A) and the
+Threshold app (Phone B) exchange ring, captions, and replies through the backend
+relay.
 
 ![Two-phone demo hub](diagrams/threshold-arch-demo.svg)
 
