@@ -775,6 +775,9 @@
   // --- STATE ---
   let hubWs = null;
   let isRinging = false;
+  let ringRetryTimer = null;
+  let ringGaveUpTimer = null;
+  let ringAcked = false;
   let residentOnline = false;
   let recognition = null;
   let recognizing = false;
@@ -877,7 +880,14 @@
             setStatus("Resident offline", "warning");
           }
           break;
+        case "ring-ack":
+          ringAcked = true;
+          stopRingRetry();
+          log("Resident device received the ring", "info");
+          break;
         case "answer":
+          ringAcked = true;
+          stopRingRetry();
           log("Resident answered the door", "success");
           setStatus("Resident answered. Speak now.", "connected");
           startSpeaking();
@@ -887,6 +897,8 @@
           speakAloud(msg.text);
           break;
         case "decline":
+          ringAcked = true;
+          stopRingRetry();
           log("Resident declined the door", "warning");
           setStatus("Resident declined", "warning");
           endSession();
@@ -1009,8 +1021,29 @@
     setStatus("Ringing…", "ringing");
     doorbellLabelEl.textContent = "Ringing…";
     log("=== Ring Doorbell ===");
+    ringAcked = false;
     hubSend({ type: "ring" });
-    log("Ring sent to resident. Waiting for them to answer…", "info");
+    log("Ring sent to resident. Waiting for them to answer.", "info");
+    // Resend the ring until the resident app acknowledges it (ring-ack),
+    // answers, or declines. A single frame can be dropped by the load balancer
+    // when both phones connect at once, so we retry every 1.5s for up to 20s.
+    stopRingRetry();
+    ringRetryTimer = setInterval(function () {
+      if (ringAcked || !isRinging) { stopRingRetry(); return; }
+      hubSend({ type: "ring" });
+    }, 1500);
+    ringGaveUpTimer = setTimeout(function () {
+      stopRingRetry();
+      if (isRinging && !ringAcked) {
+        log("No answer from the resident.", "warning");
+        setStatus("No answer", "warning");
+      }
+    }, 20000);
+  }
+
+  function stopRingRetry() {
+    if (ringRetryTimer) { clearInterval(ringRetryTimer); ringRetryTimer = null; }
+    if (ringGaveUpTimer) { clearTimeout(ringGaveUpTimer); ringGaveUpTimer = null; }
   }
 
   function hangUp() {
@@ -1020,6 +1053,8 @@
   }
 
   function endSession() {
+    stopRingRetry();
+    ringAcked = false;
     if (recognition) {
       try { recognition.stop(); } catch (_) {}
       recognition = null;
@@ -1032,7 +1067,7 @@
     doorbellBtn.classList.remove("ringing");
     doorbellBtn.setAttribute("aria-pressed", "false");
     doorbellLabelEl.textContent = "Press to ring";
-    setStatus(residentOnline ? "Resident online. ready" : "Idle",
+    setStatus(residentOnline ? "Resident online. Ready." : "Idle",
       residentOnline ? "connected" : "");
     log("Session ended.", "info");
   }
