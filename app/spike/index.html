@@ -757,7 +757,7 @@
   "use strict";
 
   // ============================================================================
-  // Threshold visitor page — demo hub client (Phone A)
+  // Threshold visitor page. demo hub client (Phone A)
   //
   // Connects to wss://<backend>/demo/hub?role=visitor&deviceId=<id>.
   // Flow:
@@ -768,7 +768,7 @@
   //      the resident phone live.
   //   4. Resident taps a reply -> {type:'reply', text} arrives here -> spoken
   //      aloud with speechSynthesis so the visitor hears the resident.
-  // No WebRTC, no self-signed cert issues — the trusted DuckDNS domain carries
+  // No WebRTC, no self-signed cert issues. the trusted DuckDNS domain carries
   // a real Let's Encrypt cert so wss:// connects cleanly in every browser.
   // ============================================================================
 
@@ -865,8 +865,8 @@
         case "peer-joined":
           if (msg.role === "resident") {
             residentOnline = true;
-            log("Resident app connected — ready to ring", "success");
-            setStatus("Resident online — ready", "connected");
+            log("Resident app connected. Ready to ring.", "success");
+            setStatus("Resident online. Ready.", "connected");
             doorbellBtn.disabled = false;
           }
           break;
@@ -879,12 +879,17 @@
           break;
         case "answer":
           log("Resident answered the door", "success");
-          setStatus("Resident answered — speak now", "connected");
+          setStatus("Resident answered. Speak now.", "connected");
           startSpeaking();
           break;
         case "reply":
           log('Resident reply: "' + msg.text + '"', "success");
           speakAloud(msg.text);
+          break;
+        case "decline":
+          log("Resident declined the door", "warning");
+          setStatus("Resident declined", "warning");
+          endSession();
           break;
         case "hangup":
           log("Resident ended the session", "warning");
@@ -916,7 +921,7 @@
       hubWs.send(JSON.stringify(obj));
       return true;
     }
-    log("Cannot send " + obj.type + " — hub not connected", "error");
+    log("Cannot send " + obj.type + ". hub not connected", "error");
     return false;
   }
 
@@ -935,7 +940,7 @@
 
     recognition.onstart = function () {
       recognizing = true;
-      log("Microphone active — speak now, captions go to the resident", "success");
+      log("Microphone active. speak now, captions go to the resident", "success");
       btnSpeak.disabled = true;
     };
 
@@ -1027,7 +1032,7 @@
     doorbellBtn.classList.remove("ringing");
     doorbellBtn.setAttribute("aria-pressed", "false");
     doorbellLabelEl.textContent = "Press to ring";
-    setStatus(residentOnline ? "Resident online — ready" : "Idle",
+    setStatus(residentOnline ? "Resident online. ready" : "Idle",
       residentOnline ? "connected" : "");
     log("Session ended.", "info");
   }
@@ -1046,7 +1051,7 @@
   const backendField = document.getElementById("backendUrl");
   if (backendField) {
     backendField.addEventListener("change", function () {
-      log("Backend URL changed — reconnecting hub", "info");
+      log("Backend URL changed. reconnecting hub", "info");
       try { if (hubWs) hubWs.close(1000, "url change"); } catch (_) {}
       connectHub();
     });

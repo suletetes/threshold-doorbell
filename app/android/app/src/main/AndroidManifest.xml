@@ -7,6 +7,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- Route WebRTC audio to a Bluetooth hearing aid or headset on Android 12+ (LOW-13). -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <!-- Doorbell alert (FR-3.3): post the incoming-doorbell notification on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Doorbell alert (FR-3.3): show the ring as a full-screen, call-style alert even
+         when the phone is locked. On Android 14+ this special permission is auto-granted
+         only to calling/alarm apps; a sideloaded build keeps it, and the app always
+         guards with canUseFullScreenIntent() before relying on it. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <application
         android:label="Threshold"
         android:name="${applicationName}"
