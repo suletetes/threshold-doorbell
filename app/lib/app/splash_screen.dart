@@ -13,7 +13,6 @@
 // Motion honours `MediaQuery.disableAnimations` (WCAG 2.2 AA / Motion.instant).
 // No em-dashes or en-dashes anywhere (NFR-10).
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../design/tokens.dart';
@@ -205,7 +204,7 @@ class _SplashScreenState extends State<SplashScreen>
                   scale: _iconScale,
                   child: FadeTransition(
                     opacity: _iconFade,
-                    child: _ThresholdMark(size: 120),
+                    child: const _ThresholdMark(size: 120),
                   ),
                 ),
                 const SizedBox(height: Spacing.space6),

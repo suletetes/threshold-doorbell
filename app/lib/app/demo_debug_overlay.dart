@@ -16,6 +16,7 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../alerts/doorbell_alert_service.dart';
 import 'mock_adapters.dart';
 
 const String _kBackendUrlPrefKey = 'demo_backend_url_override';
@@ -69,7 +70,17 @@ class _DemoDebugOverlayState extends State<DemoDebugOverlay> {
 
     // Connect the hub and listen for ring + presence.
     DemoHub.instance.connect();
+    // Start the doorbell alert service: request notification permission and show
+    // the persistent "listening" notification so a ring can reach a locked or
+    // backgrounded phone (FR-3.3). Best effort; a no-op if the platform binding
+    // is unavailable.
+    unawaited(_initAlerts());
     _ringSub = DemoHub.instance.onRing.listen((_) {
+      // Buzz and show the call-style alert the moment the visitor rings, before
+      // the ringing screen even builds, so a deaf resident feels it at once.
+      unawaited(DoorbellAlertService.shared.startRing(
+        vibrationEnabled: DoorbellAlertService.personAtDoorHapticEnabled,
+      ));
       if (mounted) widget.onRing();
     });
     _presenceSub = DemoHub.instance.visitorPresence.listen((online) {
@@ -77,6 +88,13 @@ class _DemoDebugOverlayState extends State<DemoDebugOverlay> {
     });
 
     _urlCtrl.text = DemoConfig.backendUrl;
+  }
+
+  Future<void> _initAlerts() async {
+    final svc = DoorbellAlertService.shared;
+    await svc.init();
+    await svc.requestPermission();
+    await svc.startListening();
   }
 
   Future<void> _loadBackendOverride() async {

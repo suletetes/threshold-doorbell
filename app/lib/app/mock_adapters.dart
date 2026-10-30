@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'dart:developer' as dev;
 
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../captions/asr_client.dart';
@@ -95,6 +96,10 @@ class DemoHub {
   /// Fired when the visitor presses Ring.
   final _ringController = StreamController<void>.broadcast();
   Stream<void> get onRing => _ringController.stream;
+
+  /// Fired when the visitor ends the call, so the resident session can close.
+  final _hangupController = StreamController<void>.broadcast();
+  Stream<void> get onHangup => _hangupController.stream;
 
   /// Live captions from the visitor's speech.
   final _captionController = StreamController<CaptionResult>.broadcast();
@@ -169,6 +174,7 @@ class DemoHub {
             break;
           case 'hangup':
             _log('HUB <- hangup from visitor');
+            _hangupController.add(null);
             break;
           case 'no-peer':
             _log('HUB visitor not connected yet (${msg['forType']} not delivered)');
@@ -216,6 +222,7 @@ class DemoHub {
   void sendAnswer() => send(<String, dynamic>{'type': 'answer'});
   void sendReply(String text) => send(<String, dynamic>{'type': 'reply', 'text': text});
   void sendHangup() => send(<String, dynamic>{'type': 'hangup'});
+  void sendDecline() => send(<String, dynamic>{'type': 'decline'});
 
   Future<void> dispose() async {
     try {
@@ -363,12 +370,45 @@ class BackendBedrockSuggestionPort implements BedrockSuggestionPort {
 
   @override
   Future<List<String>> suggest(String visitorText) async {
-    // The /replies endpoint needs a real signed session; in the demo the token
-    // bypass may be rejected, so return the safe set directly. This keeps the
-    // reply bar populated and the demo smooth. Nova Micro can be re-enabled by
-    // wiring a real session token here.
-    _log('REPLIES suggest for "$visitorText" -> safe set');
-    return _safeSet;
+    // Call the real backend POST /replies (Amazon Bedrock Nova Micro in Clarity
+    // Mode). The demo session token is accepted because the deployed backend
+    // runs in the demo environment. A 2 second timeout and any error fall back
+    // to the fixed safe set, so the reply bar is never empty or slow (FR-7.3).
+    final url = Uri.parse('${DemoConfig.backendUrl}/replies');
+    try {
+      final res = await http
+          .post(
+            url,
+            headers: <String, String>{
+              'content-type': 'application/json',
+              'authorization': 'Bearer demo-session-token',
+            },
+            body: jsonEncode(<String, dynamic>{
+              'visitorText': visitorText,
+              'language': 'en-US',
+              'mode': 'clarity',
+            }),
+          )
+          .timeout(const Duration(seconds: 2));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) {
+          final list = decoded['suggestions'];
+          if (list is List) {
+            final suggestions = list.whereType<String>().toList();
+            if (suggestions.isNotEmpty) {
+              _log('REPLIES Bedrock suggestions for "$visitorText" -> $suggestions');
+              return suggestions;
+            }
+          }
+        }
+      }
+      _log('REPLIES non-200 or empty (${res.statusCode}) -> safe set');
+      return _safeSet;
+    } catch (e) {
+      _log('REPLIES error ($e) -> safe set');
+      return _safeSet;
+    }
   }
 }
 

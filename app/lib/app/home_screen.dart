@@ -28,6 +28,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../alerts/doorbell_alert_service.dart';
 import '../captions/asr_client.dart';
 import '../captions/language_selection.dart';
 import '../captions/model_download_sheet.dart';
@@ -37,12 +38,14 @@ import '../consent/recording_notice_screen.dart';
 import '../design/components/components.dart';
 import '../design/tokens.dart';
 import '../reply/reply_bar.dart';
+import '../session/ringing_screen.dart';
 import '../session/captions_only_screen.dart';
 import '../session/conversation_screen.dart';
 import '../session/session_controller.dart';
 import '../session/session_state.dart';
 import '../settings/settings_screen.dart';
 import 'demo_debug_overlay.dart';
+import 'mock_adapters.dart';
 import 'providers.dart';
 
 /// The device id used when a session is started from the home hero action with
@@ -68,7 +71,7 @@ class HomeScreen extends ConsumerWidget {
     final coordinator = ref.watch(sessionStartCoordinatorProvider);
     final theme = Theme.of(context);
     return DemoDebugOverlay(
-      onRing: () => _startSession(context, ref),
+      onRing: () => _showIncomingRing(context, ref),
       child: Scaffold(
       appBar: AppBar(
         title: const Text('Threshold'),
@@ -134,6 +137,56 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     ),
+    );
+  }
+
+  /// Show the incoming-doorbell ring as a full-screen, call-style screen and
+  /// route the resident's choice (FR-3.3). The phone is already buzzing and the
+  /// call notification is showing (DoorbellAlertService, started by the demo
+  /// overlay when the visitor rang); every path here stops that alert first.
+  ///
+  ///   Answer     -> open the captioned session.
+  ///   I'm coming -> speak a line at the door, then open the session.
+  ///   Decline    -> speak a polite line at the door and dismiss.
+  ///   Missed     -> stop the alert and dismiss (the visitor's page times out).
+  Future<void> _showIncomingRing(BuildContext context, WidgetRef ref) async {
+    final settings = ref.read(settingsControllerProvider).settings;
+    final replyPort = ref.read(replyPortProvider);
+
+    Future<void> stopAlert() => DoorbellAlertService.shared.stopRing();
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (ringContext) => RingingScreen(
+          strobeEnabled: settings.strobeEnabled,
+          onAnswer: () async {
+            await stopAlert();
+            if (ringContext.mounted) Navigator.of(ringContext).pop();
+            if (context.mounted) await _startSession(context, ref);
+          },
+          onComing: () async {
+            await stopAlert();
+            // Speak the coming line at the door (the demo reply port also relays
+            // it to the visitor), then open the session.
+            unawaited(replyPort.speak(kComingSpokenLine));
+            if (ringContext.mounted) Navigator.of(ringContext).pop();
+            if (context.mounted) await _startSession(context, ref);
+          },
+          onDecline: () async {
+            await stopAlert();
+            // Tell the visitor page the resident declined so it shows a clear
+            // "Declined" state, and speak the polite line so they also hear it.
+            if (DemoConfig.enabled) DemoHub.instance.sendDecline();
+            unawaited(replyPort.speak(kDeclineSpokenLine));
+            if (ringContext.mounted) Navigator.of(ringContext).pop();
+          },
+          onMissed: () async {
+            await stopAlert();
+            if (ringContext.mounted) Navigator.of(ringContext).pop();
+          },
+        ),
+      ),
     );
   }
 
@@ -268,9 +321,19 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
   /// in initState and stopped in dispose.
   CaptionPump? _captionPump;
 
+  /// DEMO only: ends this session when the visitor hangs up from Phone A, so the
+  /// resident is not stranded on a captions screen after the visitor leaves.
+  StreamSubscription<void>? _demoHangupSub;
+
   @override
   void initState() {
     super.initState();
+    // DEMO: when the visitor ends the call, end the resident session too.
+    if (DemoConfig.enabled) {
+      _demoHangupSub = DemoHub.instance.onHangup.listen((_) {
+        if (mounted) _endAndLeave();
+      });
+    }
     // Attach the caption pump so live caption results reach the surface for this
     // session (CRIT-07). The controller drops results while idle/closed; the
     // pump just delivers the feed. The echo gate (FR-5.6) and the
@@ -414,6 +477,7 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
     // Stop pumping captions (CRIT-07); the source itself is owned by its
     // provider and disposed with the scope.
     unawaited(_captionPump?.stop());
+    unawaited(_demoHangupSub?.cancel());
     // Leaving the host for any reason ends the session so nothing is left live
     // off screen (CRIT-05). Guard the read: if the ProviderScope is tearing
     // down with us, it has already disposed the controller (which closes the
