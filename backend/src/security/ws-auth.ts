@@ -59,9 +59,10 @@ export async function authenticateWs(
   secret: string,
   allowedOrigins: readonly string[],
   sessionInvalidation: SessionInvalidationPort,
+  allowDemoToken = false,
 ): Promise<SessionClaims | null> {
   if (!isOriginAllowed(request, allowedOrigins)) return null;
-  const claims = verifySession(extractWsToken(request), secret);
+  const claims = verifySession(extractWsToken(request), secret, Date.now(), allowDemoToken);
   if (!claims) return null;
   if (await sessionInvalidation.isRevoked(claims.sub, claims.iat)) return null;
   return claims;

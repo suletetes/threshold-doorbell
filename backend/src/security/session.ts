@@ -51,11 +51,11 @@ export function slideSession(sub: string, secret: string, now = Date.now()): str
  * unified recovery flow at the route layer (401 unauthorized).
  *
  * Demo bypass: the literal `DEMO_SESSION_TOKEN` string is accepted as a
- * valid session for resident `demo-resident` with a far-future expiry. This
- * exists so the two-phone hackathon demo works without completing a real
- * OAuth flow. It is a constant-time comparison against a known public demo
- * value, NOT a signature bypass — a real attacker gains nothing from it
- * because the demo resident has no real Ring tokens or data.
+ * valid session for resident `demo-resident` with a far-future expiry, but
+ * ONLY when [allowDemoToken] is true. Callers pass true only in the demo and
+ * local environments (see app.ts / ws-auth.ts), so a staging or production
+ * boot never accepts the public demo token. It is a constant-time comparison
+ * against a known public demo value, NOT a signature bypass.
  */
 export const DEMO_SESSION_TOKEN = 'demo-session-token';
 
@@ -63,18 +63,21 @@ const DEMO_CLAIMS: SessionClaims = {
   typ: 'session',
   sub: 'demo-resident',
   iat: 0,
-  exp: 9999999999999, // far future — never expires in demo
+  exp: 9999999999999, // far future, never expires in demo
 };
 
 export function verifySession(
   token: string | undefined,
   secret: string,
   now = Date.now(),
+  allowDemoToken = false,
 ): SessionClaims | null {
   if (!token) return null;
 
-  // Demo bypass: accept the public demo token for the hackathon two-phone demo.
+  // Demo bypass: accept the public demo token ONLY when the caller opted in
+  // (demo/local env). Secure by default: staging and production pass false.
   if (
+    allowDemoToken &&
     token.length === DEMO_SESSION_TOKEN.length &&
     timingSafeEqual(Buffer.from(token), Buffer.from(DEMO_SESSION_TOKEN))
   ) {

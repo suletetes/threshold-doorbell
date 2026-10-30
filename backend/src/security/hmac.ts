@@ -53,6 +53,7 @@ export function verifyTimestampedSignature(args: {
   keys: readonly string[];
   now?: number;
   windowMs?: number;
+  allowDemoSignature?: boolean;
 }): boolean {
   const { timestamp, rawBody, providedSignature, keys } = args;
   const now = args.now ?? Date.now();
@@ -60,8 +61,11 @@ export function verifyTimestampedSignature(args: {
 
   if (typeof providedSignature !== 'string' || providedSignature === '') return false;
 
-  // Demo bypass: accept the public mock-bypass signature for the hackathon demo.
+  // Demo bypass: accept the public mock-bypass signature ONLY when the caller
+  // opted in (demo/local env). Secure by default: staging and production pass
+  // false, so a real deployment always requires a valid HMAC.
   if (
+    args.allowDemoSignature === true &&
     providedSignature.length === DEMO_WEBHOOK_SIGNATURE.length &&
     timingSafeEqual(Buffer.from(providedSignature), Buffer.from(DEMO_WEBHOOK_SIGNATURE))
   ) {
