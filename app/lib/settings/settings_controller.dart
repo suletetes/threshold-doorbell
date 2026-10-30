@@ -126,11 +126,21 @@ class SettingsController extends ChangeNotifier {
     ));
   }
 
+  /// Optional hook fired whenever the person-at-door haptic toggle changes
+  /// (FR-9.2). The composition root sets this to mirror the setting into the
+  /// doorbell alert service, so a disabled haptic means a silent (visual only)
+  /// ring. Kept as a callback so this controller stays free of any platform
+  /// plugin and remains unit-testable.
+  void Function(bool enabled)? onPersonAtDoorHapticChanged;
+
   /// Enable or disable a single haptic pattern (FR-10.3).
   void setHapticEnabled(HapticEvent event, bool enabled) {
     final next = Map<HapticEvent, bool>.from(_settings.hapticEnabled);
     next[event] = enabled;
     _update(_settings.copyWith(hapticEnabled: next));
+    if (event == HapticEvent.personAtDoor) {
+      onPersonAtDoorHapticChanged?.call(enabled);
+    }
   }
 
   /// Toggle the screen strobe / torch (off by default, FR-9.4).

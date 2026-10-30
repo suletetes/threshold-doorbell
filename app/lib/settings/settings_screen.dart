@@ -26,8 +26,10 @@
 // The inline `_section` helper, with its raw fontSize of 18 and raw w700, is gone.
 
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 import '../alerts/haptic_vocabulary.dart';
+import '../alerts/doorbell_alert_service.dart';
 import '../alerts/strobe_config.dart';
 import '../captions/language_selection.dart';
 import '../design/colors.dart';
@@ -156,7 +158,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           SwitchListTile(
             key: const ValueKey('strobe-toggle'),
-            title: const Text('Screen strobe and torch alert'),
+            title: const Text('Screen flash alert'),
             subtitle:
                 const Text('Off by default. Capped at 2 flashes per second.'),
             value: s.strobeEnabled,
@@ -172,6 +174,18 @@ class SettingsScreen extends StatelessWidget {
               message: kStrobePhotosensitivityWarning,
             ),
           ),
+          const SectionHeader(title: 'Test the doorbell alert', dense: true),
+          Semantics(
+            label: 'Explanation of the doorbell alert test',
+            child: Text(
+              'Play the vibration and show the full screen alert now, so you '
+              'know what a doorbell press feels and looks like.',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(height: Spacing.space2),
+          const _TestAlertButton(),
           const SectionHeader(title: 'Haptic reference', dense: true),
           for (final pattern in HapticVocabulary.all)
             Semantics(
@@ -387,6 +401,62 @@ class _ModeSwitch extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A button that plays the doorbell alert (vibration plus the call-style
+/// notification) for a few seconds so the resident can feel and see it. Self
+/// contained and best effort: if the platform binding is unavailable (tests),
+/// the taps are harmless no-ops.
+class _TestAlertButton extends StatefulWidget {
+  const _TestAlertButton();
+
+  @override
+  State<_TestAlertButton> createState() => _TestAlertButtonState();
+}
+
+class _TestAlertButtonState extends State<_TestAlertButton> {
+  bool _playing = false;
+  Timer? _stop;
+
+  Future<void> _play() async {
+    if (_playing) return;
+    setState(() => _playing = true);
+    try {
+      await DoorbellAlertService.shared.startRing(
+        vibrationEnabled:
+            DoorbellAlertService.personAtDoorHapticEnabled,
+      );
+    } catch (_) {}
+    _stop = Timer(const Duration(seconds: 3), () async {
+      try {
+        await DoorbellAlertService.shared.stopRing();
+      } catch (_) {}
+      if (mounted) setState(() => _playing = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _stop?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Test the doorbell alert',
+      excludeSemantics: true,
+      child: OutlinedButton.icon(
+        key: const ValueKey('test-doorbell-alert'),
+        onPressed: _playing ? null : _play,
+        icon: Icon(_playing
+            ? Icons.vibration_rounded
+            : Icons.notifications_active_outlined),
+        label: Text(_playing ? 'Playing the alert' : 'Test the doorbell alert'),
+      ),
     );
   }
 }
