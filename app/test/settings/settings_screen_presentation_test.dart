@@ -162,7 +162,7 @@ void main() {
           'haptic ${p.label}':
               find.bySemanticsLabel(RegExp('Haptic alert: ${p.label}')),
         'strobe':
-            find.bySemanticsLabel(RegExp('Screen strobe and torch alert')),
+            find.bySemanticsLabel(RegExp('Screen flash alert')),
         for (final p in HapticVocabulary.all)
           'haptic ref ${p.label}':
               find.bySemanticsLabel(RegExp('Haptic pattern: ${p.label}')),

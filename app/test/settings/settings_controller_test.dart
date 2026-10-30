@@ -7,6 +7,22 @@ import 'package:threshold/settings/settings_controller.dart';
 import 'package:threshold/settings/settings_state.dart';
 
 void main() {
+  group('person-at-door haptic hook (FR-9.2)', () {
+    test('fires onPersonAtDoorHapticChanged only for the person-at-door event',
+        () {
+      final c = SettingsController(erasure: FakeDataErasurePort());
+      final seen = <bool>[];
+      c.onPersonAtDoorHapticChanged = seen.add;
+
+      c.setHapticEnabled(HapticEvent.motion, false);
+      expect(seen, isEmpty, reason: 'motion must not fire the door hook');
+
+      c.setHapticEnabled(HapticEvent.personAtDoor, false);
+      c.setHapticEnabled(HapticEvent.personAtDoor, true);
+      expect(seen, <bool>[false, true]);
+    });
+  });
+
   group('ThresholdSettings model (Task 24, FR-10.2, NFR-2; AT-9)', () {
     test('defaults: Clarity, scale 1.0, strobe off, all haptics on, en-US', () {
       final s = ThresholdSettings.defaults();

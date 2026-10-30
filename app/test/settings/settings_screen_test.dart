@@ -190,7 +190,7 @@ void main() {
       expect(sliderValue, contains('Caption text size'));
       await tester.scrollUntilVisible(
           find.byKey(const ValueKey('strobe-toggle')), 200);
-      expect(find.bySemanticsLabel(RegExp('Screen strobe and torch alert')),
+      expect(find.bySemanticsLabel(RegExp('Screen flash alert')),
           findsOneWidget);
       await tester.scrollUntilVisible(
           find.byKey(const ValueKey('delete-all-data')), 200);
