@@ -19,6 +19,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'alerts/doorbell_alert_service.dart';
+import 'alerts/haptic_vocabulary.dart';
 import 'app/mock_adapters.dart';
 import 'app/production_adapters.dart';
 import 'app/providers.dart';
@@ -50,6 +52,16 @@ Future<List<Override>> bootstrapOverrides() async {
     erasure: ProductionDataErasurePort(),
     store: settingsStore,
   );
+  // DEMO: mirror the person-at-door haptic setting into the doorbell alert
+  // service, so the looping ring vibration honours the resident's toggle. Seed
+  // the current value and keep it in sync on change.
+  if (DemoConfig.enabled) {
+    DoorbellAlertService.personAtDoorHapticEnabled =
+        settingsController.settings.hapticEnabled[HapticEvent.personAtDoor] ??
+            true;
+    settingsController.onPersonAtDoorHapticChanged =
+        (enabled) => DoorbellAlertService.personAtDoorHapticEnabled = enabled;
+  }
   return <Override>[
     consentStoreProvider.overrideWith((ref) => consentStore as ConsentStore),
     settingsStoreProvider.overrideWith((ref) => settingsStore as SettingsStore),

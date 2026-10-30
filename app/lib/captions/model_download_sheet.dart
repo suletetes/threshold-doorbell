@@ -136,12 +136,11 @@ class _OptInBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantic = ThresholdSemanticColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         if (snapshot.state == ModelState.failed) ...<Widget>[
-          _ErrorBadge(message: 'Verification failed. Please try again.'),
+          const _ErrorBadge(message: 'Verification failed. Please try again.'),
           const SizedBox(height: Spacing.space4),
         ],
         // Size disclosure (FR-5.2a): must appear before the download starts.
