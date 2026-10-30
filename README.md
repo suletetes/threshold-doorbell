@@ -33,6 +33,19 @@ Resident taps a reply  →  text-to-speech  →  doorbell speaker  →  visitor 
 The insight: Ring's WebRTC audio channel is **bidirectional** (`sendrecv`), but Amazon's own sample uses
 only the inbound half. Threshold is built on the channel everyone else leaves idle.
 
+## Try the live demo
+
+The backend is deployed and live on AWS. You can try the visitor side right now,
+no install needed:
+
+- **Visitor page (Phone A):** [`https://threshold-demo.duckdns.org/`](https://threshold-demo.duckdns.org/)
+- **Backend health check:** [`https://threshold-demo.duckdns.org/ready`](https://threshold-demo.duckdns.org/ready) returns `{"ready":true}`
+
+To run the full two-phone demo, open the visitor page on one phone and install
+the resident app on another. The step by step guide is in
+[`docs/hackathon/BUILDING_THE_APK.md`](docs/hackathon/BUILDING_THE_APK.md).
+Both phones must use the same Device ID (default `mock-doorbell-001`).
+
 ## Architecture
 
 ![System overview](docs/hackathon/diagrams/01-system-overview.svg)
@@ -172,27 +185,6 @@ that is reusable and extractable. It is not currently published to pub.dev
 (its `publish_to` is intentionally set to `none`); it is consumed from this
 repository via a git dependency.
 
-## Status
-
-Under active implementation against `.kiro/specs/threshold-doorbell/tasks.md`.
-The device-independent product logic (captions, alerts, sticky outbound mode,
-connectivity, language, model provisioning, vision) and the backend request
-handling (OAuth with PKCE, webhook, devices and events, signaling broker, ASR
-relay, transcripts, replies, observability) are covered by fixture-based tests.
-The backend OAuth-with-PKCE flow is implemented and tested, but sign-in is not
-yet end-to-end on device: the native Android deep-link handoff that delivers the
-one-time code to the app (threshold://auth/complete to POST /oauth/exchange) and
-the live backend session client (ProductionAuthPort) are part of the deferred
-device adapters. The app ships the deep-link parser and exchange contract, so
-the server-side handoff is wired, while the live link listener and HTTPS client
-remain to be bound on a device.
-The production adapters are not built: in a release build the live session,
-speak, Ring launch, smart replies and data erase paths throw, the backend wires
-in-memory fixtures in every environment, and the KMS token store is planned
-rather than implemented. The live WebView session, real permissions and the
-on-device latency and a11y device passes remain to be done on a developer
-machine with Ring credentials, not in CI. The authoritative state is tracked in
-`.kiro/specs/threshold-doorbell/`.
 
 ## Getting started
 

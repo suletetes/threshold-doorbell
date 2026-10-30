@@ -63,7 +63,7 @@ flutter run \
   --dart-define=BACKEND_URL=http://<AlbDnsName>:80
 ```
 
-(For the local two-phone demo instead, see `docs/hackathon/DEMO_RUNBOOK.md`.)
+(For the local two-phone demo instead, see `docs/hackathon/BUILDING_THE_APK.md`.)
 
 ## Teardown (important for cost)
 
@@ -89,7 +89,7 @@ npx cdk destroy
 > The NAT gateway + ALB are the bulk of the cost and both bill hourly while the
 > stack exists. `cdk destroy` between demos drops the cost to zero. For a purely
 > local demo (no AWS), run the backend with `npm run dev` and use
-> `docs/hackathon/DEMO_RUNBOOK.md` - no stack needed.
+> `docs/hackathon/BUILDING_THE_APK.md` - no stack needed.
 
 ## Troubleshooting
 

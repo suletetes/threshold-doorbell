@@ -137,7 +137,8 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 5. Speak on Phone A. Captions appear on Phone B.
 6. Tap a reply on Phone B. Phone A speaks it aloud.
 
-See `docs/hackathon/DEMO_RUNBOOK.md` for the full walkthrough and a judge script.
+Step 4 above is the full two-phone walkthrough, and the troubleshooting section
+below covers the common snags.
 
 ---
 
@@ -239,4 +240,4 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
 Visitor page: `https://threshold-demo.duckdns.org/`
-Full demo script: `docs/hackathon/DEMO_RUNBOOK.md`
+Two-phone walkthrough: Step 4 of this guide.
