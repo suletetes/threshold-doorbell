@@ -4,9 +4,36 @@ import {
   computeTimestampedSignature,
   verifySignature,
   verifyTimestampedSignature,
+  DEMO_WEBHOOK_SIGNATURE,
 } from '../../src/security/hmac.js';
 
 const KEY = 'webhook-key';
+
+describe('demo webhook signature scoping (security)', () => {
+  const body = '{"request_id":"r1"}';
+  it('accepts the public mock-bypass signature ONLY when demo bypass is allowed', () => {
+    expect(
+      verifyTimestampedSignature({
+        timestamp: undefined,
+        rawBody: body,
+        providedSignature: DEMO_WEBHOOK_SIGNATURE,
+        keys: [KEY],
+        allowDemoSignature: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects the mock-bypass signature by default (secure default, staging/prod)', () => {
+    expect(
+      verifyTimestampedSignature({
+        timestamp: undefined,
+        rawBody: body,
+        providedSignature: DEMO_WEBHOOK_SIGNATURE,
+        keys: [KEY],
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('HMAC webhook verification (FR-3.1)', () => {
   it('verifies a correct signature', () => {

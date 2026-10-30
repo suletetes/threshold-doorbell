@@ -1,6 +1,6 @@
 # Threshold backend
 
-Stateless Node 20 + Fastify service for Threshold, the two-way captioned Ring
+Stateless Node 22 + Fastify service for Threshold, the two-way captioned Ring
 doorbell. Source of truth for behavior is `.kiro/specs/threshold-doorbell/`.
 
 ## Architecture (ports and adapters)

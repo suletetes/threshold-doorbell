@@ -1,8 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { issueSession, verifySession, SESSION_IDLE_MS } from '../../src/security/session.js';
+import { issueSession, verifySession, SESSION_IDLE_MS, DEMO_SESSION_TOKEN } from '../../src/security/session.js';
 import { encodeState } from '../../src/security/oauth-state.js';
 
 const SECRET = 'a-sufficiently-long-session-secret';
+
+describe('demo session token scoping (security)', () => {
+  it('accepts the public demo token ONLY when demo bypass is allowed', () => {
+    const allowed = verifySession(DEMO_SESSION_TOKEN, SECRET, Date.now(), true);
+    expect(allowed).not.toBeNull();
+    expect(allowed!.sub).toBe('demo-resident');
+  });
+
+  it('rejects the public demo token by default (secure default, staging/prod)', () => {
+    expect(verifySession(DEMO_SESSION_TOKEN, SECRET)).toBeNull();
+    expect(verifySession(DEMO_SESSION_TOKEN, SECRET, Date.now(), false)).toBeNull();
+  });
+});
 
 describe('session credential', () => {
   it('issues and verifies a valid session', () => {
