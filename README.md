@@ -222,6 +222,19 @@ Full device testing needs a Ring developer account, an OAuth app, and a Ring
 Protection plan. See `docs/hackathon/threshold-spec.md` for the plan and
 `.kiro/ENVIRONMENT.md` for the verified toolchain.
 
+To build and install the Android APK for the two phone demo, follow the
+step by step guide in
+[`docs/hackathon/BUILDING_THE_APK.md`](docs/hackathon/BUILDING_THE_APK.md).
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [Building the APK](docs/hackathon/BUILDING_THE_APK.md) | Step by step guide to build and install the Android app for the two phone demo. |
+| [AWS architecture](docs/hackathon/AWS_ARCHITECTURE.md) | The deployed AWS design: rendered deployment diagrams, C4 context, data and security, AI services. |
+| [Diagram index](docs/hackathon/diagrams/README.md) | All architecture diagrams, sources, and how to regenerate them. |
+| [Presentation](docs/hackathon/presentation.html) | The slide deck for the pitch. Open in any browser. |
+
 ## License
 
 [MIT](./LICENSE)
