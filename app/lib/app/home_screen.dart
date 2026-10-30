@@ -153,7 +153,12 @@ class HomeScreen extends ConsumerWidget {
     final settings = ref.read(settingsControllerProvider).settings;
     final replyPort = ref.read(replyPortProvider);
 
-    Future<void> stopAlert() => DoorbellAlertService.shared.stopRing();
+    Future<void> stopAlert() async {
+      await DoorbellAlertService.shared.stopRing();
+      // Clear the hub's ring dedupe flag so the NEXT doorbell press alerts
+      // again (answer, decline, and missed all end this ring).
+      if (DemoConfig.enabled) DemoHub.instance.resetRing();
+    }
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(

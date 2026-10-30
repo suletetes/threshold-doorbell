@@ -93,6 +93,11 @@ class DemoHub {
   bool _connected = false;
   bool _connecting = false;
 
+  /// True while a ring is being alerted, so repeated 'ring' retry frames from
+  /// the visitor are acked but only alert the resident once. Reset by
+  /// [resetRing] (on answer/decline/end) and on an incoming hangup.
+  bool _ringActive = false;
+
   /// Fired when the visitor presses Ring.
   final _ringController = StreamController<void>.broadcast();
   Stream<void> get onRing => _ringController.stream;
@@ -155,8 +160,19 @@ class DemoHub {
             }
             break;
           case 'ring':
-            _log('HUB <- RING from visitor');
-            _ringController.add(null);
+            // Acknowledge every ring frame so the visitor stops resending
+            // (the visitor retries until it hears this ack, which survives a
+            // single dropped frame through the load balancer). But only alert
+            // the resident ONCE per ring: dedupe repeated frames so the phone
+            // does not buzz on every retry.
+            sendRingAck();
+            if (!_ringActive) {
+              _ringActive = true;
+              _log('HUB <- RING from visitor');
+              _ringController.add(null);
+            } else {
+              _log('HUB <- RING (duplicate, already alerting) acked');
+            }
             break;
           case 'caption':
             final text = msg['text'];
@@ -174,6 +190,7 @@ class DemoHub {
             break;
           case 'hangup':
             _log('HUB <- hangup from visitor');
+            _ringActive = false;
             _hangupController.add(null);
             break;
           case 'no-peer':
@@ -223,6 +240,14 @@ class DemoHub {
   void sendReply(String text) => send(<String, dynamic>{'type': 'reply', 'text': text});
   void sendHangup() => send(<String, dynamic>{'type': 'hangup'});
   void sendDecline() => send(<String, dynamic>{'type': 'decline'});
+
+  /// Acknowledge a ring so the visitor stops its resend loop (reliable ring
+  /// delivery over a lossy load balancer).
+  void sendRingAck() => send(<String, dynamic>{'type': 'ring-ack'});
+
+  /// Clear the ring-alerting flag so the next doorbell press alerts again.
+  /// Called when the resident answers, declines, or the session ends.
+  void resetRing() => _ringActive = false;
 
   Future<void> dispose() async {
     try {

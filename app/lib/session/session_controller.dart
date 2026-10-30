@@ -61,7 +61,7 @@ class SessionController extends ChangeNotifier {
 
   /// The sticky outbound-mode machine for THIS session. A new session must use a
   /// new machine so it re-probes from scratch (FR-6.4b); we replace it on start.
-  OutboundModeMachine _outbound = OutboundModeMachine();
+  final OutboundModeMachine _outbound = OutboundModeMachine();
 
   /// Accumulates live caption results into labeled turns (FR-5.5, FR-5.7). The
   /// caption surface renders these; a new session starts a fresh accumulator.
@@ -179,7 +179,8 @@ class SessionController extends ChangeNotifier {
     _stateBeforeAuthRecovery = null;
     _errorMessage = null;
     _media = null;
-    _outbound = OutboundModeMachine(); // fresh: re-probe from scratch (FR-6.4b)
+    _outbound.reset(); // fresh: re-probe from scratch (FR-6.4b), in place so
+    // the reply controller's captured reference stays valid (sees this session)
     _captions = TurnAccumulator(); // fresh caption turns for the new session
     _transcriptionAllowed =
         true; // re-evaluate the FR-14.3a fallback per session

@@ -79,4 +79,14 @@ class OutboundModeMachine {
 
   /// True once the probe has run (the reply bar is only enabled after this).
   bool get hasProbed => _probed;
+
+  /// Reset the machine in place for a new session (FR-6.4b): back to unprobed so
+  /// the next session re-probes from scratch. Done in place rather than by
+  /// constructing a new instance, so any holder of this machine (the reply
+  /// controller captured it when the session opened) keeps a valid reference and
+  /// sees the new session's probe result instead of a stale one.
+  void reset() {
+    _state = OutboundState.unprobed;
+    _probed = false;
+  }
 }
