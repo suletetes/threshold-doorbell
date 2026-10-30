@@ -10,6 +10,7 @@ import rateLimit from '@fastify/rate-limit';
 import staticFiles from '@fastify/static';
 import websocket from '@fastify/websocket';
 import type { Container } from './container.js';
+import { allowsDemoBypass } from './config.js';
 import { AppError, errors } from './domain/errors.js';
 import { correlatedLogger } from './observability/logger.js';
 import { SESSION_COOKIE, verifySession, type SessionClaims } from './security/session.js';
@@ -144,7 +145,12 @@ export async function buildApp(container: Container): Promise<FastifyInstance> {
       const bearer = extractBearer(request);
       const cookieToken = request.cookies?.[SESSION_COOKIE];
       const token = bearer ?? cookieToken;
-      const claims = verifySession(token, container.config.sessionSecret);
+      const claims = verifySession(
+        token,
+        container.config.sessionSecret,
+        Date.now(),
+        allowsDemoBypass(container.config.env),
+      );
       if (!claims) {
         // A single unified failure signal; the app runs one recovery flow (FR-1.5).
         throw errors.unauthorized();

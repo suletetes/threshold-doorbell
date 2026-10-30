@@ -29,6 +29,18 @@ export function isDeployableEnv(env: DeploymentEnv): boolean {
   return !NON_DEPLOYABLE_ENVS.includes(env);
 }
 
+// Environments where the public demo bypasses (the fixed demo session token and
+// the `mock-bypass` webhook signature) are accepted. These exist only so the
+// two-phone hackathon demo works without a real OAuth flow or a computed HMAC.
+// Staging and production are NOT in this set, so those bypasses can never be
+// used against a real deployment even though the literals are public in source.
+const DEMO_BYPASS_ENVS: readonly DeploymentEnv[] = ['local', 'demo', 'test'];
+
+/** True when the public demo auth bypasses may be accepted (demo/local/test). */
+export function allowsDemoBypass(env: DeploymentEnv): boolean {
+  return DEMO_BYPASS_ENVS.includes(env);
+}
+
 // Insecure defaults used ONLY in local/demo/test. If any of these is still in
 // use outside "local", loadConfig throws (MED-32).
 const DEFAULT_SESSION_SECRET = 'local-dev-session-secret-change-me';
