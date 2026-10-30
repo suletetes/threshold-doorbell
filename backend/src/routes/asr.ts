@@ -20,6 +20,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
 import { authenticateWs } from '../security/ws-auth.js';
+import { allowsDemoBypass } from '../config.js';
 import { AsrReplayBuffer } from '../services/asr-replay-buffer.js';
 import type {
   AudioChunk,
@@ -82,6 +83,7 @@ export async function registerAsrRoutes(app: FastifyInstance): Promise<void> {
       sessionSecret,
       wsAllowedOrigins,
       app.container.sessionInvalidation,
+      allowsDemoBypass(app.container.config.env),
     );
     if (claims === null) {
       // Defer so the client has attached its listeners before the error frame

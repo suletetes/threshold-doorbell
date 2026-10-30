@@ -6,6 +6,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { errors } from '../domain/errors.js';
 import { verifyTimestampedSignature } from '../security/hmac.js';
+import { allowsDemoBypass } from '../config.js';
 import { parseWebhook, WebhookService } from '../services/webhook-service.js';
 import { getLogger } from '../observability/logger.js';
 
@@ -71,6 +72,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
         rawBody,
         providedSignature: signature,
         keys: config.webhookHmacKeys,
+        allowDemoSignature: allowsDemoBypass(config.env),
       })
     ) {
       throw errors.badSignature();

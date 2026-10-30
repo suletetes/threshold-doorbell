@@ -18,6 +18,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
 import { authenticateWs } from '../security/ws-auth.js';
+import { allowsDemoBypass } from '../config.js';
 import {
   DeviceNotAuthorizedError,
   SessionAlreadyActiveError,
@@ -62,6 +63,7 @@ export async function registerSignalingRoutes(app: FastifyInstance): Promise<voi
       sessionSecret,
       wsAllowedOrigins,
       app.container.sessionInvalidation,
+      allowsDemoBypass(app.container.config.env),
     );
     if (!claims) {
       // Send a typed error frame then close 4401 so the app runs the unified
